@@ -1,0 +1,47 @@
+{
+  "name": "padelconnect",
+  "version": "1.0.0",
+  "description": "Plateforme multi-tenant de mise en relation de joueurs de padel",
+  "main": "src/app.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "nodemon src/app.js",
+    "dev:frontend": "cd client && npm run dev",
+    "start": "node src/app.js",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --runInBand --coverage"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "knex": "^3.1.0",
+    "pg": "^8.12.0",
+    "dotenv": "^16.4.5",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.3.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.1.4",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/*.test.js"],
+    "coverageThreshold": {
+      "global": {
+        "lines": 70
+      }
+    },
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/client/",
+      "/migrations/",
+      "/seeds/"
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+require('dotenv').config();
+
+const express = require('express');
+const helmet = require('helmet');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+
+const db = require('./db');
+
+const app = express();
+
+app.use(helmet());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  credentials: true,
+}));
+app.use(express.json());
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { status: 429, error: 'Too Many Requests', message: 'Trop de tentatives. Réessayez dans 15 minutes.' },
+});
+app.use('/api/auth', authLimiter);
+
+app.get('/healthz', async (req, res) => {
+  let dbStatus = 'ok';
+  try {
+    await db.raw('SELECT 1');
+  } catch {
+    dbStatus = 'error';
+  }
+  res.json({
+    status: 'ok',
+    db: dbStatus,
+    uptime: Math.floor(process.uptime()),
+  });
+});
+
+app.use((req, res) => {
+  res.status(404).json({ status: 404, error: 'Not Found', message: 'Route introuvable.' });
+});
+
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  const status = err.status || 500;
+  if (process.env.NODE_ENV === 'production') {
+    res.status(status).json({ status, error: err.name || 'Error', message: err.message });
+  } else {
+    res.status(status).json({ status, error: err.name || 'Error', message: err.message, stack: err.stack });
+  }
+});
+
+const PORT = process.env.PORT || 4000;
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(JSON.stringify({ level: 'info', msg: `PadelConnect listening on port ${PORT}`, env: process.env.NODE_ENV }));
+  });
+}
+
+module.exports = app;

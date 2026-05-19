@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: padelconnect_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: padelconnect
+      POSTGRES_PASSWORD: padelconnect
+      POSTGRES_DB: padelconnect_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U padelconnect -d padelconnect_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
