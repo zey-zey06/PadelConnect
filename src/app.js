@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const db = require('./db');
 const authRouter = require('./auth/auth.controller');
 const profileRouter = require('./features/profiles/profile.controller');
+const sessionsRouter = require('./features/sessions/sessions.controller');
 
 const app = express();
 
@@ -31,6 +32,7 @@ const authLimiter = rateLimit({
 app.use('/api/auth', authLimiter);
 app.use('/api/auth', authRouter);
 app.use('/api/profile', profileRouter);
+app.use('/api/sessions', sessionsRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';
