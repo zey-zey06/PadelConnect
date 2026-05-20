@@ -18,6 +18,7 @@ const bookingsRouter = require('./features/bookings/bookings.controller');
 const { penaltiesRouter, adminRouter } = require('./features/penalties/penalties.controller');
 const notificationsRouter = require('./features/notifications/notifications.controller');
 const adminDashboardRouter = require('./features/admin/admin.controller');
+const calendarRouter = require('./features/calendar/calendar.controller');
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use('/api/penalties', penaltiesRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/admin', adminDashboardRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/calendar', calendarRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';
@@ -80,6 +82,11 @@ app.use((err, req, res, next) => {
     res.status(status).json({ status, error: err.name || 'Error', message: err.message, stack: err.stack });
   }
 });
+
+// Start the daily reminder cron job in non-test environments
+if (process.env.NODE_ENV !== 'test') {
+  require('./jobs/reminder');
+}
 
 const PORT = process.env.PORT || 4000;
 
