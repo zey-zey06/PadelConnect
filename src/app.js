@@ -17,6 +17,7 @@ const { coachesRouter, clubCoachesRouter } = require('./features/coaches/coaches
 const bookingsRouter = require('./features/bookings/bookings.controller');
 const { penaltiesRouter, adminRouter } = require('./features/penalties/penalties.controller');
 const notificationsRouter = require('./features/notifications/notifications.controller');
+const adminDashboardRouter = require('./features/admin/admin.controller');
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use('/api/coaches', coachesRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/penalties', penaltiesRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/admin', adminDashboardRouter);
 app.use('/api/notifications', notificationsRouter);
 
 app.get('/healthz', async (req, res) => {
