@@ -62,9 +62,15 @@ export default function Login() {
     setUnverified(false);
     try {
       const data = await login(form);
-      setUser(data.user);
-
       const role = data.user.role;
+
+      // Super-admin must use the dedicated portal
+      if (role === 'super_admin') {
+        setError('Utilisez le portail administrateur (/admin/login).');
+        return;
+      }
+
+      setUser(data.user);
 
       // Non-player roles go straight to their dashboard
       if (ROLE_REDIRECTS[role]) {

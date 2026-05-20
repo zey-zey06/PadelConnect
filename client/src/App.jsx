@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect, createContext, useContext } from 'react';
 import Login            from '@/pages/Login';
 import Signup           from '@/pages/Signup';
+import AdminLogin       from '@/pages/AdminLogin';
 import VerifyEmail      from '@/pages/VerifyEmail';
 import ProfileSetup     from '@/pages/ProfileSetup';
 import Dashboard        from '@/pages/Dashboard';
@@ -91,6 +92,7 @@ export default function App() {
           <Route path="/login"        element={<PublicRoute><Login  /></PublicRoute>} />
           <Route path="/signup"       element={<PublicRoute><Signup /></PublicRoute>} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/admin/login"  element={<AdminLogin />} />
 
           {/* ── Profile setup — auth required, profile not required ─ */}
           <Route

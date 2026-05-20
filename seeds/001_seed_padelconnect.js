@@ -56,7 +56,8 @@ exports.seed = async function (knex) {
   await knex('organizations').del();
 
   const now = new Date();
-  const hash = await bcrypt.hash('Password123!', BCRYPT_COST);
+  const hash      = await bcrypt.hash('Password123!', BCRYPT_COST);
+  const adminHash = await bcrypt.hash('Admin2026!',   BCRYPT_COST);
 
   // ── Organizations ────────────────────────────────────────────────
   await knex('organizations').insert([
@@ -80,6 +81,19 @@ exports.seed = async function (knex) {
 
   // ── Users ────────────────────────────────────────────────────────
   await knex('users').insert([
+    // Super admin
+    {
+      id: 'ffffffff-0001-0001-0001-000000000001',
+      organization_id: null,
+      email: 'admin@padelconnect.ci',
+      password_hash: adminHash,
+      role: 'super_admin',
+      status: 'active',
+      email_verified: true,
+      no_show_count: 0,
+      created_at: now,
+      updated_at: now,
+    },
     // Venue admins
     {
       id: IDS.admin1,
@@ -88,6 +102,7 @@ exports.seed = async function (knex) {
       password_hash: hash,
       role: 'venue_admin',
       status: 'active',
+      email_verified: true,
       no_show_count: 0,
       created_at: now,
       updated_at: now,
@@ -99,6 +114,7 @@ exports.seed = async function (knex) {
       password_hash: hash,
       role: 'venue_admin',
       status: 'active',
+      email_verified: true,
       no_show_count: 0,
       created_at: now,
       updated_at: now,
@@ -111,6 +127,7 @@ exports.seed = async function (knex) {
       password_hash: hash,
       role: 'player',
       status: 'active',
+      email_verified: true,
       no_show_count: 0,
       created_at: now,
       updated_at: now,
@@ -122,6 +139,7 @@ exports.seed = async function (knex) {
       password_hash: hash,
       role: 'player',
       status: 'active',
+      email_verified: true,
       no_show_count: 0,
       created_at: now,
       updated_at: now,
@@ -133,6 +151,7 @@ exports.seed = async function (knex) {
       password_hash: hash,
       role: 'player',
       status: 'active',
+      email_verified: true,
       no_show_count: 0,
       created_at: now,
       updated_at: now,
@@ -144,6 +163,7 @@ exports.seed = async function (knex) {
       password_hash: hash,
       role: 'player',
       status: 'active',
+      email_verified: true,
       no_show_count: 0,
       created_at: now,
       updated_at: now,
@@ -155,6 +175,7 @@ exports.seed = async function (knex) {
       password_hash: hash,
       role: 'player',
       status: 'active',
+      email_verified: true,
       no_show_count: 0,
       created_at: now,
       updated_at: now,
@@ -167,6 +188,7 @@ exports.seed = async function (knex) {
       password_hash: hash,
       role: 'coach',
       status: 'active',
+      email_verified: true,
       no_show_count: 0,
       created_at: now,
       updated_at: now,
@@ -178,6 +200,7 @@ exports.seed = async function (knex) {
       password_hash: hash,
       role: 'coach',
       status: 'active',
+      email_verified: true,
       no_show_count: 0,
       created_at: now,
       updated_at: now,
