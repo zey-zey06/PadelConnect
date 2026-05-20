@@ -3,9 +3,11 @@ require('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 
 const db = require('./db');
+const authRouter = require('./auth/auth.controller');
 
 const app = express();
 
@@ -15,15 +17,18 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use(cookieParser());
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
   message: { status: 429, error: 'Too Many Requests', message: 'Trop de tentatives. Réessayez dans 15 minutes.' },
 });
 app.use('/api/auth', authLimiter);
+app.use('/api/auth', authRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';
