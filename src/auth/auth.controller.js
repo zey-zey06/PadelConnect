@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { signupSchema, loginSchema } = require('./auth.validation');
-const { signup, login, getUserById } = require('./auth.service');
+const { signup, login, verifyEmail, getUserById } = require('./auth.service');
 const { signToken } = require('./jwt');
 const authenticate = require('../middleware/authenticate');
 
@@ -23,14 +23,11 @@ async function signupHandler(req, res, next) {
     }
 
     const user = await signup(value);
-    const token = signToken({
-      sub: user.id,
-      role: user.role,
-      organization_id: user.organization_id,
+    // No JWT cookie — user must verify email first
+    return res.status(201).json({
+      message: 'Un email de vérification a été envoyé. Vérifiez votre boîte mail.',
+      user: { id: user.id, email: user.email, role: user.role },
     });
-
-    res.cookie('token', token, COOKIE_OPTIONS);
-    return res.status(201).json({ user });
   } catch (err) {
     next(err);
   }
@@ -57,6 +54,35 @@ async function loginHandler(req, res, next) {
     res.cookie('token', token, COOKIE_OPTIONS);
     return res.json({ user });
   } catch (err) {
+    if (err.code === 'EMAIL_NOT_VERIFIED') {
+      return res.status(401).json({
+        status: 401,
+        error: 'Email Not Verified',
+        code: 'EMAIL_NOT_VERIFIED',
+        message: err.message,
+      });
+    }
+    next(err);
+  }
+}
+
+async function verifyEmailHandler(req, res, next) {
+  try {
+    const { token } = req.query;
+    if (!token || typeof token !== 'string' || !token.trim()) {
+      return res.status(400).json({
+        status: 400,
+        error: 'Bad Request',
+        message: 'Token de vérification manquant.',
+      });
+    }
+
+    const user = await verifyEmail(token.trim());
+    return res.json({
+      message: 'Email vérifié avec succès. Vous pouvez maintenant vous connecter.',
+      user: { id: user.id, email: user.email, role: user.role },
+    });
+  } catch (err) {
     next(err);
   }
 }
@@ -82,6 +108,7 @@ async function meHandler(req, res, next) {
 const router = Router();
 router.post('/signup', signupHandler);
 router.post('/login', loginHandler);
+router.get('/verify-email', verifyEmailHandler);
 router.post('/logout', logoutHandler);
 router.get('/me', authenticate, meHandler);
 

@@ -24,3 +24,10 @@ export const logout = () => client.post('/auth/logout');
  * →  { user }
  */
 export const me = () => client.get('/auth/me');
+
+/**
+ * GET /api/auth/verify-email?token=
+ * →  { message, user }
+ */
+export const verifyEmail = (token) =>
+  client.get(`/auth/verify-email?token=${encodeURIComponent(token)}`);
