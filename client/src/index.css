@@ -4,36 +4,37 @@
 
 @layer base {
   :root {
-    /* ── Dark green theme (always dark) ───────────────── */
-    --background:           120 33% 6%;
-    --foreground:           138 50% 95%;
+    /* ── Warm premium palette ──────────────────────────────────────────── */
 
-    --card:                 120 28% 9%;
-    --card-foreground:      138 50% 95%;
+    --background:             36 33% 97%;   /* #FAF8F5  warm off-white       */
+    --foreground:             60  2% 11%;   /* #1C1C1A  warm near-black      */
 
-    --popover:              120 28% 9%;
-    --popover-foreground:   138 50% 95%;
+    --card:                    0  0% 100%;  /* #FFFFFF  pure white           */
+    --card-foreground:        60  2% 11%;
 
-    --primary:              142 68% 42%;
-    --primary-foreground:   138 50% 97%;
+    --popover:                 0  0% 100%;
+    --popover-foreground:     60  2% 11%;
 
-    --secondary:            120 20% 14%;
-    --secondary-foreground: 120 25% 80%;
+    --primary:               149 40% 17%;   /* #1A3D2B  deep forest green    */
+    --primary-foreground:     36 33% 97%;   /* #FAF8F5  warm off-white       */
 
-    --muted:                120 18% 12%;
-    --muted-foreground:     120 12% 55%;
+    --secondary:             153 40% 30%;   /* #2D6A4F  medium green         */
+    --secondary-foreground:    0  0% 100%;
 
-    --accent:               120 25% 16%;
-    --accent-foreground:    138 50% 95%;
+    --muted:                  33 16% 93%;   /* warm light grey               */
+    --muted-foreground:       60  2% 45%;   /* medium neutral grey           */
 
-    --destructive:          0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --accent:                150 30% 93%;   /* very light mint (hover wash)  */
+    --accent-foreground:     149 40% 17%;   /* dark green on light bg        */
 
-    --border:               120 22% 18%;
-    --input:                120 18% 15%;
-    --ring:                 142 68% 42%;
+    --destructive:             0 84% 60%;
+    --destructive-foreground:  0  0% 100%;
 
-    --radius:               0.75rem;
+    --border:                 33 16% 89%;   /* #E8E4DF  warm grey border     */
+    --input:                  33 16% 89%;   /* same — used for input borders */
+    --ring:                  149 40% 17%;   /* primary green focus ring      */
+
+    --radius:                 0.75rem;
   }
 
   * {
@@ -51,9 +52,9 @@
     margin: 0;
   }
 
-  /* Subtle custom scrollbar */
+  /* Subtle warm scrollbar */
   ::-webkit-scrollbar        { width: 6px; }
   ::-webkit-scrollbar-track  { background: hsl(var(--background)); }
   ::-webkit-scrollbar-thumb  { background: hsl(var(--border)); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }
 }

@@ -52,6 +52,11 @@ export default {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      boxShadow: {
+        card:       '0 2px 20px rgba(0,0,0,0.06)',
+        'card-md':  '0 4px 32px rgba(0,0,0,0.10)',
+        'card-lg':  '0 8px 48px rgba(0,0,0,0.12)',
+      },
     },
   },
   plugins: [],

@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
-  { to: '/sessions',      label: 'Sessions'    },
-  { to: '/calendar',      label: 'Calendrier'  },
-  { to: '/clubs',         label: 'Clubs'       },
+  { to: '/sessions',  label: 'Sessions'   },
+  { to: '/calendar',  label: 'Calendrier' },
+  { to: '/clubs',     label: 'Clubs'      },
 ];
 
 export default function Layout({ children }) {
@@ -26,32 +26,33 @@ export default function Layout({ children }) {
   return (
     <div className="min-h-screen bg-background">
 
-      {/* ── Navbar ────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+      {/* ── Navbar ─────────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-40 w-full border-b border-border bg-white/95 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
 
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0">
             <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xs">P</span>
+              <span className="text-white font-bold text-xs">P</span>
             </div>
-            <span className="text-lg font-bold text-foreground tracking-tight select-none">
-              Padel<span className="text-primary">Connect</span>
+            <span className="text-lg font-bold tracking-tight select-none">
+              <span className="text-foreground">Padel</span>
+              <span className="text-primary">Connect</span>
             </span>
           </Link>
 
           {/* Desktop navigation */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-0.5">
             {NAV_LINKS.map(({ to, label }) => (
               <NavLink
                 key={to}
                 to={to}
                 className={({ isActive }) =>
                   cn(
-                    'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                    'px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                      ? 'bg-accent text-primary font-semibold'
+                      : 'text-foreground/65 hover:text-foreground hover:bg-accent'
                   )
                 }
               >
@@ -68,11 +69,11 @@ export default function Layout({ children }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="relative"
+                className="relative text-foreground/60 hover:text-foreground hover:bg-accent"
                 aria-label="Notifications"
               >
-                <Bell className="h-4 w-4 text-muted-foreground" />
-                {/* Unread indicator dot */}
+                <Bell className="h-4 w-4" />
+                {/* Unread dot */}
                 <span
                   className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary"
                   aria-hidden="true"
@@ -80,8 +81,11 @@ export default function Layout({ children }) {
               </Button>
             </Link>
 
-            {/* User email (desktop only) */}
-            <span className="hidden md:block text-xs text-muted-foreground max-w-[140px] truncate mx-1">
+            {/* Divider (desktop) */}
+            <div className="hidden md:block w-px h-5 bg-border mx-1" />
+
+            {/* User email (desktop) */}
+            <span className="hidden md:block text-xs text-muted-foreground max-w-[160px] truncate">
               {user?.email}
             </span>
 
@@ -91,29 +95,27 @@ export default function Layout({ children }) {
               size="icon"
               onClick={handleLogout}
               aria-label="Se déconnecter"
+              className="text-foreground/60 hover:text-foreground hover:bg-accent ml-0.5"
             >
-              <LogOut className="h-4 w-4 text-muted-foreground" />
+              <LogOut className="h-4 w-4" />
             </Button>
 
             {/* Mobile hamburger */}
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className="md:hidden text-foreground/60"
               onClick={() => setMobileOpen((o) => !o)}
               aria-label={mobileOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
             >
-              {mobileOpen
-                ? <X    className="h-4 w-4" />
-                : <Menu className="h-4 w-4" />
-              }
+              {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </Button>
           </div>
         </div>
 
         {/* Mobile nav drawer */}
         {mobileOpen && (
-          <nav className="md:hidden border-t border-border bg-card px-4 py-3 space-y-1">
+          <nav className="md:hidden border-t border-border bg-white px-4 py-3 space-y-0.5">
             {NAV_LINKS.map(({ to, label }) => (
               <NavLink
                 key={to}
@@ -121,22 +123,25 @@ export default function Layout({ children }) {
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
                   cn(
-                    'block px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                    'block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                      ? 'bg-accent text-primary font-semibold'
+                      : 'text-foreground/65 hover:text-foreground hover:bg-accent'
                   )
                 }
               >
                 {label}
               </NavLink>
             ))}
+            <div className="pt-2 mt-2 border-t border-border">
+              <p className="px-3 py-1 text-xs text-muted-foreground truncate">{user?.email}</p>
+            </div>
           </nav>
         )}
       </header>
 
-      {/* ── Page content ──────────────────────────────────────────────────── */}
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6">
+      {/* ── Page content ────────────────────────────────────────────────── */}
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
         {children}
       </main>
     </div>
