@@ -11,6 +11,14 @@ const authRouter = require('./auth/auth.controller');
 const profileRouter = require('./features/profiles/profile.controller');
 const sessionsRouter = require('./features/sessions/sessions.controller');
 const requestsRouter = require('./features/sessions/requests.controller');
+const clubsRouter = require('./features/clubs/clubs.controller');
+const { clubVenuesRouter, venueSlotsRouter } = require('./features/venues/venues.controller');
+const { coachesRouter, clubCoachesRouter } = require('./features/coaches/coaches.controller');
+const bookingsRouter = require('./features/bookings/bookings.controller');
+const { penaltiesRouter, adminRouter } = require('./features/penalties/penalties.controller');
+const notificationsRouter = require('./features/notifications/notifications.controller');
+const adminDashboardRouter = require('./features/admin/admin.controller');
+const calendarRouter = require('./features/calendar/calendar.controller');
 
 const app = express();
 
@@ -35,6 +43,17 @@ app.use('/api/auth', authRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/sessions', requestsRouter);
+app.use('/api/clubs', clubsRouter);
+app.use('/api/clubs', clubVenuesRouter);
+app.use('/api/clubs', clubCoachesRouter);
+app.use('/api/venues', venueSlotsRouter);
+app.use('/api/coaches', coachesRouter);
+app.use('/api/bookings', bookingsRouter);
+app.use('/api/penalties', penaltiesRouter);
+app.use('/api/admin', adminRouter);
+app.use('/api/admin', adminDashboardRouter);
+app.use('/api/notifications', notificationsRouter);
+app.use('/api/calendar', calendarRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';
@@ -63,6 +82,11 @@ app.use((err, req, res, next) => {
     res.status(status).json({ status, error: err.name || 'Error', message: err.message, stack: err.stack });
   }
 });
+
+// Start the daily reminder cron job in non-test environments
+if (process.env.NODE_ENV !== 'test') {
+  require('./jobs/reminder');
+}
 
 const PORT = process.env.PORT || 4000;
 

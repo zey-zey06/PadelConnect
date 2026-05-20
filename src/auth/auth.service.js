@@ -1,7 +1,11 @@
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const db = require('../db');
+const notificationsService = require('../features/notifications/notifications.service');
+const { sendVerificationEmail } = require('../emails/verification');
 
 const BCRYPT_ROUNDS = 12;
+const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 async function signup({ email, password, role = 'player', organization_id = null }) {
   const existing = await db('users').where({ email }).whereNull('deleted_at').first();
@@ -12,10 +16,24 @@ async function signup({ email, password, role = 'player', organization_id = null
   }
 
   const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  const verification_token = crypto.randomBytes(32).toString('hex');
+  const verification_expires = new Date(Date.now() + VERIFICATION_TTL_MS);
 
   const [row] = await db('users')
     .insert({ email, password_hash, role, organization_id })
     .returning(['id', 'email', 'role', 'organization_id', 'status', 'created_at']);
+
+  await db('users').where({ id: row.id }).update({
+    email_verification_token: verification_token,
+    email_verification_expires_at: verification_expires,
+  });
+
+  // Fire-and-forget — don't block signup on side-effect failures
+  notificationsService
+    .createNotification(row.id, 'welcome', 'Bienvenue sur PadelConnect !')
+    .catch(() => {});
+
+  sendVerificationEmail(email, verification_token).catch(() => {});
 
   return {
     id: row.id,
@@ -42,12 +60,50 @@ async function login({ email, password }) {
     throw err;
   }
 
+  if (!user.email_verified) {
+    const err = new Error('Veuillez vérifier votre adresse email avant de vous connecter.');
+    err.status = 401;
+    err.code = 'EMAIL_NOT_VERIFIED';
+    throw err;
+  }
+
   return {
     id: user.id,
     email: user.email,
     role: user.role,
     organization_id: user.organization_id,
     status: user.status,
+  };
+}
+
+async function verifyEmail(token) {
+  const user = await db('users')
+    .where({ email_verification_token: token })
+    .whereNull('deleted_at')
+    .first();
+
+  if (!user) {
+    const err = new Error('Lien de vérification invalide ou déjà utilisé.');
+    err.status = 400;
+    throw err;
+  }
+
+  if (new Date(user.email_verification_expires_at) < new Date()) {
+    const err = new Error('Ce lien de vérification a expiré. Veuillez vous inscrire à nouveau.');
+    err.status = 400;
+    throw err;
+  }
+
+  await db('users').where({ id: user.id }).update({
+    email_verified: true,
+    email_verification_token: null,
+    email_verification_expires_at: null,
+  });
+
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
   };
 }
 
@@ -68,4 +124,4 @@ async function getUserById(id) {
   };
 }
 
-module.exports = { signup, login, getUserById };
+module.exports = { signup, login, verifyEmail, getUserById };

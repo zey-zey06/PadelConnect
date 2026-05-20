@@ -31,5 +31,8 @@ Thumbs.db
 .idea/
 *.swp
 
+# Claude Code
+.claude/
+
 # Docker volumes (local)
 pgdata/
