@@ -46,4 +46,17 @@ async function attachToClub(userId, organizationId) {
   return row;
 }
 
-module.exports = { listAvailable, getById, updateAvailability, getByOrg, getCoachUser, attachToClub };
+async function getSessionsByCoach(coachProfileId) {
+  return db('sessions')
+    .join('bookings', 'sessions.id', 'bookings.session_id')
+    .join('booking_addons', 'bookings.id', 'booking_addons.booking_id')
+    .join('coach_profiles', 'booking_addons.user_id', 'coach_profiles.user_id')
+    .where('coach_profiles.id', coachProfileId)
+    .where('booking_addons.type', 'coach')
+    .whereNull('bookings.deleted_at')
+    .whereNull('sessions.deleted_at')
+    .orderBy('sessions.date', 'desc')
+    .select('sessions.*');
+}
+
+module.exports = { listAvailable, getById, updateAvailability, getByOrg, getCoachUser, attachToClub, getSessionsByCoach };

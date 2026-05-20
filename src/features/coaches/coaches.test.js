@@ -18,6 +18,7 @@ jest.mock('../../db', () => {
     where: jest.fn().mockReturnThis(),
     whereNull: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
+    join: jest.fn().mockReturnThis(),
     select: jest.fn(),
     first: jest.fn(),
     insert: jest.fn().mockReturnThis(),
@@ -65,10 +66,23 @@ const COACH_PROFILE = {
 };
 const COACH_USER = { id: COACH_ID, role: 'coach', email: 'coach@test.com', organization_id: null };
 
+const SESSION_PAST = {
+  id: 'dddddddd-0000-0000-0000-000000000001',
+  creator_id: ADMIN_ID,
+  date: '2020-01-01',
+  time: '10:00:00',
+  status: 'complete',
+  current_players: 2,
+  max_players: 4,
+  preferences: null,
+  deleted_at: null,
+};
+
 function resetQb() {
   qb.where.mockReturnThis();
   qb.whereNull.mockReturnThis();
   qb.orderBy.mockReturnThis();
+  qb.join.mockReturnThis();
   qb.insert.mockReturnThis();
   qb.update.mockReturnThis();
   qb.select.mockReset();
@@ -292,6 +306,44 @@ describe('POST /api/clubs/:id/coaches', () => {
     const res = await request(app)
       .post(`/api/clubs/${ORG_ID}/coaches`)
       .send({ user_id: COACH_ID });
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── GET /api/coaches/:id/sessions ─────────────────────────────────────────────
+// success:    first()→COACH_PROFILE, select()→[SESSION_PAST]
+// not found:  first()→null → 404
+describe('GET /api/coaches/:id/sessions', () => {
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); });
+
+  it('CU-11: coach sessions — 200 with upcoming/past split', async () => {
+    qb.first.mockResolvedValueOnce(COACH_PROFILE);
+    qb.select.mockResolvedValueOnce([SESSION_PAST]);
+
+    const res = await request(app)
+      .get(`/api/coaches/${COACH_PROFILE_ID}/sessions`)
+      .set('Cookie', `token=${COACH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.sessions).toBeDefined();
+    expect(Array.isArray(res.body.sessions.past)).toBe(true);
+    expect(Array.isArray(res.body.sessions.upcoming)).toBe(true);
+    expect(res.body.sessions.past).toHaveLength(1);
+    expect(res.body.sessions.past[0].id).toBe(SESSION_PAST.id);
+  });
+
+  it('CU-11: coach sessions — coach not found — 404', async () => {
+    qb.first.mockResolvedValueOnce(null);
+
+    const res = await request(app)
+      .get(`/api/coaches/${COACH_PROFILE_ID}/sessions`)
+      .set('Cookie', `token=${COACH_TOKEN}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('CU-11: coach sessions — without auth — 401', async () => {
+    const res = await request(app).get(`/api/coaches/${COACH_PROFILE_ID}/sessions`);
     expect(res.status).toBe(401);
   });
 });

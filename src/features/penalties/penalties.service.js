@@ -1,4 +1,5 @@
 const penaltiesRepo = require('./penalties.repository');
+const notificationsService = require('../notifications/notifications.service');
 const { getConfig, updateConfig } = require('../../config/penalties');
 
 function makeError(status, message) {
@@ -19,7 +20,7 @@ async function payPenalty(penaltyId, userId) {
 }
 
 async function createAppBan(targetUserId, reason) {
-  return penaltiesRepo.create({
+  const ban = await penaltiesRepo.create({
     user_id: targetUserId,
     type: 'app_ban',
     organization_id: null,
@@ -27,6 +28,15 @@ async function createAppBan(targetUserId, reason) {
     paid: false,
     reason: reason || null,
   });
+
+  // Notify the banned user — AFTER DB op
+  await notificationsService.createNotification(
+    targetUserId,
+    'app_ban',
+    'Votre compte a été suspendu. Réglez vos pénalités pour le débloquer.'
+  );
+
+  return ban;
 }
 
 function getPenaltiesConfig() {

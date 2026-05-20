@@ -16,6 +16,7 @@ const { clubVenuesRouter, venueSlotsRouter } = require('./features/venues/venues
 const { coachesRouter, clubCoachesRouter } = require('./features/coaches/coaches.controller');
 const bookingsRouter = require('./features/bookings/bookings.controller');
 const { penaltiesRouter, adminRouter } = require('./features/penalties/penalties.controller');
+const notificationsRouter = require('./features/notifications/notifications.controller');
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use('/api/coaches', coachesRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/penalties', penaltiesRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/notifications', notificationsRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';

@@ -75,8 +75,18 @@ async function addCoachToClubHandler(req, res, next) {
   }
 }
 
+async function getCoachSessionsHandler(req, res, next) {
+  try {
+    const sessions = await coachesService.getCoachSessions(req.params.id);
+    return res.json({ sessions });
+  } catch (err) {
+    next(err);
+  }
+}
+
 const coachesRouter = Router();
 coachesRouter.get('/', authenticate, listCoachesHandler);
+coachesRouter.get('/:id/sessions', authenticate, getCoachSessionsHandler);
 coachesRouter.get('/:id', authenticate, getCoachHandler);
 coachesRouter.put('/:id/availability', authenticate, updateAvailabilityHandler);
 

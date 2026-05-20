@@ -61,4 +61,19 @@ async function addCoachToClub(clubId, userOrgId, coachUserId) {
   return coachesRepo.attachToClub(coachUserId, club.id);
 }
 
-module.exports = { listAvailableCoaches, getCoach, updateAvailability, getClubCoaches, addCoachToClub };
+async function getCoachSessions(coachProfileId) {
+  const profile = await coachesRepo.getById(coachProfileId);
+  if (!profile) {
+    const err = new Error('Coach introuvable.');
+    err.status = 404;
+    throw err;
+  }
+  const sessions = await coachesRepo.getSessionsByCoach(coachProfileId);
+  const now = new Date();
+  return {
+    upcoming: sessions.filter((s) => new Date(`${s.date}T${s.time}`) >= now),
+    past: sessions.filter((s) => new Date(`${s.date}T${s.time}`) < now),
+  };
+}
+
+module.exports = { listAvailableCoaches, getCoach, updateAvailability, getClubCoaches, addCoachToClub, getCoachSessions };

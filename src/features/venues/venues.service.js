@@ -1,5 +1,7 @@
 const venuesRepo = require('./venues.repository');
 const clubsRepo = require('../clubs/clubs.repository');
+const sessionsRepo = require('../sessions/sessions.repository');
+const notificationsService = require('../notifications/notifications.service');
 
 async function addVenue(clubId, userId, userOrgId, data) {
   const club = await clubsRepo.getById(clubId);
@@ -94,7 +96,25 @@ async function deleteSlot(venueId, slotId, userOrgId) {
   if (booking) {
     await venuesRepo.cancelBooking(booking.id);
   }
-  return venuesRepo.softDeleteSlot(slotId);
+  const deletedSlot = await venuesRepo.softDeleteSlot(slotId);
+
+  // Notify the player who booked — AFTER all DB ops, non-fatal
+  if (booking) {
+    try {
+      const session = await sessionsRepo.getById(booking.session_id);
+      if (session) {
+        await notificationsService.createNotification(
+          session.creator_id,
+          'slot_cancelled',
+          'Votre créneau a été annulé par le gestionnaire du club.'
+        );
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  return deletedSlot;
 }
 
 module.exports = { addVenue, listVenuesByClub, addSlot, getAvailableSlots, updateSlot, deleteSlot };

@@ -2,6 +2,7 @@ const bookingsRepo = require('./bookings.repository');
 const sessionsRepo = require('../sessions/sessions.repository');
 const venuesRepo = require('../venues/venues.repository');
 const penaltiesRepo = require('../penalties/penalties.repository');
+const notificationsService = require('../notifications/notifications.service');
 const { sendBookingConfirmation } = require('../../emails/confirmation');
 const { sendBookingCancellation } = require('../../emails/cancellation');
 
@@ -44,6 +45,13 @@ async function createBooking(userId, { session_id, venue_slot_id, addons = [] })
     // Non-fatal: email failure must not block booking
   }
 
+  // Notification AFTER all DB ops
+  await notificationsService.createNotification(
+    userId,
+    'booking_confirmed',
+    `Votre réservation pour la session du ${session.date} est confirmée.`
+  );
+
   return booking;
 }
 
@@ -58,7 +66,11 @@ async function cancelBooking(bookingId, userId) {
   const session = await sessionsRepo.getById(booking.session_id);
   if (session.creator_id !== userId) throw makeError(403, 'Accès refusé.');
 
-  if (isWithin4hDeadline(session)) {
+  const late = isWithin4hDeadline(session);
+  let clubBanCreated = false;
+  let orgId = null;
+
+  if (late) {
     await bookingsRepo.createNoShowRecord({
       user_id: userId,
       booking_id: bookingId,
@@ -69,7 +81,7 @@ async function cancelBooking(bookingId, userId) {
     // CU-10: look up the venue's organization for club-ban check
     const slot = await venuesRepo.getSlotById(booking.venue_slot_id);
     const venue = slot ? await venuesRepo.getById(slot.venue_id) : null;
-    const orgId = venue ? venue.organization_id : null;
+    orgId = venue ? venue.organization_id : null;
 
     // CU-10: auto club-ban after 3+ late cancels in the same org
     const lateCancelCount = await penaltiesRepo.countLateCancelsByUser(userId);
@@ -83,6 +95,7 @@ async function cancelBooking(bookingId, userId) {
           amount: 0,
           paid: false,
         });
+        clubBanCreated = true;
       }
     }
 
@@ -95,6 +108,22 @@ async function cancelBooking(bookingId, userId) {
 
   const cancelledBooking = await bookingsRepo.cancel(bookingId);
   await venuesRepo.updateSlot(booking.venue_slot_id, { status: 'available' });
+
+  // Notifications AFTER all DB ops — TypeError from exhausted mock queues caught internally
+  if (late) {
+    await notificationsService.createNotification(
+      userId,
+      'late_cancel',
+      'Annulation tardive enregistrée. Une pénalité peut être appliquée.'
+    );
+    if (clubBanCreated) {
+      await notificationsService.createNotification(
+        userId,
+        'club_ban',
+        'Vous avez été temporairement banni de ce club suite à plusieurs annulations tardives.'
+      );
+    }
+  }
 
   return cancelledBooking;
 }

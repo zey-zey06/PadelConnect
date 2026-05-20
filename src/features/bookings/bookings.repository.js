@@ -17,10 +17,21 @@ async function getById(id) {
 async function getByUser(userId) {
   return db('bookings')
     .join('sessions', 'bookings.session_id', 'sessions.id')
+    .join('venue_slots', 'bookings.venue_slot_id', 'venue_slots.id')
+    .join('venues', 'venue_slots.venue_id', 'venues.id')
     .where('sessions.creator_id', userId)
     .whereNull('bookings.deleted_at')
-    .orderBy('bookings.created_at', 'desc')
-    .select('bookings.*');
+    .orderBy('sessions.date', 'desc')
+    .select(
+      'bookings.*',
+      'sessions.date as session_date',
+      'sessions.time as session_time',
+      'sessions.status as session_status',
+      'venue_slots.start_time',
+      'venue_slots.end_time',
+      'venue_slots.price',
+      'venues.name as venue_name'
+    );
 }
 
 async function cancel(id) {

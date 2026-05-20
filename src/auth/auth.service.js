@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const db = require('../db');
+const notificationsService = require('../features/notifications/notifications.service');
 
 const BCRYPT_ROUNDS = 12;
 
@@ -16,6 +17,9 @@ async function signup({ email, password, role = 'player', organization_id = null
   const [row] = await db('users')
     .insert({ email, password_hash, role, organization_id })
     .returning(['id', 'email', 'role', 'organization_id', 'status', 'created_at']);
+
+  // Fire-and-forget welcome notification
+  await notificationsService.createNotification(row.id, 'welcome', 'Bienvenue sur PadelConnect !');
 
   return {
     id: row.id,

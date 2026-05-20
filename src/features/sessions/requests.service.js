@@ -2,6 +2,7 @@ const { matchScore } = require('../../ai/match-score');
 const sessionsRepo = require('./sessions.repository');
 const requestsRepo = require('./requests.repository');
 const profileRepo = require('../profiles/profile.repository');
+const notificationsService = require('../notifications/notifications.service');
 
 async function createRequest(sessionId, playerId) {
   const session = await sessionsRepo.getById(sessionId);
@@ -43,12 +44,21 @@ async function createRequest(sessionId, playerId) {
     sessionPreferences: session.preferences,
   });
 
-  return requestsRepo.create({
+  const sessionRequest = await requestsRepo.create({
     session_id: sessionId,
     player_id: playerId,
     ai_score: score,
     ai_explanation: explication,
   });
+
+  // Notify session creator of new request — AFTER all DB ops
+  await notificationsService.createNotification(
+    session.creator_id,
+    'session_request',
+    `Nouvelle demande pour rejoindre votre session du ${session.date}.`
+  );
+
+  return sessionRequest;
 }
 
 async function getRequests(sessionId, userId) {
@@ -88,12 +98,31 @@ async function respondToRequest(sessionId, requestId, userId, status) {
 
   const updatedRequest = await requestsRepo.updateStatus(requestId, status);
 
+  let sessionBecameComplete = false;
   if (status === 'accepted') {
     const newCount = session.current_players + 1;
     const updatedSession = await sessionsRepo.updateCurrentPlayers(sessionId, newCount);
     if (updatedSession.current_players >= 2) {
       await sessionsRepo.updateStatus(sessionId, 'complete');
+      sessionBecameComplete = true;
     }
+  }
+
+  // Notifications AFTER all DB ops
+  await notificationsService.createNotification(
+    sessionRequest.player_id,
+    status === 'accepted' ? 'request_accepted' : 'request_refused',
+    status === 'accepted'
+      ? 'Votre demande de session a été acceptée !'
+      : 'Votre demande de session a été refusée.'
+  );
+
+  if (sessionBecameComplete) {
+    await notificationsService.createNotification(
+      session.creator_id,
+      'session_complete',
+      'Votre session est complète ! 2 joueurs confirmés.'
+    );
   }
 
   return updatedRequest;
