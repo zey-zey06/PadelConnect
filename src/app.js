@@ -10,6 +10,7 @@ const db = require('./db');
 const authRouter = require('./auth/auth.controller');
 const profileRouter = require('./features/profiles/profile.controller');
 const sessionsRouter = require('./features/sessions/sessions.controller');
+const requestsRouter = require('./features/sessions/requests.controller');
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/api/auth', authLimiter);
 app.use('/api/auth', authRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/sessions', sessionsRouter);
+app.use('/api/sessions', requestsRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';

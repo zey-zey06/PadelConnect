@@ -39,4 +39,12 @@ async function updateStatus(id, status) {
   return row;
 }
 
-module.exports = { create, list, getById, updateStatus };
+async function updateCurrentPlayers(id, count) {
+  const [row] = await db('sessions')
+    .where({ id })
+    .update({ current_players: count, updated_at: new Date() })
+    .returning('*');
+  return row;
+}
+
+module.exports = { create, list, getById, updateStatus, updateCurrentPlayers };
