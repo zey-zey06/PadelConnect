@@ -11,6 +11,8 @@ const authRouter = require('./auth/auth.controller');
 const profileRouter = require('./features/profiles/profile.controller');
 const sessionsRouter = require('./features/sessions/sessions.controller');
 const requestsRouter = require('./features/sessions/requests.controller');
+const clubsRouter = require('./features/clubs/clubs.controller');
+const { clubVenuesRouter, venueSlotsRouter } = require('./features/venues/venues.controller');
 
 const app = express();
 
@@ -35,6 +37,9 @@ app.use('/api/auth', authRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/sessions', requestsRouter);
+app.use('/api/clubs', clubsRouter);
+app.use('/api/clubs', clubVenuesRouter);
+app.use('/api/venues', venueSlotsRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';
