@@ -28,7 +28,7 @@ const ROLES = [
     value: 'coach',
     label: 'Coach',
     icon: Dumbbell,
-    description: 'Je propose des séances d'entraînement.',
+    description: "Je propose des séances d'entraînement.",
   },
   {
     value: 'venue_admin',
