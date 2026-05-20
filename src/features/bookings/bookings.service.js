@@ -1,6 +1,7 @@
 const bookingsRepo = require('./bookings.repository');
 const sessionsRepo = require('../sessions/sessions.repository');
 const venuesRepo = require('../venues/venues.repository');
+const penaltiesRepo = require('../penalties/penalties.repository');
 const { sendBookingConfirmation } = require('../../emails/confirmation');
 const { sendBookingCancellation } = require('../../emails/cancellation');
 
@@ -17,6 +18,10 @@ function isWithin4hDeadline(session) {
 }
 
 async function createBooking(userId, { session_id, venue_slot_id, addons = [] }) {
+  // CU-10: block banned players
+  const activeBan = await penaltiesRepo.getActiveAppBan(userId);
+  if (activeBan) throw makeError(403, 'Votre compte est suspendu. Veuillez régler vos pénalités.');
+
   const session = await sessionsRepo.getById(session_id);
   if (!session) throw makeError(404, 'Session introuvable.');
   if (session.creator_id !== userId) throw makeError(403, 'Seul le créateur de la session peut effectuer la réservation.');
@@ -60,6 +65,26 @@ async function cancelBooking(bookingId, userId) {
       type: 'late_cancel',
       amount_due: 0,
     });
+
+    // CU-10: look up the venue's organization for club-ban check
+    const slot = await venuesRepo.getSlotById(booking.venue_slot_id);
+    const venue = slot ? await venuesRepo.getById(slot.venue_id) : null;
+    const orgId = venue ? venue.organization_id : null;
+
+    // CU-10: auto club-ban after 3+ late cancels in the same org
+    const lateCancelCount = await penaltiesRepo.countLateCancelsByUser(userId);
+    if (lateCancelCount >= 3 && orgId) {
+      const existingBan = await penaltiesRepo.getActiveClubBan(userId, orgId);
+      if (!existingBan) {
+        await penaltiesRepo.create({
+          user_id: userId,
+          type: 'club_ban',
+          organization_id: orgId,
+          amount: 0,
+          paid: false,
+        });
+      }
+    }
 
     try {
       await sendBookingCancellation({ booking, session });

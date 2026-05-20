@@ -19,6 +19,14 @@ jest.mock('../../emails/cancellation', () => ({
   sendBookingCancellation: jest.fn().mockResolvedValue(undefined),
 }));
 
+// CU-10: mock penaltiesRepo so it never touches the shared qb mock queue
+jest.mock('../penalties/penalties.repository', () => ({
+  getActiveAppBan: jest.fn().mockResolvedValue(null),
+  countLateCancelsByUser: jest.fn().mockResolvedValue(0),
+  getActiveClubBan: jest.fn().mockResolvedValue(null),
+  create: jest.fn().mockResolvedValue({ id: 'penalty-id' }),
+}));
+
 jest.mock('../../db', () => {
   const qb = {
     where: jest.fn().mockReturnThis(),
@@ -39,6 +47,7 @@ jest.mock('../../db', () => {
 const app = require('../../app');
 const db = require('../../db');
 const { signToken } = require('../../auth/jwt');
+const penaltiesRepo = require('../penalties/penalties.repository');
 
 const qb = db.__qb;
 
@@ -50,6 +59,8 @@ const BOOKING_ID    = '00000000-0000-0000-0000-000000000003';
 const CREATOR_ID    = '00000000-0000-0000-0000-000000000004';
 const PLAYER_ID     = '00000000-0000-0000-0000-000000000005';
 const COACH_USER_ID = '00000000-0000-0000-0000-000000000006';
+const VENUE_ID      = '00000000-0000-0000-0000-000000000007';
+const ORG_ID        = '00000000-0000-0000-0000-000000000010';
 
 const CREATOR_TOKEN = signToken({ sub: CREATOR_ID, role: 'player', organization_id: null });
 const PLAYER_TOKEN  = signToken({ sub: PLAYER_ID,  role: 'player', organization_id: null });
@@ -72,9 +83,12 @@ const SESSION_PAST = {
 };
 
 const SLOT_AVAILABLE = {
-  id: SLOT_ID, venue_id: '00000000-0000-0000-0000-000000000007',
+  id: SLOT_ID, venue_id: VENUE_ID,
   date: '2099-12-31', start_time: '10:00:00', end_time: '11:30:00',
   price: '15000.00', status: 'available', deleted_at: null,
+};
+const VENUE = {
+  id: VENUE_ID, organization_id: ORG_ID, name: 'Court 1', deleted_at: null,
 };
 const BOOKING = {
   id: BOOKING_ID, session_id: SESSION_ID, venue_slot_id: SLOT_ID,
@@ -102,6 +116,7 @@ function resetQb() {
 }
 
 // ── POST /api/bookings ────────────────────────────────────────────────────────
+// penaltiesRepo.getActiveAppBan is mocked → always null (no ban)
 // success (no addons):   first()→SESSION_COMPLETE, first()→SLOT_AVAILABLE,
 //                        returning()→BOOKING, returning()→SLOT_BOOKED
 // with addons:           first()x2, returning()x3 (booking+slot+addon)
@@ -219,6 +234,21 @@ describe('POST /api/bookings', () => {
       .send({ session_id: SESSION_ID, venue_slot_id: SLOT_ID });
     expect(res.status).toBe(401);
   });
+
+  it('CU-10: banned player cannot book — 403', async () => {
+    penaltiesRepo.getActiveAppBan.mockResolvedValueOnce({
+      id: 'bbbbbbb0-0000-0000-0000-000000000001',
+      user_id: CREATOR_ID, type: 'app_ban', paid: false,
+    });
+
+    const res = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', `token=${CREATOR_TOKEN}`)
+      .send({ session_id: SESSION_ID, venue_slot_id: SLOT_ID });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/suspendu/i);
+  });
 });
 
 // ── GET /api/bookings/me ──────────────────────────────────────────────────────
@@ -248,7 +278,11 @@ describe('GET /api/bookings/me', () => {
 // before 4h:  first()→BOOKING, first()→SESSION_COMPLETE(2099),
 //             returning()→BOOKING_CANCELLED, returning()→SLOT_AVAILABLE
 // after 4h:   first()→BOOKING, first()→SESSION_PAST(2020),
-//             returning()→NO_SHOW_RECORD, returning()→BOOKING_CANCELLED, returning()→SLOT_AVAILABLE
+//             returning()→NO_SHOW_RECORD,
+//             first()→SLOT_AVAILABLE (venuesRepo.getSlotById for orgId),
+//             first()→VENUE (venuesRepo.getById for orgId),
+//             [penaltiesRepo calls are mocked — skip qb],
+//             returning()→BOOKING_CANCELLED, returning()→SLOT_AVAILABLE
 // non-creator: first()→BOOKING, first()→SESSION_COMPLETE (creator_id≠userId) → 403
 // not found:   first()→null → 404
 describe('DELETE /api/bookings/:id', () => {
@@ -271,13 +305,24 @@ describe('DELETE /api/bookings/:id', () => {
   });
 
   it('CU-09: cancel booking — after 4h, penalty recorded — 200', async () => {
+    // DB call order:
+    // first() #1 → BOOKING          (bookingsRepo.getById)
+    // first() #2 → SESSION_PAST     (sessionsRepo.getById)
+    // returning() #1 → NO_SHOW_RECORD (bookingsRepo.createNoShowRecord)
+    // first() #3 → SLOT_AVAILABLE   (venuesRepo.getSlotById — for club-ban orgId lookup)
+    // first() #4 → VENUE            (venuesRepo.getById — for club-ban orgId lookup)
+    // penaltiesRepo.countLateCancelsByUser → mocked → 0 → no club ban triggered
+    // returning() #2 → BOOKING_CANCELLED (bookingsRepo.cancel)
+    // returning() #3 → SLOT_AVAILABLE    (venuesRepo.updateSlot)
     qb.first
       .mockResolvedValueOnce(BOOKING)
-      .mockResolvedValueOnce(SESSION_PAST); // 2020-01-01 → past → late cancel penalty
+      .mockResolvedValueOnce(SESSION_PAST)
+      .mockResolvedValueOnce(SLOT_AVAILABLE)
+      .mockResolvedValueOnce(VENUE);
     qb.returning
-      .mockResolvedValueOnce([NO_SHOW_RECORD])   // createNoShowRecord
-      .mockResolvedValueOnce([BOOKING_CANCELLED]) // cancel booking
-      .mockResolvedValueOnce([{ ...SLOT_AVAILABLE, status: 'available' }]); // update slot
+      .mockResolvedValueOnce([NO_SHOW_RECORD])
+      .mockResolvedValueOnce([BOOKING_CANCELLED])
+      .mockResolvedValueOnce([{ ...SLOT_AVAILABLE, status: 'available' }]);
 
     const res = await request(app)
       .delete(`/api/bookings/${BOOKING_ID}`)
@@ -285,6 +330,31 @@ describe('DELETE /api/bookings/:id', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.booking.status).toBe('cancelled');
+  });
+
+  it('CU-10: 3rd late cancel → club ban recorded — 200', async () => {
+    // penaltiesRepo.countLateCancelsByUser returns 3 → triggers club ban check
+    // penaltiesRepo.getActiveClubBan returns null → ban is created
+    penaltiesRepo.countLateCancelsByUser.mockResolvedValueOnce(3);
+
+    qb.first
+      .mockResolvedValueOnce(BOOKING)
+      .mockResolvedValueOnce(SESSION_PAST)
+      .mockResolvedValueOnce(SLOT_AVAILABLE)
+      .mockResolvedValueOnce(VENUE);
+    qb.returning
+      .mockResolvedValueOnce([NO_SHOW_RECORD])
+      .mockResolvedValueOnce([BOOKING_CANCELLED])
+      .mockResolvedValueOnce([{ ...SLOT_AVAILABLE, status: 'available' }]);
+
+    const res = await request(app)
+      .delete(`/api/bookings/${BOOKING_ID}`)
+      .set('Cookie', `token=${CREATOR_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(penaltiesRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'club_ban', organization_id: ORG_ID })
+    );
   });
 
   it('CU-09: cancel booking — non-creator — 403', async () => {

@@ -15,6 +15,7 @@ const clubsRouter = require('./features/clubs/clubs.controller');
 const { clubVenuesRouter, venueSlotsRouter } = require('./features/venues/venues.controller');
 const { coachesRouter, clubCoachesRouter } = require('./features/coaches/coaches.controller');
 const bookingsRouter = require('./features/bookings/bookings.controller');
+const { penaltiesRouter, adminRouter } = require('./features/penalties/penalties.controller');
 
 const app = express();
 
@@ -45,6 +46,8 @@ app.use('/api/clubs', clubCoachesRouter);
 app.use('/api/venues', venueSlotsRouter);
 app.use('/api/coaches', coachesRouter);
 app.use('/api/bookings', bookingsRouter);
+app.use('/api/penalties', penaltiesRouter);
+app.use('/api/admin', adminRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';
