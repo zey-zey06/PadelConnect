@@ -40,6 +40,9 @@
     "testMatch": [
       "**/*.test.js"
     ],
+    "moduleNameMapper": {
+      "^resend$": "<rootDir>/__mocks__/resend.js"
+    },
     "coverageThreshold": {
       "global": {
         "lines": 70
