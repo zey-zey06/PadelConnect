@@ -28,4 +28,8 @@ async function updatePhoto(userId, filename) {
   return profileRepo.upsert(userId, { photo_url: `/uploads/profiles/${filename}` });
 }
 
-module.exports = { generateProfile, updateProfile, updatePhoto };
+async function getProfile(userId) {
+  return profileRepo.getByUserId(userId);
+}
+
+module.exports = { generateProfile, updateProfile, updatePhoto, getProfile };

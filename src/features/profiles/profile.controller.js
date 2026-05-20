@@ -76,7 +76,17 @@ async function photoHandler(req, res, next) {
   }
 }
 
+async function getMeHandler(req, res, next) {
+  try {
+    const profile = await profileService.getProfile(req.user.sub);
+    return res.json({ profile: profile || null });
+  } catch (err) {
+    next(err);
+  }
+}
+
 const router = Router();
+router.get('/me', authenticate, getMeHandler);
 router.post('/generate', authenticate, generateHandler);
 router.put('/', authenticate, updateHandler);
 router.post('/photo', authenticate, upload.single('photo'), photoHandler);

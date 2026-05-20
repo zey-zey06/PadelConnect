@@ -1,0 +1,140 @@
+import { useState, useEffect } from 'react';
+import { getNotifications, markAsRead } from '@/api/notifications';
+import { Button } from '@/components/ui/button';
+import { Bell, CheckCircle2, AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const TYPE_LABELS = {
+  session_request:  'Demande reçue',
+  request_accepted: 'Demande acceptée',
+  request_refused:  'Demande refusée',
+  session_complete: 'Session complète',
+  booking_confirmed:'Réservation confirmée',
+  late_cancel:      'Annulation tardive',
+  no_show:          'No-show enregistré',
+  ban:              'Compte suspendu',
+};
+
+export default function Notifications() {
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    getNotifications()
+      .then(({ notifications: n }) => setNotifications(n ?? []))
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleMarkRead(id) {
+    try {
+      await markAsRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      );
+    } catch {
+      // non-fatal
+    }
+  }
+
+  async function handleMarkAllRead() {
+    const unread = notifications.filter((n) => !n.read);
+    await Promise.allSettled(unread.map((n) => markAsRead(n.id)));
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Notifications</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Vos alertes et mises à jour.</p>
+        </div>
+        {unreadCount > 0 && (
+          <Button variant="outline" size="sm" onClick={handleMarkAllRead}>
+            Tout marquer comme lu ({unreadCount})
+          </Button>
+        )}
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />
+          ))}
+        </div>
+      ) : error ? (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
+        </div>
+      ) : notifications.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border p-12 text-center space-y-3">
+          <Bell className="h-8 w-8 text-muted-foreground mx-auto" />
+          <p className="text-sm font-medium text-foreground">Aucune notification</p>
+          <p className="text-xs text-muted-foreground">
+            Vous serez notifié des demandes de session, réservations et mises à jour.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {notifications.map((n) => (
+            <div
+              key={n.id}
+              className={cn(
+                'flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5 transition-all',
+                !n.read && 'border-primary/20 bg-primary/[0.03]'
+              )}
+            >
+              {/* Indicator */}
+              <div className="mt-0.5 shrink-0">
+                {n.read
+                  ? <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                  : <span className="block w-2 h-2 rounded-full bg-primary mt-1" />
+                }
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                {n.type && (
+                  <p className="text-xs font-medium text-primary mb-0.5">
+                    {TYPE_LABELS[n.type] ?? n.type}
+                  </p>
+                )}
+                <p className={cn(
+                  'text-sm',
+                  n.read ? 'text-muted-foreground' : 'text-foreground font-medium'
+                )}>
+                  {n.message}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {new Date(n.created_at).toLocaleDateString('fr-FR', {
+                    day: 'numeric', month: 'short',
+                    hour: '2-digit', minute: '2-digit',
+                  })}
+                </p>
+              </div>
+
+              {/* Mark read */}
+              {!n.read && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleMarkRead(n.id)}
+                  className="text-xs text-muted-foreground shrink-0"
+                >
+                  Lire
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
