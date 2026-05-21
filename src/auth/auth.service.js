@@ -16,24 +16,26 @@ async function signup({ email, password, role = 'player', organization_id = null
   }
 
   const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-  const verification_token = crypto.randomBytes(32).toString('hex');
-  const verification_expires = new Date(Date.now() + VERIFICATION_TTL_MS);
+  // [DEV] Email verification disabled — set email_verified = true immediately
+  // const verification_token = crypto.randomBytes(32).toString('hex');
+  // const verification_expires = new Date(Date.now() + VERIFICATION_TTL_MS);
 
   const [row] = await db('users')
-    .insert({ email, password_hash, role, organization_id })
+    .insert({ email, password_hash, role, organization_id, email_verified: true })
     .returning(['id', 'email', 'role', 'organization_id', 'status', 'created_at']);
 
-  await db('users').where({ id: row.id }).update({
-    email_verification_token: verification_token,
-    email_verification_expires_at: verification_expires,
-  });
+  // [DEV] Skip token storage and verification email
+  // await db('users').where({ id: row.id }).update({
+  //   email_verification_token: verification_token,
+  //   email_verification_expires_at: verification_expires,
+  // });
 
   // Fire-and-forget — don't block signup on side-effect failures
   notificationsService
     .createNotification(row.id, 'welcome', 'Bienvenue sur PadelConnect !')
     .catch(() => {});
 
-  sendVerificationEmail(email, verification_token).catch(() => {});
+  // sendVerificationEmail(email, verification_token).catch(() => {});
 
   return {
     id: row.id,
