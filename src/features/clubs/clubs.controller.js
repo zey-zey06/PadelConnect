@@ -10,7 +10,6 @@ const requireRole   = require('../../middleware/requireRole');
 const { signToken } = require('../../auth/jwt');
 const clubsService  = require('./clubs.service');
 
-// Ensure upload directory exists
 fs.mkdirSync('uploads/clubs', { recursive: true });
 
 const COOKIE_OPTIONS = {
@@ -21,12 +20,18 @@ const COOKIE_OPTIONS = {
 };
 
 // ── Validation schemas ────────────────────────────────────────────────────────
+const amenitiesSchema = Joi.object({
+  vestiaires: Joi.boolean(), douches: Joi.boolean(), parking:     Joi.boolean(),
+  pro_shop:   Joi.boolean(), restaurant: Joi.boolean(), wifi:     Joi.boolean(),
+}).optional().allow(null);
+
 const createClubSchema = Joi.object({
   name:        Joi.string().required(),
   slug:        Joi.string().required(),
   description: Joi.string().optional().allow(null, ''),
   address:     Joi.string().optional().allow(null, ''),
   phone:       Joi.string().optional().allow(null, ''),
+  amenities:   amenitiesSchema,
 });
 
 const updateClubSchema = Joi.object({
@@ -34,26 +39,24 @@ const updateClubSchema = Joi.object({
   description: Joi.string().optional().allow(null, ''),
   address:     Joi.string().optional().allow(null, ''),
   phone:       Joi.string().optional().allow(null, ''),
+  amenities:   amenitiesSchema,
 }).min(1);
 
-// ── Logo upload (multer) ──────────────────────────────────────────────────────
-const logoStorage = multer.diskStorage({
+// ── Multer — club images (logo + photos share the same directory) ──────────────
+const clubImageStorage = multer.diskStorage({
   destination: 'uploads/clubs/',
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `${req.params.id}-${Date.now()}${ext}`);
+    cb(null, `${req.params.id ?? 'new'}-${Date.now()}${ext}`);
   },
 });
 
-const uploadLogo = multer({
-  storage: logoStorage,
+const uploadImage = multer({
+  storage: clubImageStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) {
-      cb(new Error('Seules les images sont acceptées.'));
-    } else {
-      cb(null, true);
-    }
+    if (!file.mimetype.startsWith('image/')) cb(new Error('Seules les images sont acceptées.'));
+    else cb(null, true);
   },
 });
 
@@ -68,11 +71,8 @@ async function createClubHandler(req, res, next) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
     }
     const club = await clubsService.createClub(req.user.sub, value);
-
-    // Issue a new JWT with the fresh organization_id so subsequent API calls work
     const newToken = signToken({ sub: req.user.sub, role: req.user.role, organization_id: club.id });
     res.cookie('token', newToken, COOKIE_OPTIONS);
-
     return res.status(201).json({ club });
   } catch (err) {
     next(err);
@@ -104,6 +104,31 @@ async function logoHandler(req, res, next) {
   }
 }
 
+async function addPhotoHandler(req, res, next) {
+  try {
+    if (!req.file) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Fichier image requis.' });
+    }
+    const club = await clubsService.addPhoto(req.params.id, req.user.organization_id, req.file.filename);
+    return res.json({ club });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function removePhotoHandler(req, res, next) {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'URL requise.' });
+    }
+    const club = await clubsService.removePhoto(req.params.id, req.user.organization_id, url);
+    return res.json({ club });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function listClubsHandler(req, res, next) {
   try {
     const clubs = await clubsService.listClubs();
@@ -122,12 +147,24 @@ async function getClubHandler(req, res, next) {
   }
 }
 
+async function publicClubHandler(req, res, next) {
+  try {
+    const { club, venues } = await clubsService.getPublicClub(req.params.id);
+    return res.json({ club, venues });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 const router = Router();
-router.post('/',            authenticate, requireRole('venue_admin'), createClubHandler);
-router.get('/',             authenticate, listClubsHandler);
-router.get('/:id',          authenticate, getClubHandler);
-router.patch('/:id',        authenticate, requireRole('venue_admin'), updateClubHandler);
-router.post('/:id/logo',    authenticate, requireRole('venue_admin'), uploadLogo.single('logo'), logoHandler);
+router.post('/',              authenticate, requireRole('venue_admin'), createClubHandler);
+router.get('/',               authenticate, listClubsHandler);
+router.get('/:id/public',     authenticate, publicClubHandler);
+router.get('/:id',            authenticate, getClubHandler);
+router.patch('/:id',          authenticate, requireRole('venue_admin'), updateClubHandler);
+router.post('/:id/logo',      authenticate, requireRole('venue_admin'), uploadImage.single('logo'),  logoHandler);
+router.post('/:id/photos',    authenticate, requireRole('venue_admin'), uploadImage.single('photo'), addPhotoHandler);
+router.delete('/:id/photos',  authenticate, requireRole('venue_admin'), removePhotoHandler);
 
 module.exports = router;

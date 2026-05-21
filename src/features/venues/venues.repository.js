@@ -71,11 +71,16 @@ async function cancelBooking(bookingId) {
   return row;
 }
 
+async function bulkCreateSlots(rows) {
+  return db.batchInsert('venue_slots', rows, 200);
+}
+
 module.exports = {
   createVenue,
   getByOrg,
   getById,
   createSlot,
+  bulkCreateSlots,
   getSlots,
   getSlotById,
   updateSlot,

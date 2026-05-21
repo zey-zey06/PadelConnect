@@ -16,6 +16,7 @@ import VenueManager     from '@/pages/manager/VenueManager';
 import SlotManager      from '@/pages/manager/SlotManager';
 import ClubSetup        from '@/pages/manager/ClubSetup';
 import ManagerProfile   from '@/pages/manager/ManagerProfile';
+import ClubProfile      from '@/pages/ClubProfile';
 import AdminDashboard   from '@/pages/AdminDashboard';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
@@ -136,6 +137,10 @@ export default function App() {
           <Route
             path="/clubs"
             element={<ProtectedRoute><Layout><Clubs /></Layout></ProtectedRoute>}
+          />
+          <Route
+            path="/clubs/:id"
+            element={<ProtectedRoute><Layout><ClubProfile /></Layout></ProtectedRoute>}
           />
           <Route
             path="/notifications"

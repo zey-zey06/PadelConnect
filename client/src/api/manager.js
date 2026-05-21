@@ -10,24 +10,24 @@ export const getMyClub = (clubId) => client.get(`/clubs/${clubId}`);
 /** PATCH /api/clubs/:id → { club } */
 export const updateClub = (clubId, data) => client.patch(`/clubs/${clubId}`, data);
 
-/** POST /api/clubs/:id/logo  (multipart/form-data, field: logo) → { club } */
-export const uploadClubLogo = (clubId, file) => {
+function _multipartPost(url, fieldName, file) {
   const form = new FormData();
-  form.append('logo', file);
-  return fetch(`/api/clubs/${clubId}/logo`, {
-    method: 'POST',
-    credentials: 'include',
-    body: form,
-  }).then(async (res) => {
+  form.append(fieldName, file);
+  return fetch(url, { method: 'POST', credentials: 'include', body: form }).then(async (res) => {
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const err = new Error(data.message || 'Erreur lors de l\'upload.');
-      err.status = res.status;
-      throw err;
-    }
+    if (!res.ok) { const err = new Error(data.message || 'Erreur upload.'); err.status = res.status; throw err; }
     return data;
   });
-};
+}
+
+/** POST /api/clubs/:id/logo  (multipart, field: logo) → { club } */
+export const uploadClubLogo  = (clubId, file) => _multipartPost(`/api/clubs/${clubId}/logo`,   'logo',  file);
+
+/** POST /api/clubs/:id/photos (multipart, field: photo) → { club } */
+export const uploadClubPhoto = (clubId, file) => _multipartPost(`/api/clubs/${clubId}/photos`, 'photo', file);
+
+/** DELETE /api/clubs/:id/photos { url } → { club } */
+export const deleteClubPhoto = (clubId, url) => client.delete(`/clubs/${clubId}/photos`, { body: { url } });
 
 /** GET /api/clubs/:id/venues → { venues: [...] } */
 export const getMyVenues = (clubId) => client.get(`/clubs/${clubId}/venues`);

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Building2, MapPin, ChevronDown, ChevronRight, Clock, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Building2, MapPin, ChevronDown, ChevronRight, Clock, AlertCircle, ExternalLink } from 'lucide-react';
 import { listClubs, getClubVenues } from '@/api/clubs';
 import { Button } from '@/components/ui/button';
 
@@ -85,6 +86,16 @@ function ClubCard({ club }) {
           ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
           : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
       </button>
+      <div className="px-5 pb-3 flex justify-end border-b border-border -mt-1">
+        <Link
+          to={`/clubs/${club.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Voir le profil
+        </Link>
+      </div>
 
       {/* Venues */}
       {open && (

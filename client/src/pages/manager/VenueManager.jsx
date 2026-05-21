@@ -9,28 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-// ── Amenities options ─────────────────────────────────────────────────────────
-const AMENITIES_OPTIONS = [
-  { key: 'vestiaires',  label: 'Vestiaires'  },
-  { key: 'eclairage',   label: 'Éclairage'   },
-  { key: 'parking',     label: 'Parking'     },
-  { key: 'douches',     label: 'Douches'     },
-  { key: 'cafe',        label: 'Café/Bar'    },
-  { key: 'location',    label: 'Location équipement' },
-];
-
 // ── Add venue modal ───────────────────────────────────────────────────────────
 function AddVenueModal({ clubId, onClose, onCreated }) {
-  const [form,    setForm]    = useState({ name: '', description: '', amenities: {} });
+  const [form,    setForm]    = useState({ name: '', description: '' });
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
-
-  function toggleAmenity(key) {
-    setForm((f) => ({
-      ...f,
-      amenities: { ...f.amenities, [key]: !f.amenities[key] },
-    }));
-  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -38,14 +21,10 @@ function AddVenueModal({ clubId, onClose, onCreated }) {
     setLoading(true);
     setError(null);
     try {
-      const payload = {
+      const { venue } = await addVenue(clubId, {
         name:        form.name.trim(),
         description: form.description.trim() || null,
-        amenities:   Object.keys(form.amenities).filter((k) => form.amenities[k]).length > 0
-                       ? form.amenities
-                       : null,
-      };
-      const { venue } = await addVenue(clubId, payload);
+      });
       onCreated(venue);
     } catch (err) {
       setError(err.message || 'Erreur lors de la création.');
@@ -103,30 +82,6 @@ function AddVenueModal({ clubId, onClose, onCreated }) {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>
-              Équipements{' '}
-              <span className="font-normal text-muted-foreground">(optionnel)</span>
-            </Label>
-            <div className="flex flex-wrap gap-2">
-              {AMENITIES_OPTIONS.map(({ key, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => toggleAmenity(key)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
-                    form.amenities[key]
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-card text-foreground/70 border-border hover:border-primary/40'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="flex gap-3 pt-1">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
               Annuler
@@ -162,10 +117,6 @@ function VenueCard({ venue }) {
       .catch(() => setWeekSlots([]));
   }, [venue.id]);
 
-  const amenityLabels = venue.amenities
-    ? Object.keys(venue.amenities).filter((k) => venue.amenities[k])
-    : [];
-
   const booked    = weekSlots ? weekSlots.filter((s) => s.status === 'booked').length    : null;
   const available = weekSlots ? weekSlots.filter((s) => s.status === 'available').length : null;
 
@@ -181,23 +132,6 @@ function VenueCard({ venue }) {
             <p className="font-semibold text-foreground">{venue.name}</p>
             {venue.description && (
               <p className="text-xs text-muted-foreground mt-0.5 truncate">{venue.description}</p>
-            )}
-            {amenityLabels.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-1.5">
-                {amenityLabels.slice(0, 3).map((k) => {
-                  const opt = AMENITIES_OPTIONS.find((o) => o.key === k);
-                  return (
-                    <span key={k} className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                      {opt?.label ?? k}
-                    </span>
-                  );
-                })}
-                {amenityLabels.length > 3 && (
-                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                    +{amenityLabels.length - 3}
-                  </span>
-                )}
-              </div>
             )}
           </div>
         </div>

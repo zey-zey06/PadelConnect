@@ -3,6 +3,7 @@ const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function sendBookingConfirmation({ booking, session }) {
+  const paymentLabel = booking.payment_method === 'card' ? 'Carte bancaire' : 'Sur place';
   await resend.emails.send({
     from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
     to: process.env.EMAIL_FROM || 'onboarding@resend.dev',
@@ -11,6 +12,7 @@ async function sendBookingConfirmation({ booking, session }) {
       <h1>Réservation confirmée ✓</h1>
       <p>Votre réservation pour la session du <strong>${session.date}</strong>
          à <strong>${session.time}</strong> est confirmée.</p>
+      <p>Mode de paiement : <strong>${paymentLabel}</strong></p>
       <p>Référence réservation : <code>${booking.id}</code></p>
       <p>À bientôt sur le terrain !</p>
     `,

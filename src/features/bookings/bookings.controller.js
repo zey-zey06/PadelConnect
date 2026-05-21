@@ -5,13 +5,14 @@ const authenticate = require('../../middleware/authenticate');
 const bookingsService = require('./bookings.service');
 
 const createBookingSchema = Joi.object({
-  session_id: Joi.string().uuid().required(),
-  venue_slot_id: Joi.string().uuid().required(),
+  session_id:     Joi.string().uuid().required(),
+  venue_slot_id:  Joi.string().uuid().required(),
+  payment_method: Joi.string().valid('card', 'on_arrival').optional().default('on_arrival'),
   addons: Joi.array().items(
     Joi.object({
-      type: Joi.string().valid('coach', 'ball_picker').required(),
+      type:    Joi.string().valid('coach', 'ball_picker').required(),
       user_id: Joi.string().uuid().required(),
-      price: Joi.number().min(0).required(),
+      price:   Joi.number().min(0).required(),
     })
   ).optional().default([]),
 });

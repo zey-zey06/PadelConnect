@@ -3,6 +3,41 @@ const clubsRepo = require('../clubs/clubs.repository');
 const sessionsRepo = require('../sessions/sessions.repository');
 const notificationsService = require('../notifications/notifications.service');
 
+// ── Default slot templates ────────────────────────────────────────────────────
+const SLOT_TEMPLATES = [
+  // Morning: 07:00–16:00, 1 h each
+  { start_time: '07:00', end_time: '08:00' },
+  { start_time: '08:00', end_time: '09:00' },
+  { start_time: '09:00', end_time: '10:00' },
+  { start_time: '10:00', end_time: '11:00' },
+  { start_time: '11:00', end_time: '12:00' },
+  { start_time: '12:00', end_time: '13:00' },
+  { start_time: '13:00', end_time: '14:00' },
+  { start_time: '14:00', end_time: '15:00' },
+  { start_time: '15:00', end_time: '16:00' },
+  // Evening: 16:00–23:30, 1 h 30 each
+  { start_time: '16:00', end_time: '17:30' },
+  { start_time: '17:30', end_time: '19:00' },
+  { start_time: '19:00', end_time: '20:30' },
+  { start_time: '20:30', end_time: '22:00' },
+  { start_time: '22:00', end_time: '23:30' },
+];
+
+async function generateDefaultSlots(venueId) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const rows = [];
+  for (let d = 0; d < 30; d++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + d);
+    const dateStr = date.toISOString().slice(0, 10);
+    for (const tmpl of SLOT_TEMPLATES) {
+      rows.push({ venue_id: venueId, date: dateStr, ...tmpl, price: 0, status: 'available' });
+    }
+  }
+  await venuesRepo.bulkCreateSlots(rows);
+}
+
 async function addVenue(clubId, userId, userOrgId, data) {
   const club = await clubsRepo.getById(clubId);
   if (!club) {
@@ -15,7 +50,10 @@ async function addVenue(clubId, userId, userOrgId, data) {
     err.status = 403;
     throw err;
   }
-  return venuesRepo.createVenue({ ...data, organization_id: club.id });
+  const venue = await venuesRepo.createVenue({ ...data, organization_id: club.id });
+  // Auto-generate default slots for the next 30 days — non-fatal
+  try { await generateDefaultSlots(venue.id); } catch { /* slot gen failure must not block venue creation */ }
+  return venue;
 }
 
 async function listVenuesByClub(clubId) {
