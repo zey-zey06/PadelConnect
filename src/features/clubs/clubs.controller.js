@@ -156,11 +156,22 @@ async function publicClubHandler(req, res, next) {
   }
 }
 
+async function clubSlotsHandler(req, res, next) {
+  try {
+    const date   = req.query.date || new Date().toISOString().slice(0, 10);
+    const result = await clubsService.getClubSlots(req.params.id, date);
+    return res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 const router = Router();
 router.post('/',              authenticate, requireRole('venue_admin'), createClubHandler);
 router.get('/',               authenticate, listClubsHandler);
 router.get('/:id/public',     authenticate, publicClubHandler);
+router.get('/:id/slots',      authenticate, clubSlotsHandler);
 router.get('/:id',            authenticate, getClubHandler);
 router.patch('/:id',          authenticate, requireRole('venue_admin'), updateClubHandler);
 router.post('/:id/logo',      authenticate, requireRole('venue_admin'), uploadImage.single('logo'),  logoHandler);

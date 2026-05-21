@@ -1,23 +1,39 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  Building2, MapPin, Phone, ChevronDown, ChevronUp,
-  Clock, AlertCircle, X, CreditCard, Banknote,
-  CalendarDays, CheckCircle2,
+  Building2, MapPin, Phone, Clock,
+  AlertCircle, X, CreditCard, Banknote,
+  CheckCircle2, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import { useAuth }       from '@/App';
-import { getPublicClub } from '@/api/clubs';
-import { getVenueSlots } from '@/api/manager';
-import { getMySessions } from '@/api/sessions';
-import { createBooking } from '@/api/bookings';
+import { getPublicClub, getClubSlots } from '@/api/clubs';
+import { getMySessions }               from '@/api/sessions';
+import { createBooking }               from '@/api/bookings';
 import { Button }  from '@/components/ui/button';
 import { Badge }   from '@/components/ui/badge';
 import { cn }      from '@/lib/utils';
 import { CLUB_AMENITIES } from './manager/ClubSetup';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function toISODate(d) {
-  return d instanceof Date ? d.toISOString().slice(0, 10) : d;
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function shiftDate(iso, days) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function fmtLong(iso) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+}
+
+function fmtShort(iso) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
 }
 
 function durationLabel(start = '00:00', end = '00:00') {
@@ -25,14 +41,44 @@ function durationLabel(start = '00:00', end = '00:00') {
   const [eh, em] = end.slice(0, 5).split(':').map(Number);
   const mins = (eh * 60 + em) - (sh * 60 + sm);
   if (mins <= 0) return '';
-  if (mins % 60 === 0) return `${mins / 60}h`;
-  return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
+  return mins % 60 === 0 ? `${mins / 60}h` : `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
 }
 
-function fmtDate(iso) {
-  return new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
+// ── Slot button ───────────────────────────────────────────────────────────────
+function SlotBtn({ slot, venueName, onBook }) {
+  const avail     = slot.status === 'available';
+  const booked    = slot.status === 'booked';
+  const cancelled = slot.status === 'cancelled';
+
+  return (
+    <button
+      onClick={() => avail && onBook(slot, venueName)}
+      disabled={!avail}
+      title={avail ? `${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}` : undefined}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all select-none',
+        avail     && 'border-green-200 bg-green-50 text-green-800 hover:bg-green-100 hover:shadow-sm cursor-pointer',
+        booked    && 'border-zinc-200 bg-zinc-100 text-zinc-500 cursor-not-allowed',
+        cancelled && 'border-border bg-muted/40 text-muted-foreground line-through cursor-not-allowed opacity-60',
+      )}
+    >
+      {cancelled ? (
+        'Annulé'
+      ) : booked ? (
+        'Réservé'
+      ) : (
+        <>
+          <Clock className="h-3 w-3 shrink-0" />
+          {slot.start_time?.slice(0, 5)}–{slot.end_time?.slice(0, 5)}
+          {slot.price > 0 && (
+            <span className="ml-1 font-normal opacity-80">
+              | {Number(slot.price).toLocaleString('fr-FR')} FCFA
+            </span>
+          )}
+        </>
+      )}
+    </button>
+  );
 }
 
 // ── Booking modal ─────────────────────────────────────────────────────────────
@@ -81,7 +127,6 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-base font-semibold text-foreground">Réserver ce créneau</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
@@ -96,20 +141,18 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
             </div>
           )}
 
-          {/* Slot details card */}
+          {/* Slot details */}
           <div className="rounded-xl border border-border bg-muted/30 px-4 py-4 space-y-2">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-semibold text-foreground text-sm truncate">{venueName}</p>
-                <p className="text-xs text-muted-foreground mt-0.5 capitalize">{fmtDate(slot.date)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 capitalize">{fmtLong(slot.date)}</p>
               </div>
               {slot.price > 0 && (
-                <div className="text-right shrink-0">
-                  <p className="text-lg font-bold text-foreground leading-none">
-                    {Number(slot.price).toLocaleString('fr-FR')}
-                    <span className="text-xs font-normal text-muted-foreground ml-1">FCFA</span>
-                  </p>
-                </div>
+                <p className="text-lg font-bold text-foreground shrink-0 leading-none">
+                  {Number(slot.price).toLocaleString('fr-FR')}
+                  <span className="text-xs font-normal text-muted-foreground ml-1">FCFA</span>
+                </p>
               )}
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -118,9 +161,7 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
                 {slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}
               </span>
               {duration && (
-                <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                  {duration}
-                </span>
+                <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{duration}</span>
               )}
             </div>
           </div>
@@ -133,9 +174,7 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
             ) : sessions.length === 0 ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
                 Aucune session ouverte.{' '}
-                <Link to="/sessions" className="font-medium underline hover:text-amber-900">
-                  Créez une session
-                </Link>{' '}
+                <Link to="/sessions" className="font-medium underline">Créez une session</Link>{' '}
                 puis revenez réserver ce créneau.
               </div>
             ) : (
@@ -198,157 +237,62 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
   );
 }
 
-// ── Venue section with date picker ────────────────────────────────────────────
-function VenueSection({ venue, onBook }) {
-  const today                         = toISODate(new Date());
-  const [open,         setOpen]       = useState(false);
-  const [selectedDate, setSelectedDate] = useState(today);
-  const [allSlots,     setAllSlots]   = useState(null);
-  const [loading,      setLoading]    = useState(false);
-
-  const handleOpen = useCallback(async () => {
-    if (!open && allSlots === null) {
-      setLoading(true);
-      try {
-        const { slots: s } = await getVenueSlots(venue.id);
-        setAllSlots((s ?? []).filter((sl) => sl.status !== 'cancelled' && sl.date >= today));
-      } catch {
-        setAllSlots([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    setOpen((o) => !o);
-  }, [open, allSlots, venue.id, today]);
-
-  const slotsForDate = (allSlots ?? [])
-    .filter((sl) => sl.date === selectedDate)
-    .sort((a, b) => (a.start_time > b.start_time ? 1 : -1));
-
-  const availableCount = slotsForDate.filter((s) => s.status === 'available').length;
-
-  return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      {/* Venue header row */}
-      <div className="px-5 py-4 flex items-center gap-3">
-        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-          <MapPin className="h-4 w-4 text-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-foreground text-sm">{venue.name}</p>
-          {venue.description && (
-            <p className="text-xs text-muted-foreground truncate">{venue.description}</p>
-          )}
-        </div>
-        <Button size="sm" variant="outline" onClick={handleOpen} disabled={loading}>
-          {loading
-            ? <span className="h-3.5 w-3.5 border border-primary border-t-transparent rounded-full animate-spin inline-block" />
-            : open
-              ? <ChevronUp className="h-3.5 w-3.5" />
-              : <CalendarDays className="h-3.5 w-3.5" />}
-          {open ? 'Masquer' : 'Voir les créneaux'}
-        </Button>
-      </div>
-
-      {/* Slots panel */}
-      {open && !loading && (
-        <div className="border-t border-border bg-muted/10 px-5 py-4 space-y-4">
-          {/* Date picker */}
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-medium text-muted-foreground shrink-0">Date</label>
-            <input
-              type="date"
-              value={selectedDate}
-              min={today}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            {allSlots !== null && (
-              <span className="text-xs text-muted-foreground ml-auto">
-                {availableCount > 0
-                  ? `${availableCount} disponible${availableCount > 1 ? 's' : ''}`
-                  : 'Complet'}
-              </span>
-            )}
-          </div>
-
-          {/* Slot buttons */}
-          {slotsForDate.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-1">Aucun créneau pour cette date.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {slotsForDate.map((slot) => {
-                const avail = slot.status === 'available';
-                return (
-                  <button
-                    key={slot.id}
-                    onClick={() => avail && onBook(slot, venue.name)}
-                    disabled={!avail}
-                    className={cn(
-                      'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
-                      avail
-                        ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100 cursor-pointer hover:shadow-sm'
-                        : 'border-border bg-muted text-muted-foreground cursor-not-allowed opacity-50'
-                    )}
-                  >
-                    <Clock className="h-3 w-3" />
-                    {slot.start_time?.slice(0, 5)}–{slot.end_time?.slice(0, 5)}
-                    {slot.price > 0 && (
-                      <span className="ml-1 opacity-80">
-                        {Number(slot.price).toLocaleString('fr-FR')} F
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── ClubProfile page ──────────────────────────────────────────────────────────
 export default function ClubProfile() {
-  const { id }   = useParams();
-  const { user } = useAuth();
+  const { id } = useParams();
 
-  const [club,    setClub]    = useState(null);
-  const [venues,  setVenues]  = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
-  const [booking, setBooking] = useState(null); // { slot, venueName }
+  const [club,         setClub]         = useState(null);
+  const [clubLoading,  setClubLoading]  = useState(true);
+  const [clubError,    setClubError]    = useState(null);
+
+  const [selectedDate, setSelectedDate] = useState(todayISO);
+  const [slotsData,    setSlotsData]    = useState(null);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+
+  const [booking, setBooking] = useState(null);
   const [booked,  setBooked]  = useState(false);
 
+  // Load club info once
   useEffect(() => {
     getPublicClub(id)
-      .then(({ club: c, venues: v }) => { setClub(c); setVenues(v ?? []); })
-      .catch((err) => setError(err.message || 'Erreur de chargement.'))
-      .finally(() => setLoading(false));
+      .then(({ club: c }) => setClub(c))
+      .catch((err) => setClubError(err.message || 'Erreur de chargement.'))
+      .finally(() => setClubLoading(false));
   }, [id]);
+
+  // Reload slots whenever date changes
+  useEffect(() => {
+    setSlotsLoading(true);
+    setSlotsData(null);
+    getClubSlots(id, selectedDate)
+      .then((data) => setSlotsData(data))
+      .catch(() => setSlotsData({ date: selectedDate, venues: [] }))
+      .finally(() => setSlotsLoading(false));
+  }, [id, selectedDate]);
 
   const amenityKeys = club?.amenities
     ? Object.keys(club.amenities).filter((k) => club.amenities[k])
     : [];
   const photos = Array.isArray(club?.photos_urls) ? club.photos_urls : [];
+  const today  = todayISO();
 
-  if (loading) {
+  // ── loading / error states ────────────────────────────────────────────────
+  if (clubLoading) {
     return (
       <div className="space-y-6">
         <div className="h-48 rounded-2xl bg-muted animate-pulse" />
-        <div className="h-6 w-40 bg-muted animate-pulse rounded-lg" />
-        <div className="space-y-3">
-          {[1, 2].map((i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}
+        <div className="h-12 rounded-xl bg-muted animate-pulse" />
+        <div className="space-y-4">
+          {[1, 2].map((i) => <div key={i} className="h-32 rounded-xl bg-muted animate-pulse" />)}
         </div>
       </div>
     );
   }
 
-  if (error || !club) {
+  if (clubError || !club) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        <AlertCircle className="h-4 w-4 shrink-0" />{error || 'Club introuvable.'}
+        <AlertCircle className="h-4 w-4 shrink-0" />{clubError || 'Club introuvable.'}
       </div>
     );
   }
@@ -358,7 +302,6 @@ export default function ClubProfile() {
 
       {/* ── Club header ──────────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-        {/* Banner */}
         <div className="h-40 bg-gradient-to-br from-primary/20 to-primary/5 relative overflow-hidden">
           {photos[0] && (
             <img src={photos[0]} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -413,7 +356,7 @@ export default function ClubProfile() {
         </div>
       </div>
 
-      {/* ── Photos gallery ───────────────────────────────────────────────── */}
+      {/* ── Photo gallery ────────────────────────────────────────────────── */}
       {photos.length > 1 && (
         <div>
           <h2 className="text-base font-semibold text-foreground mb-3">Photos</h2>
@@ -439,9 +382,7 @@ export default function ClubProfile() {
           <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-semibold text-green-800">Réservation confirmée !</p>
-            <p className="text-xs text-green-700 mt-0.5">
-              Votre créneau a été réservé. Un email de confirmation vous a été envoyé.
-            </p>
+            <p className="text-xs text-green-700 mt-0.5">Un email de confirmation vous a été envoyé.</p>
           </div>
           <button onClick={() => setBooked(false)} className="text-green-600 hover:text-green-800 shrink-0">
             <X className="h-4 w-4" />
@@ -449,21 +390,91 @@ export default function ClubProfile() {
         </div>
       )}
 
-      {/* ── Venues + slots ───────────────────────────────────────────────── */}
-      <div className="space-y-3">
-        <h2 className="text-base font-semibold text-foreground">
-          Terrains{venues.length > 0 && ` (${venues.length})`}
-        </h2>
-        {venues.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun terrain enregistré pour ce club.</p>
-        ) : (
-          venues.map((v) => (
-            <VenueSection
-              key={v.id}
-              venue={v}
-              onBook={(slot, venueName) => setBooking({ slot, venueName })}
+      {/* ── Date picker + slots ──────────────────────────────────────────── */}
+      <div className="space-y-5">
+        {/* Date navigation */}
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <button
+            onClick={() => setSelectedDate((d) => shiftDate(d, -1))}
+            disabled={selectedDate <= today}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <div className="flex-1 flex items-center justify-center gap-3">
+            <input
+              type="date"
+              value={selectedDate}
+              min={today}
+              onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+              className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
-          ))
+            <p className="text-sm font-medium text-foreground hidden sm:block capitalize">
+              {fmtShort(selectedDate)}
+              {selectedDate === today && (
+                <span className="ml-2 text-xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground">
+                  Aujourd'hui
+                </span>
+              )}
+            </p>
+          </div>
+
+          <button
+            onClick={() => setSelectedDate((d) => shiftDate(d, 1))}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Slots per venue */}
+        {slotsLoading ? (
+          <div className="space-y-4">
+            {[1, 2].map((i) => <div key={i} className="h-28 rounded-xl bg-muted animate-pulse" />)}
+          </div>
+        ) : !slotsData || slotsData.venues.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center">
+            <p className="text-sm text-muted-foreground">Aucun terrain enregistré pour ce club.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {slotsData.venues.map((venue) => (
+              <div key={venue.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                {/* Court header */}
+                <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <p className="text-sm font-semibold text-foreground">{venue.name}</p>
+                  {venue.description && (
+                    <p className="text-xs text-muted-foreground truncate">{venue.description}</p>
+                  )}
+                  {venue.slots.length > 0 && (
+                    <span className="ml-auto text-xs text-muted-foreground shrink-0">
+                      {venue.slots.filter((s) => s.status === 'available').length} disponible{venue.slots.filter((s) => s.status === 'available').length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Slot grid */}
+                <div className="px-5 py-4">
+                  {venue.slots.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Aucun créneau pour cette date.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {venue.slots.map((slot) => (
+                        <SlotBtn
+                          key={slot.id}
+                          slot={slot}
+                          venueName={venue.name}
+                          onBook={(s, name) => setBooking({ slot: s, venueName: name })}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
@@ -476,6 +487,12 @@ export default function ClubProfile() {
           onBooked={() => {
             setBooking(null);
             setBooked(true);
+            // Refresh slots for current date so booked slot turns grey
+            setSlotsLoading(true);
+            getClubSlots(id, selectedDate)
+              .then((data) => setSlotsData(data))
+              .catch(() => {})
+              .finally(() => setSlotsLoading(false));
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
         />

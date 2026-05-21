@@ -75,6 +75,29 @@ async function bulkCreateSlots(rows) {
   return db.batchInsert('venue_slots', rows, 200);
 }
 
+async function getAllVenues() {
+  return db('venues').whereNull('deleted_at').select();
+}
+
+// Returns existing (venue_id, date, start_time) tuples — includes cancelled/soft-deleted
+// rows so fillMissingSlots never re-inserts an intentionally cancelled slot.
+async function getSlotsByVenuesAndDates(venueIds, fromDate, toDate) {
+  return db('venue_slots')
+    .whereIn('venue_id', venueIds)
+    .where('date', '>=', fromDate)
+    .where('date', '<=', toDate)
+    .select('venue_id', 'date', 'start_time');
+}
+
+// Returns all slots (including soft-deleted cancelled ones) for display purposes.
+async function getSlotsByVenueIds(venueIds, date) {
+  return db('venue_slots')
+    .whereIn('venue_id', venueIds)
+    .where('date', date)
+    .orderBy('start_time', 'asc')
+    .select();
+}
+
 async function bulkUpdateSlotPrice(venueId, startTime, endTime, price) {
   return db('venue_slots')
     .where({ venue_id: venueId, start_time: startTime, end_time: endTime })
@@ -85,11 +108,14 @@ async function bulkUpdateSlotPrice(venueId, startTime, endTime, price) {
 
 module.exports = {
   createVenue,
+  getAllVenues,
   getByOrg,
   getById,
   createSlot,
   bulkCreateSlots,
   getSlots,
+  getSlotsByVenuesAndDates,
+  getSlotsByVenueIds,
   getSlotById,
   updateSlot,
   softDeleteSlot,

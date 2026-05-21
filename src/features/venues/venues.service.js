@@ -171,4 +171,36 @@ async function bulkUpdateSlotPrice(venueId, userOrgId, startTime, endTime, price
   return { updated: true };
 }
 
-module.exports = { addVenue, listVenuesByClub, addSlot, getAvailableSlots, updateSlot, deleteSlot, bulkUpdateSlotPrice };
+async function fillMissingSlots() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dates = [];
+  for (let d = 0; d < 30; d++) {
+    const dt = new Date(today);
+    dt.setDate(today.getDate() + d);
+    dates.push(dt.toISOString().slice(0, 10));
+  }
+
+  const venues = await venuesRepo.getAllVenues();
+  if (venues.length === 0) return 0;
+
+  const venueIds = venues.map((v) => v.id);
+  const existing = await venuesRepo.getSlotsByVenuesAndDates(venueIds, dates[0], dates[dates.length - 1]);
+  const existingSet = new Set(existing.map((s) => `${s.venue_id}|${s.date}|${s.start_time}`));
+
+  const rows = [];
+  for (const venue of venues) {
+    for (const dateStr of dates) {
+      for (const tmpl of SLOT_TEMPLATES) {
+        if (!existingSet.has(`${venue.id}|${dateStr}|${tmpl.start_time}`)) {
+          rows.push({ venue_id: venue.id, date: dateStr, ...tmpl, status: 'available' });
+        }
+      }
+    }
+  }
+
+  if (rows.length > 0) await venuesRepo.bulkCreateSlots(rows);
+  return rows.length;
+}
+
+module.exports = { addVenue, listVenuesByClub, addSlot, getAvailableSlots, updateSlot, deleteSlot, bulkUpdateSlotPrice, fillMissingSlots };

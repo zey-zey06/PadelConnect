@@ -78,4 +78,31 @@ async function removePhoto(clubId, userOrgId, photoUrl) {
   return clubsRepo.update(clubId, { photos_urls: current.filter((u) => u !== photoUrl) });
 }
 
-module.exports = { createClub, listClubs, getClub, updateClub, updateLogo, getPublicClub, addPhoto, removePhoto };
+async function getClubSlots(clubId, date) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) { const err = new Error('Club introuvable.'); err.status = 404; throw err; }
+
+  const venues = await venuesRepo.getByOrg(clubId);
+  if (venues.length === 0) return { date, venues: [] };
+
+  const venueIds = venues.map((v) => v.id);
+  const slots    = await venuesRepo.getSlotsByVenueIds(venueIds, date);
+
+  const slotsByVenue = {};
+  for (const slot of slots) {
+    if (!slotsByVenue[slot.venue_id]) slotsByVenue[slot.venue_id] = [];
+    slotsByVenue[slot.venue_id].push(slot);
+  }
+
+  return {
+    date,
+    venues: venues.map((v) => ({
+      id:          v.id,
+      name:        v.name,
+      description: v.description,
+      slots:       slotsByVenue[v.id] ?? [],
+    })),
+  };
+}
+
+module.exports = { createClub, listClubs, getClub, updateClub, updateLogo, getPublicClub, addPhoto, removePhoto, getClubSlots };
