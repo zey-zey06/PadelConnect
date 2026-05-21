@@ -1,8 +1,33 @@
 import client from './client';
 
 // ── Club ──────────────────────────────────────────────────────────────────────
+/** POST /api/clubs → { club }  (also refreshes JWT cookie with new org_id) */
+export const createClub = (data) => client.post('/clubs', data);
+
 /** GET /api/clubs/:id → { club } */
-export const getMyClub   = (clubId) => client.get(`/clubs/${clubId}`);
+export const getMyClub = (clubId) => client.get(`/clubs/${clubId}`);
+
+/** PATCH /api/clubs/:id → { club } */
+export const updateClub = (clubId, data) => client.patch(`/clubs/${clubId}`, data);
+
+/** POST /api/clubs/:id/logo  (multipart/form-data, field: logo) → { club } */
+export const uploadClubLogo = (clubId, file) => {
+  const form = new FormData();
+  form.append('logo', file);
+  return fetch(`/api/clubs/${clubId}/logo`, {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  }).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.message || 'Erreur lors de l\'upload.');
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  });
+};
 
 /** GET /api/clubs/:id/venues → { venues: [...] } */
 export const getMyVenues = (clubId) => client.get(`/clubs/${clubId}/venues`);

@@ -21,4 +21,12 @@ async function linkUserToOrg(userId, organizationId) {
   return row;
 }
 
-module.exports = { create, list, getById, linkUserToOrg };
+async function update(id, data) {
+  const [row] = await db('organizations')
+    .where({ id })
+    .update({ ...data, updated_at: new Date() })
+    .returning('*');
+  return row;
+}
+
+module.exports = { create, list, getById, linkUserToOrg, update };

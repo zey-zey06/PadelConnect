@@ -14,6 +14,8 @@ import CoachDashboard   from '@/pages/CoachDashboard';
 import ManagerDashboard from '@/pages/manager/ManagerDashboard';
 import VenueManager     from '@/pages/manager/VenueManager';
 import SlotManager      from '@/pages/manager/SlotManager';
+import ClubSetup        from '@/pages/manager/ClubSetup';
+import ManagerProfile   from '@/pages/manager/ManagerProfile';
 import AdminDashboard   from '@/pages/AdminDashboard';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
@@ -49,6 +51,16 @@ function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
   if (user)    return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+// Requires auth + venue_admin role + existing organization; redirects to setup if org missing
+function ManagerRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading)                        return <LoadingScreen />;
+  if (!user)                          return <Navigate to="/login"           replace />;
+  if (user.role !== 'venue_admin')    return <Navigate to="/dashboard"       replace />;
+  if (!user.organization_id)          return <Navigate to="/manager/setup"   replace />;
   return children;
 }
 
@@ -141,17 +153,28 @@ export default function App() {
             path="/coach/dashboard"
             element={<ProtectedRoute><Layout><CoachDashboard /></Layout></ProtectedRoute>}
           />
+          {/* ── Manager — setup (no org required) ──────────────── */}
+          <Route
+            path="/manager/setup"
+            element={<ProtectedRoute><ClubSetup /></ProtectedRoute>}
+          />
+
+          {/* ── Manager — org required ──────────────────────────── */}
           <Route
             path="/manager/dashboard"
-            element={<ProtectedRoute><Layout><ManagerDashboard /></Layout></ProtectedRoute>}
+            element={<ManagerRoute><Layout><ManagerDashboard /></Layout></ManagerRoute>}
           />
           <Route
             path="/manager/venues"
-            element={<ProtectedRoute><Layout><VenueManager /></Layout></ProtectedRoute>}
+            element={<ManagerRoute><Layout><VenueManager /></Layout></ManagerRoute>}
           />
           <Route
             path="/manager/venues/:venueId/slots"
-            element={<ProtectedRoute><Layout><SlotManager /></Layout></ProtectedRoute>}
+            element={<ManagerRoute><Layout><SlotManager /></Layout></ManagerRoute>}
+          />
+          <Route
+            path="/manager/profile"
+            element={<ManagerRoute><Layout><ManagerProfile /></Layout></ManagerRoute>}
           />
           <Route
             path="/admin/dashboard"

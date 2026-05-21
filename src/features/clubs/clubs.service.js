@@ -20,4 +20,34 @@ async function getClub(id) {
   return club;
 }
 
-module.exports = { createClub, listClubs, getClub };
+async function updateClub(clubId, userOrgId, data) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) {
+    const err = new Error('Club introuvable.');
+    err.status = 404;
+    throw err;
+  }
+  if (club.id !== userOrgId) {
+    const err = new Error('Accès refusé.');
+    err.status = 403;
+    throw err;
+  }
+  return clubsRepo.update(clubId, data);
+}
+
+async function updateLogo(clubId, userOrgId, filename) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) {
+    const err = new Error('Club introuvable.');
+    err.status = 404;
+    throw err;
+  }
+  if (club.id !== userOrgId) {
+    const err = new Error('Accès refusé.');
+    err.status = 403;
+    throw err;
+  }
+  return clubsRepo.update(clubId, { logo_url: `/uploads/clubs/${filename}` });
+}
+
+module.exports = { createClub, listClubs, getClub, updateClub, updateLogo };

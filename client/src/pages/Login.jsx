@@ -72,7 +72,16 @@ export default function Login() {
 
       setUser(data.user);
 
-      // Non-player roles go straight to their dashboard
+      // venue_admin: go to setup if no club yet, otherwise dashboard
+      if (role === 'venue_admin') {
+        navigate(
+          data.user.organization_id ? '/manager/dashboard' : '/manager/setup',
+          { replace: true }
+        );
+        return;
+      }
+
+      // Other non-player roles go straight to their dashboard
       if (ROLE_REDIRECTS[role]) {
         navigate(ROLE_REDIRECTS[role], { replace: true });
         return;

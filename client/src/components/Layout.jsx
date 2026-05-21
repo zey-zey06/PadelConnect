@@ -17,7 +17,7 @@ const PLAYER_NAV = [
 const MANAGER_NAV = [
   { to: '/manager/dashboard', label: 'Tableau de bord' },
   { to: '/manager/venues',    label: 'Mes terrains'    },
-  { to: '/profile',           label: 'Mon Profil'      },
+  { to: '/manager/profile',   label: 'Mon Club'        },
 ];
 
 export default function Layout({ children }) {

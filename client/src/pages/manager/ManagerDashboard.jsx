@@ -152,12 +152,20 @@ export default function ManagerDashboard() {
           <AlertCircle className="h-4 w-4 shrink-0" />{error}
         </div>
       ) : !user?.organization_id ? (
-        <div className="rounded-xl border border-dashed border-border bg-card p-16 text-center space-y-3">
+        <div className="rounded-xl border border-dashed border-border bg-card p-16 text-center space-y-4">
           <Building2 className="h-10 w-10 text-muted-foreground mx-auto" />
-          <p className="font-medium text-foreground">Aucun club associé</p>
-          <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-            Votre compte gérant n'est pas encore rattaché à un club.
-          </p>
+          <div>
+            <p className="font-medium text-foreground">Aucun club associé</p>
+            <p className="text-sm text-muted-foreground max-w-xs mx-auto mt-1">
+              Créez votre club pour commencer à gérer vos terrains.
+            </p>
+          </div>
+          <Link to="/manager/setup">
+            <Button>
+              <Plus className="h-4 w-4" />
+              Créer votre club
+            </Button>
+          </Link>
         </div>
       ) : (
         <>
