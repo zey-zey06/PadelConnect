@@ -14,6 +14,36 @@ const LEVEL_LABELS = {
   4: 'Inter +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
 };
 
+// ── Organizer avatar + name ───────────────────────────────────────────────────
+function OrganizerLine({ session }) {
+  const name    = session.creator_email?.split('@')[0] ?? 'Joueur';
+  const initials = name.slice(0, 2).toUpperCase();
+
+  return (
+    <Link
+      to={`/players/${session.creator_id}`}
+      state={{ name }}
+      className="flex items-center gap-1.5 group w-fit"
+    >
+      <div className="h-5 w-5 rounded-full overflow-hidden bg-primary/10 shrink-0 ring-1 ring-border">
+        {session.creator_photo_url ? (
+          <img src={session.creator_photo_url} alt={name} className="h-full w-full object-cover" />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-[8px] font-bold text-primary/70">
+            {initials}
+          </span>
+        )}
+      </div>
+      <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+        Organisé par <span className="font-medium capitalize">{name}</span>
+        {session.creator_level && (
+          <span className="ml-1 font-bold text-primary/70">· niv. {session.creator_level}</span>
+        )}
+      </span>
+    </Link>
+  );
+}
+
 // ── Session card ──────────────────────────────────────────────────────────────
 function SessionCard({ session, onJoin }) {
   const [state, setState] = useState('idle'); // idle | loading | done | error
@@ -66,6 +96,9 @@ function SessionCard({ session, onJoin }) {
           <span>Niv. {LEVEL_LABELS[session.preferences.level_min] ?? session.preferences.level_min}+</span>
         )}
       </div>
+
+      {/* Organizer */}
+      <OrganizerLine session={session} />
 
       {/* Action */}
       <div className="mt-auto">

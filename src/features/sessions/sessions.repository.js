@@ -7,24 +7,31 @@ async function create(data) {
 
 async function list(filters = {}) {
   let query = db('sessions')
-    .whereNull('deleted_at')
-    .orderBy('date', 'asc')
-    .orderBy('time', 'asc');
+    .join('users', 'sessions.creator_id', 'users.id')
+    .leftJoin('player_profiles', 'users.id', 'player_profiles.user_id')
+    .whereNull('sessions.deleted_at')
+    .orderBy('sessions.date', 'asc')
+    .orderBy('sessions.time', 'asc');
 
   if (filters.date) {
-    query = query.where('date', filters.date);
+    query = query.where('sessions.date', filters.date);
   }
   if (filters.status) {
-    query = query.where('status', filters.status);
+    query = query.where('sessions.status', filters.status);
   }
   if (filters.level_min != null) {
-    query = query.whereRaw("(preferences->>'level')::int >= ?", [filters.level_min]);
+    query = query.whereRaw("(sessions.preferences->>'level')::int >= ?", [filters.level_min]);
   }
   if (filters.level_max != null) {
-    query = query.whereRaw("(preferences->>'level')::int <= ?", [filters.level_max]);
+    query = query.whereRaw("(sessions.preferences->>'level')::int <= ?", [filters.level_max]);
   }
 
-  return query.select();
+  return query.select(
+    'sessions.*',
+    'users.email as creator_email',
+    'player_profiles.photo_url as creator_photo_url',
+    'player_profiles.level as creator_level',
+  );
 }
 
 async function getById(id) {
