@@ -956,7 +956,11 @@ function RequestRow({ request, sessionId, onRespond }) {
 
 // ── Booking detail modal ──────────────────────────────────────────────────────
 function BookingDetailModal({ booking, onClose }) {
-  const paymentLabel = booking.payment_method === 'card' ? 'Carte bancaire' : 'Sur place';
+  const PAYMENT_LABELS = {
+    card: 'Carte bancaire', on_arrival: 'Sur place',
+    wave: 'Wave', orange_money: 'Orange Money',
+  };
+  const paymentLabel = PAYMENT_LABELS[booking.payment_method] ?? booking.payment_method ?? 'Sur place';
   const d = parseSessionDate(booking.session_date);
 
   return (

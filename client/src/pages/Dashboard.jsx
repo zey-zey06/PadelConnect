@@ -48,7 +48,8 @@ function SessionRow({ session, onJoin }) {
     }
   }
 
-  const d = new Date(session.date);
+  const str = (session.date ?? '').toString().slice(0, 10);
+  const d = new Date(str + 'T00:00:00');
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:shadow-sm transition-shadow">
@@ -119,8 +120,8 @@ export default function Dashboard() {
   }
 
   const upcoming = bookings.filter((b) => {
-    const d = b.session?.date ?? b.date;
-    return d && new Date(d) >= new Date();
+    const raw = b.session?.date ?? b.date;
+    return raw && new Date(String(raw).slice(0, 10) + 'T00:00:00') >= new Date();
   });
 
   return (

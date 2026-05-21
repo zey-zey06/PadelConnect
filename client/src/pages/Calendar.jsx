@@ -10,7 +10,8 @@ function BookingCard({ booking, onCancel }) {
   const [cancelling, setCancelling] = useState(false);
 
   const session = booking.session ?? {};
-  const date    = new Date(session.date ?? booking.date);
+  const rawDate = session.date ?? booking.date ?? '';
+  const date    = new Date(String(rawDate).slice(0, 10) + 'T00:00:00');
   const time    = (session.time ?? booking.time)?.slice(0, 5) ?? '—';
   const isPast  = date < new Date();
 
@@ -97,14 +98,16 @@ export default function Calendar() {
     load();
   }
 
+  const parseDate = (b) => new Date(String(b.session?.date ?? b.date ?? '').slice(0, 10) + 'T00:00:00');
+
   const upcoming = bookings.filter((b) => {
     const d = b.session?.date ?? b.date;
-    return d && new Date(d) >= new Date();
+    return d && parseDate(b) >= new Date();
   });
 
   const past = bookings.filter((b) => {
     const d = b.session?.date ?? b.date;
-    return d && new Date(d) < new Date();
+    return d && parseDate(b) < new Date();
   });
 
   return (

@@ -10,7 +10,7 @@ const LEVEL_LABELS = {
 
 // ── Session card ──────────────────────────────────────────────────────────────
 function SessionCard({ session }) {
-  const d = new Date(session.date);
+  const d = new Date(String(session.date ?? '').slice(0, 10) + 'T00:00:00');
   const isPast = d < new Date();
   return (
     <div className={`flex items-center gap-4 rounded-xl border px-4 py-3 ${isPast ? 'border-border bg-muted/30' : 'border-border bg-card hover:shadow-sm'} transition-shadow`}>
