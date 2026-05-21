@@ -368,9 +368,10 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
   const [venueData,    setVenueData]    = useState([]);   // [{ id, name, matchingSlots }]
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null); // slot + venue_name
-  const [payment,      setPayment]      = useState('on_arrival'); // 'on_arrival' | 'card'
+  const [payment,      setPayment]      = useState('on_arrival'); // on_arrival|card|wave|orange_money
   const [card,         setCard]         = useState({ number: '', expiry: '', cvv: '', holder: '' });
   const [cardAccepted, setCardAccepted] = useState(false);
+  const [phone,        setPhone]        = useState('');
   const [confirmedBk,  setConfirmedBk]  = useState(null);
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState(null);
@@ -434,6 +435,17 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
     setCardAccepted(false);
     if (error) setError(null);
   }
+  // Format Ivorian phone: 10 digits in groups of 2 (07 12 34 56 78)
+  function formatPhone(v) {
+    const digits = v.replace(/\D/g, '').slice(0, 10);
+    const groups = [];
+    for (let i = 0; i < digits.length; i += 2) groups.push(digits.slice(i, i + 2));
+    return groups.join(' ');
+  }
+  function updatePhone(raw) {
+    setPhone(formatPhone(raw));
+    if (error) setError(null);
+  }
 
   async function handleConfirm() {
     setError(null);
@@ -447,12 +459,25 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
       setCardAccepted(true);
     }
 
+    if (payment === 'wave' || payment === 'orange_money') {
+      const phoneDigits = phone.replace(/\s/g, '');
+      if (phoneDigits.length !== 10) {
+        setError('Numéro invalide — 10 chiffres requis (ex: 07 12 34 56 78).');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
+      const phoneDigits = phone.replace(/\s/g, '');
+      const payment_phone = (payment === 'wave' || payment === 'orange_money') && phoneDigits
+        ? `+225${phoneDigits}`
+        : undefined;
       const { booking } = await createBooking({
         session_id:     session.id,
         venue_slot_id:  selectedSlot.id,
         payment_method: payment,
+        ...(payment_phone && { payment_phone }),
       });
       setConfirmedBk(booking);
       onBooked();
@@ -670,31 +695,44 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                 </div>
               </div>
 
-              {/* Payment method */}
+              {/* Payment method — 2×2 grid */}
               <div className="space-y-2">
                 <Label>Moyen de paiement</Label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2.5">
                   {[
-                    { value: 'on_arrival', label: 'Sur place',      Icon: Banknote },
-                    { value: 'card',       label: 'Carte bancaire', Icon: CreditCard },
-                  ].map(({ value, label, Icon }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => { setPayment(value); setCardAccepted(false); setError(null); }}
-                      className={cn(
-                        'flex flex-col items-center gap-2 rounded-xl border p-4 transition-all',
-                        payment === value
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border bg-card hover:border-primary/30'
-                      )}
-                    >
-                      <Icon className={cn('h-5 w-5', payment === value ? 'text-primary' : 'text-muted-foreground')} />
-                      <span className={cn('text-xs font-medium', payment === value ? 'text-primary' : 'text-foreground')}>
-                        {label}
-                      </span>
-                    </button>
-                  ))}
+                    { value: 'on_arrival',   label: 'Sur place',      Icon: Banknote,    color: null },
+                    { value: 'card',         label: 'Carte bancaire', Icon: CreditCard,  color: null },
+                    { value: 'wave',         label: 'Wave',           Icon: null,        color: '#1DC8FF' },
+                    { value: 'orange_money', label: 'Orange Money',   Icon: null,        color: '#FF6600' },
+                  ].map(({ value, label, Icon, color }) => {
+                    const active = payment === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => { setPayment(value); setCardAccepted(false); setPhone(''); setError(null); }}
+                        style={active && color ? { borderColor: color, backgroundColor: `${color}15` } : undefined}
+                        className={cn(
+                          'flex flex-col items-center gap-1.5 rounded-xl border p-3.5 transition-all',
+                          active && !color ? 'border-primary bg-primary/10'
+                            : !active ? 'border-border bg-card hover:border-primary/30'
+                            : ''
+                        )}
+                      >
+                        {Icon ? (
+                          <Icon className={cn('h-5 w-5', active ? 'text-primary' : 'text-muted-foreground')} />
+                        ) : (
+                          <span className="text-lg leading-none">{value === 'wave' ? '🌊' : '🟠'}</span>
+                        )}
+                        <span
+                          className="text-xs font-medium"
+                          style={active && color ? { color } : undefined}
+                        >
+                          {label}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -753,6 +791,33 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                     </div>
                   </div>
                 )
+              )}
+
+              {/* Wave / Orange Money phone input */}
+              {(payment === 'wave' || payment === 'orange_money') && (
+                <div
+                  className="rounded-xl border p-4 space-y-2"
+                  style={{
+                    borderColor: payment === 'wave' ? '#1DC8FF' : '#FF6600',
+                    backgroundColor: payment === 'wave' ? '#1DC8FF10' : '#FF660010',
+                  }}
+                >
+                  <Label className="text-xs font-semibold" style={{ color: payment === 'wave' ? '#0ea5e9' : '#ea580c' }}>
+                    {payment === 'wave' ? 'Numéro Wave' : 'Numéro Orange Money'}
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-mono text-muted-foreground shrink-0 select-none">🇨🇮 +225</span>
+                    <Input
+                      placeholder="07 12 34 56 78"
+                      value={phone}
+                      onChange={(e) => updatePhone(e.target.value)}
+                      inputMode="numeric"
+                      maxLength={14}
+                      className="font-mono tracking-wider"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">10 chiffres · ex : 07 12 34 56 78</p>
+                </div>
               )}
 
               {/* Confirm button */}

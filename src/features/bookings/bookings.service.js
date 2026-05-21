@@ -19,7 +19,7 @@ function isWithin4hDeadline(session) {
   return hoursDiff <= 4;
 }
 
-async function createBooking(userId, { session_id, venue_slot_id, payment_method = 'on_arrival', addons = [] }) {
+async function createBooking(userId, { session_id, venue_slot_id, payment_method = 'on_arrival', payment_phone = null, addons = [] }) {
   // CU-10: block banned players
   const activeBan = await penaltiesRepo.getActiveAppBan(userId);
   if (activeBan) throw makeError(403, 'Votre compte est suspendu. Veuillez régler vos pénalités.');
@@ -33,7 +33,9 @@ async function createBooking(userId, { session_id, venue_slot_id, payment_method
   if (!slot) throw makeError(404, 'Créneau introuvable.');
   if (slot.status !== 'available') throw makeError(409, 'Ce créneau n\'est plus disponible.');
 
-  const booking = await bookingsRepo.create({ session_id, venue_slot_id, payment_method });
+  const bookingData = { session_id, venue_slot_id, payment_method };
+  if (payment_phone) bookingData.payment_phone = payment_phone;
+  const booking = await bookingsRepo.create(bookingData);
   await venuesRepo.updateSlot(venue_slot_id, { status: 'booked' });
 
   for (const addon of addons) {

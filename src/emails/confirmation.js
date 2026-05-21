@@ -9,8 +9,22 @@ function devTo(recipients) {
   return FROM;
 }
 
+function formatPaymentLabel(method, phone) {
+  const labels = {
+    card:         'Carte bancaire',
+    on_arrival:   'Sur place',
+    wave:         'Wave',
+    orange_money: 'Orange Money',
+  };
+  const label = labels[method] ?? 'Sur place';
+  if (phone && (method === 'wave' || method === 'orange_money')) {
+    return `${label} (${phone})`;
+  }
+  return label;
+}
+
 async function sendBookingConfirmation({ booking, session, slot, venue, players = [] }) {
-  const paymentLabel = booking.payment_method === 'card' ? 'Carte bancaire' : 'Sur place';
+  const paymentLabel = formatPaymentLabel(booking.payment_method, booking.payment_phone);
   const recipients   = players.map((p) => p.email).filter(Boolean);
   const venueName    = venue?.name ?? '';
   const slotDate     = slot?.date ?? session.date;
@@ -34,7 +48,7 @@ async function sendBookingConfirmation({ booking, session, slot, venue, players 
 }
 
 async function sendManagerBookingNotification({ booking, session, slot, venue, booker, managerEmail, playerCount }) {
-  const paymentLabel = booking.payment_method === 'card' ? 'Carte bancaire' : 'Sur place';
+  const paymentLabel = formatPaymentLabel(booking.payment_method, booking.payment_phone);
   const slotDate     = slot?.date ?? session.date;
   const slotStart    = slot?.start_time?.slice(0, 5) ?? session.time;
   const slotEnd      = slot?.end_time?.slice(0, 5) ?? '';

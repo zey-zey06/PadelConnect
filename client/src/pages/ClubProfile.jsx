@@ -168,8 +168,12 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
   const [cardHolder,   setCardHolder]   = useState('');
   const [cardAccepted, setCardAccepted] = useState(false);
 
+  // Mobile money field (Wave / Orange Money)
+  const [phone, setPhone] = useState('');
+
   const duration = durationLabel(slot.start_time, slot.end_time);
-  const showCard = paymentMethod === 'card';
+  const showCard  = paymentMethod === 'card';
+  const showPhone = paymentMethod === 'wave' || paymentMethod === 'orange_money';
 
   useEffect(() => {
     getMySessions()
@@ -182,8 +186,15 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
       .finally(() => setSessionsLoading(false));
   }, []);
 
-  // Reset card accepted state when switching payment method
-  useEffect(() => { setCardAccepted(false); setError(null); }, [paymentMethod]);
+  // Reset extra fields when switching payment method
+  useEffect(() => { setCardAccepted(false); setPhone(''); setError(null); }, [paymentMethod]);
+
+  function formatPhone(v) {
+    const digits = v.replace(/\D/g, '').slice(0, 10);
+    const groups = [];
+    for (let i = 0; i < digits.length; i += 2) groups.push(digits.slice(i, i + 2));
+    return groups.join(' ');
+  }
 
   function validateCard() {
     const num = cardNumber.replace(/\s/g, '');
@@ -206,15 +217,25 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
       const cardErr = validateCard();
       if (cardErr) { setError(cardErr); return; }
       setCardAccepted(true);
-      // Brief visual feedback — proceed immediately
+    }
+
+    if (showPhone) {
+      const phoneDigits = phone.replace(/\s/g, '');
+      if (phoneDigits.length !== 10) {
+        setError('Numéro invalide — 10 chiffres requis (ex: 07 12 34 56 78).');
+        return;
+      }
     }
 
     setLoading(true); setError(null);
     try {
+      const phoneDigits = phone.replace(/\s/g, '');
+      const payment_phone = showPhone && phoneDigits ? `+225${phoneDigits}` : undefined;
       const { booking } = await createBooking({
         session_id:     sessionId,
         venue_slot_id:  slot.id,
         payment_method: paymentMethod,
+        ...(payment_phone && { payment_phone }),
       });
       onBooked(booking);
     } catch (err) {
@@ -299,31 +320,71 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
             )}
           </div>
 
-          {/* Payment method */}
+          {/* Payment method — 2×2 grid */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">Mode de paiement</label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2.5">
               {[
-                { value: 'on_arrival', label: 'Sur place',      icon: Banknote   },
-                { value: 'card',       label: 'Carte bancaire', icon: CreditCard },
-              ].map(({ value, label, icon: Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setPaymentMethod(value)}
-                  className={cn(
-                    'flex flex-col items-center gap-1.5 rounded-xl border px-4 py-3 text-sm font-medium transition-all',
-                    paymentMethod === value
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : 'border-border text-foreground/70 hover:border-primary/40'
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                  {label}
-                </button>
-              ))}
+                { value: 'on_arrival',   label: 'Sur place',      Icon: Banknote,   color: null },
+                { value: 'card',         label: 'Carte bancaire', Icon: CreditCard, color: null },
+                { value: 'wave',         label: 'Wave',           Icon: null,       color: '#1DC8FF' },
+                { value: 'orange_money', label: 'Orange Money',   Icon: null,       color: '#FF6600' },
+              ].map(({ value, label, Icon, color }) => {
+                const active = paymentMethod === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPaymentMethod(value)}
+                    style={active && color ? { borderColor: color, backgroundColor: `${color}15` } : undefined}
+                    className={cn(
+                      'flex flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-sm font-medium transition-all',
+                      active && !color ? 'border-primary bg-primary/5 text-primary'
+                        : !active ? 'border-border text-foreground/70 hover:border-primary/40'
+                        : ''
+                    )}
+                  >
+                    {Icon
+                      ? <Icon className={cn('h-5 w-5', active ? 'text-primary' : '')} />
+                      : <span className="text-lg leading-none">{value === 'wave' ? '🌊' : '🟠'}</span>
+                    }
+                    <span style={active && color ? { color } : undefined}>{label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          {/* Wave / Orange Money phone input */}
+          {showPhone && (
+            <div
+              className="rounded-xl border p-4 space-y-2"
+              style={{
+                borderColor: paymentMethod === 'wave' ? '#1DC8FF' : '#FF6600',
+                backgroundColor: paymentMethod === 'wave' ? '#1DC8FF10' : '#FF660010',
+              }}
+            >
+              <label
+                className="text-xs font-semibold"
+                style={{ color: paymentMethod === 'wave' ? '#0ea5e9' : '#ea580c' }}
+              >
+                {paymentMethod === 'wave' ? 'Numéro Wave' : 'Numéro Orange Money'}
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-mono text-muted-foreground shrink-0 select-none">🇨🇮 +225</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="07 12 34 56 78"
+                  value={phone}
+                  onChange={(e) => { setPhone(formatPhone(e.target.value)); setError(null); }}
+                  maxLength={14}
+                  className={inputClass + ' font-mono tracking-wider'}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">10 chiffres · ex : 07 12 34 56 78</p>
+            </div>
+          )}
 
           {/* Card form — shown when Carte is selected */}
           {showCard && (
