@@ -46,9 +46,11 @@ function OrganizerLine({ session }) {
 
 // ── Session card ──────────────────────────────────────────────────────────────
 function SessionCard({ session, onJoin }) {
+  const { user } = useAuth();
   const [state, setState] = useState('idle'); // idle | loading | done | error
   const [msg, setMsg] = useState('');
   const isFull = (session.current_players ?? 0) >= session.max_players;
+  const isOwner = user?.id === session.creator_id;
   const d = new Date(session.date);
 
   async function handleJoin() {
@@ -102,7 +104,9 @@ function SessionCard({ session, onJoin }) {
 
       {/* Action */}
       <div className="mt-auto">
-        {state === 'done' ? (
+        {isOwner ? (
+          <p className="text-xs text-muted-foreground text-center py-1">Votre session</p>
+        ) : state === 'done' ? (
           <p className="text-sm font-medium text-green-600">
             Demande envoyée ✓ — le créateur vous répondra bientôt.
           </p>
