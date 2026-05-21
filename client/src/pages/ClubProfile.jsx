@@ -56,7 +56,7 @@ function SlotBtn({ slot, venueName, onBook }) {
       disabled={!avail}
       title={avail ? `${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}` : undefined}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all select-none',
+        'w-full flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all select-none',
         avail     && 'border-green-200 bg-green-50 text-green-800 hover:bg-green-100 hover:shadow-sm cursor-pointer',
         booked    && 'border-zinc-200 bg-zinc-100 text-zinc-500 cursor-not-allowed',
         cancelled && 'border-border bg-muted/40 text-muted-foreground line-through cursor-not-allowed opacity-60',
@@ -430,50 +430,55 @@ export default function ClubProfile() {
 
         {/* Slots per venue */}
         {slotsLoading ? (
-          <div className="space-y-4">
-            {[1, 2].map((i) => <div key={i} className="h-28 rounded-xl bg-muted animate-pulse" />)}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => <div key={i} className="h-48 rounded-xl bg-muted animate-pulse" />)}
           </div>
         ) : !slotsData || slotsData.venues.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center">
             <p className="text-sm text-muted-foreground">Aucun terrain enregistré pour ce club.</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {slotsData.venues.map((venue) => (
-              <div key={venue.id} className="rounded-xl border border-border bg-card overflow-hidden">
-                {/* Court header */}
-                <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center gap-2">
-                  <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <p className="text-sm font-semibold text-foreground">{venue.name}</p>
-                  {venue.description && (
-                    <p className="text-xs text-muted-foreground truncate">{venue.description}</p>
-                  )}
-                  {venue.slots.length > 0 && (
-                    <span className="ml-auto text-xs text-muted-foreground shrink-0">
-                      {venue.slots.filter((s) => s.status === 'available').length} disponible{venue.slots.filter((s) => s.status === 'available').length !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
+            {slotsData.venues.map((venue) => {
+              const availCount = venue.slots.filter((s) => s.status === 'available').length;
+              return (
+                <div key={venue.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                  {/* Court header */}
+                  <div className="px-4 py-3 border-b border-border bg-muted/20">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <p className="text-sm font-semibold text-foreground truncate">{venue.name}</p>
+                    </div>
+                    <div className="flex items-center justify-between mt-0.5">
+                      {venue.description
+                        ? <p className="text-xs text-muted-foreground truncate">{venue.description}</p>
+                        : <span />}
+                      {venue.slots.length > 0 && (
+                        <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                          {availCount} dispo{availCount !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
-                {/* Slot grid */}
-                <div className="px-5 py-4">
-                  {venue.slots.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Aucun créneau pour cette date.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {venue.slots.map((slot) => (
+                  {/* Slot list */}
+                  <div className="px-4 py-3 space-y-1.5">
+                    {venue.slots.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-1">Aucun créneau.</p>
+                    ) : (
+                      venue.slots.map((slot) => (
                         <SlotBtn
                           key={slot.id}
                           slot={slot}
                           venueName={venue.name}
                           onBook={(s, name) => setBooking({ slot: s, venueName: name })}
                         />
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
