@@ -1,6 +1,6 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const DEGRADED = {
   niveau: 4,
@@ -12,19 +12,16 @@ const DEGRADED = {
 
 async function generateProfile(description) {
   try {
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: "Tu es un expert padel. À partir de la description d'un joueur, génère un profil JSON structuré. Réponds uniquement avec du JSON valide, sans texte supplémentaire.",
-      messages: [
-        {
-          role: 'user',
-          content: `Description du joueur: ${description}\n\nGénère un profil JSON avec exactement ce format:\n{\n  "niveau": <entier entre 1 et 7>,\n  "style": "<style de jeu en quelques mots>",\n  "points_forts": ["<point1>", "<point2>"],\n  "points_faibles": ["<point1>"],\n  "description_courte": "<résumé en 1-2 phrases>"\n}`,
-        },
-      ],
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      systemInstruction: "Tu es un expert padel. À partir de la description d'un joueur, génère un profil JSON structuré. Réponds uniquement avec du JSON valide, sans texte supplémentaire ni balises markdown.",
     });
 
-    const text = message.content[0].text.trim();
+    const prompt = `Description du joueur: ${description}\n\nGénère un profil JSON avec exactement ce format:\n{\n  "niveau": <entier entre 1 et 7>,\n  "style": "<style de jeu en quelques mots>",\n  "points_forts": ["<point1>", "<point2>"],\n  "points_faibles": ["<point1>"],\n  "description_courte": "<résumé en 1-2 phrases>"\n}`;
+
+    const result = await model.generateContent(prompt);
+    const raw = result.response.text().trim();
+    const text = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
     const json = JSON.parse(text);
 
     const niveau = Number(json.niveau);

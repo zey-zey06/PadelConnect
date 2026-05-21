@@ -1,24 +1,21 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const DEGRADED = { score: 50, explication: 'Compatibilité neutre' };
 
 async function matchScore({ candidateProfile, acceptedProfiles, sessionPreferences }) {
   try {
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 512,
-      system: "Tu es un expert padel. Calcule un score de compatibilité entre un candidat et un groupe existant. Réponds uniquement avec du JSON valide, sans texte supplémentaire.",
-      messages: [
-        {
-          role: 'user',
-          content: `Profil candidat: ${JSON.stringify(candidateProfile ?? {})}\nProfils du groupe actuel: ${JSON.stringify(acceptedProfiles ?? [])}\nPréférences de la session: ${JSON.stringify(sessionPreferences ?? {})}\n\nGénère un score JSON avec exactement ce format:\n{\n  "score": <entier entre 0 et 100>,\n  "explication": "<1-2 phrases expliquant la compatibilité>"\n}`,
-        },
-      ],
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      systemInstruction: "Tu es un expert padel. Calcule un score de compatibilité entre un candidat et un groupe existant. Réponds uniquement avec du JSON valide, sans texte supplémentaire ni balises markdown.",
     });
 
-    const text = message.content[0].text.trim();
+    const prompt = `Profil candidat: ${JSON.stringify(candidateProfile ?? {})}\nProfils du groupe actuel: ${JSON.stringify(acceptedProfiles ?? [])}\nPréférences de la session: ${JSON.stringify(sessionPreferences ?? {})}\n\nGénère un score JSON avec exactement ce format:\n{\n  "score": <entier entre 0 et 100>,\n  "explication": "<1-2 phrases expliquant la compatibilité>"\n}`;
+
+    const result = await model.generateContent(prompt);
+    const raw = result.response.text().trim();
+    const text = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
     const json = JSON.parse(text);
 
     const score = Number(json.score);

@@ -13,7 +13,7 @@ Ce fichier contient toutes les règles que Claude Code doit appliquer à chaque 
 - Frontend: React 18 avec Vite 5
 - Tests: Jest (unit + integration)
 - Emails: Resend
-- IA: API Anthropic claude-sonnet-4-20250514
+- IA: Google Gemini API (gemini-1.5-flash)
 - Upload photos: Multer (stockage local en v1)
 - Containers: Docker multi-stage
 - CI/CD: GitHub Actions
@@ -103,7 +103,7 @@ padelconnect/
 - Les JWT DOIVENT être stockés dans des cookies httpOnly + Secure + SameSite=Lax. Jamais localStorage.
 - Les mots de passe DOIVENT utiliser bcrypt avec un cost factor de 12 minimum.
 - Toute requête qui récupère des données par ID DOIT aussi filtrer par organization_id quand applicable.
-- Les secrets (JWT_SECRET, ANTHROPIC_API_KEY, RESEND_API_KEY) uniquement via variables d'environnement. Jamais dans le code.
+- Les secrets (JWT_SECRET, GEMINI_API_KEY, RESEND_API_KEY) uniquement via variables d'environnement. Jamais dans le code.
 - Ne jamais committer le fichier .env.
 - Valider TOUTES les entrées utilisateur avec Joi au niveau des routes.
 - Rate limiting sur les endpoints d'auth : 5 tentatives / 15 minutes par IP.
@@ -144,9 +144,9 @@ padelconnect/
 ## IA — Règles
 - IA #1 (génération profil) : POST /api/ai/generate-profile — toujours retourner du JSON valide.
 - IA #2 (score compatibilité) : POST /api/ai/match-score — score entre 0 et 100 obligatoire.
-- En cas d'erreur API Anthropic : retourner une réponse dégradée (profil vide / score neutre 50), jamais bloquer l'utilisateur.
-- Ne jamais exposer la clé ANTHROPIC_API_KEY côté frontend.
-- Modèle à utiliser : claude-sonnet-4-20250514
+- En cas d'erreur API Gemini : retourner une réponse dégradée (profil vide / score neutre 50), jamais bloquer l'utilisateur.
+- Ne jamais exposer la clé GEMINI_API_KEY côté frontend.
+- Modèle à utiliser : gemini-1.5-flash
 
 ---
 
@@ -192,7 +192,7 @@ docker run -p 8080:8080 --env-file .env padelconnect
 ```
 DATABASE_URL=postgres://...
 JWT_SECRET=<64 chars minimum>
-ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=AIza...
 RESEND_API_KEY=re_...
 EMAIL_FROM=onboarding@resend.dev
 CORS_ORIGIN=http://localhost:5173
