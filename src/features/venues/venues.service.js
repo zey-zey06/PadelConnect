@@ -186,7 +186,10 @@ async function fillMissingSlots() {
 
   const venueIds = venues.map((v) => v.id);
   const existing = await venuesRepo.getSlotsByVenuesAndDates(venueIds, dates[0], dates[dates.length - 1]);
-  const existingSet = new Set(existing.map((s) => `${s.venue_id}|${s.date}|${s.start_time}`));
+  // Postgres returns time as 'HH:MM:SS' and date may be a Date object — normalise both.
+  const existingSet = new Set(
+    existing.map((s) => `${s.venue_id}|${String(s.date).slice(0, 10)}|${String(s.start_time).slice(0, 5)}`)
+  );
 
   const rows = [];
   for (const venue of venues) {
