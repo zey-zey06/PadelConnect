@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ChevronLeft, ChevronRight, Plus, X,
-  AlertCircle, Clock, ArrowLeft, Trash2,
+  ChevronLeft, ChevronRight, Plus, X, Check,
+  AlertCircle, Clock, ArrowLeft, Trash2, Pencil,
 } from 'lucide-react';
 import { useAuth } from '@/App';
-import { getVenueSlots, addSlot, cancelSlot, getMyVenues } from '@/api/manager';
+import { getVenueSlots, addSlot, cancelSlot, updateSlot, bulkUpdateSlotPrice, getMyVenues } from '@/api/manager';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -202,10 +202,97 @@ function CancelConfirmDialog({ slot, onConfirm, onClose, loading }) {
 }
 
 // ── Slot row ──────────────────────────────────────────────────────────────────
-function SlotRow({ slot, onCancel }) {
+function SlotRow({ slot, venueId, onCancel, onPriceUpdated }) {
+  const [editing,   setEditing]   = useState(false);
+  const [priceVal,  setPriceVal]  = useState('');
+  const [saving,    setSaving]    = useState(false);
+
+  function startEdit() {
+    setPriceVal(String(slot.price ?? 0));
+    setEditing(true);
+  }
+
+  async function save(bulk = false) {
+    const p = parseFloat(priceVal);
+    if (isNaN(p) || p < 0) return;
+    setSaving(true);
+    try {
+      if (bulk) {
+        await bulkUpdateSlotPrice(venueId, slot.start_time.slice(0, 5), slot.end_time.slice(0, 5), p);
+        onPriceUpdated({ start_time: slot.start_time, end_time: slot.end_time, price: p, bulk: true });
+      } else {
+        await updateSlot(venueId, slot.id, { price: p });
+        onPriceUpdated({ id: slot.id, price: p, bulk: false });
+      }
+      setEditing(false);
+    } catch {
+      // keep editing open on error
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="rounded-lg border border-primary/30 bg-primary/[0.02] px-4 py-3 space-y-2.5">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Clock className="h-4 w-4 text-primary" />
+          </div>
+          <p className="text-sm font-medium text-foreground flex-1">
+            {slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}
+          </p>
+          <SlotBadge status={slot.status} />
+        </div>
+        <div className="flex items-center gap-2 pl-11">
+          <div className="relative">
+            <Input
+              type="number"
+              min="0"
+              value={priceVal}
+              onChange={(e) => setPriceVal(e.target.value)}
+              className="w-36 pr-14 h-8 text-sm"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter')  save(false);
+                if (e.key === 'Escape') setEditing(false);
+              }}
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+              FCFA
+            </span>
+          </div>
+          <button
+            onClick={() => save(false)}
+            disabled={saving}
+            className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            title="Enregistrer"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            disabled={saving}
+            className="h-8 w-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted disabled:opacity-50 transition-colors"
+            title="Annuler"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <button
+          onClick={() => save(true)}
+          disabled={saving}
+          className="pl-11 text-xs text-primary hover:underline disabled:opacity-50 transition-opacity"
+        >
+          Appliquer à tous les créneaux {slot.start_time?.slice(0, 5)}–{slot.end_time?.slice(0, 5)}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className={cn(
-      'flex items-center gap-3 rounded-lg border px-4 py-3 transition-all',
+      'flex items-center gap-3 rounded-lg border px-4 py-3 transition-all group',
       slot.status === 'cancelled'
         ? 'border-border bg-muted/20 opacity-60'
         : 'border-border bg-card hover:border-primary/20 hover:shadow-sm'
@@ -217,21 +304,28 @@ function SlotRow({ slot, onCancel }) {
         <p className="text-sm font-medium text-foreground">
           {slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}
         </p>
-        {slot.price != null && (
-          <p className="text-xs text-muted-foreground">
-            {Number(slot.price).toLocaleString('fr-FR')} FCFA
-          </p>
-        )}
+        <p className="text-xs text-muted-foreground">
+          {slot.price != null ? `${Number(slot.price).toLocaleString('fr-FR')} FCFA` : '—'}
+        </p>
       </div>
       <SlotBadge status={slot.status} />
       {slot.status !== 'cancelled' && (
-        <button
-          onClick={() => onCancel(slot)}
-          className="ml-1 text-muted-foreground hover:text-red-600 transition-colors rounded p-1 hover:bg-red-50"
-          title="Annuler ce créneau"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <>
+          <button
+            onClick={startEdit}
+            className="text-muted-foreground hover:text-primary transition-colors rounded p-1 hover:bg-primary/10 opacity-0 group-hover:opacity-100"
+            title="Modifier le prix"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => onCancel(slot)}
+            className="text-muted-foreground hover:text-red-600 transition-colors rounded p-1 hover:bg-red-50"
+            title="Annuler ce créneau"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </>
       )}
     </div>
   );
@@ -319,6 +413,18 @@ export default function SlotManager() {
       // Dialog stays open; user can retry or dismiss
     } finally {
       setCancelling(false);
+    }
+  }
+
+  function handlePriceUpdated({ id, start_time, end_time, price, bulk }) {
+    if (bulk) {
+      setSlots((prev) =>
+        prev.map((s) =>
+          s.start_time === start_time && s.end_time === end_time ? { ...s, price } : s
+        )
+      );
+    } else {
+      setSlots((prev) => prev.map((s) => (s.id === id ? { ...s, price } : s)));
     }
   }
 
@@ -436,7 +542,13 @@ export default function SlotManager() {
                     </p>
                   ) : (
                     daySlots.map((slot) => (
-                      <SlotRow key={slot.id} slot={slot} onCancel={setCancelTarget} />
+                      <SlotRow
+                        key={slot.id}
+                        slot={slot}
+                        venueId={venueId}
+                        onCancel={setCancelTarget}
+                        onPriceUpdated={handlePriceUpdated}
+                      />
                     ))
                   )}
                 </div>

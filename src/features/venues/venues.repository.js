@@ -75,6 +75,14 @@ async function bulkCreateSlots(rows) {
   return db.batchInsert('venue_slots', rows, 200);
 }
 
+async function bulkUpdateSlotPrice(venueId, startTime, endTime, price) {
+  return db('venue_slots')
+    .where({ venue_id: venueId, start_time: startTime, end_time: endTime })
+    .whereNull('deleted_at')
+    .whereIn('status', ['available', 'booked'])
+    .update({ price, updated_at: new Date() });
+}
+
 module.exports = {
   createVenue,
   getByOrg,
@@ -87,4 +95,5 @@ module.exports = {
   softDeleteSlot,
   getActiveBookingForSlot,
   cancelBooking,
+  bulkUpdateSlotPrice,
 };

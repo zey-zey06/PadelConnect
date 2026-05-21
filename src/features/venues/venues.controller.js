@@ -26,6 +26,12 @@ const updateSlotSchema = Joi.object({
   status: Joi.string().valid('available', 'booked', 'cancelled').optional(),
 }).min(1);
 
+const bulkSlotPriceSchema = Joi.object({
+  start_time: Joi.string().required(),
+  end_time:   Joi.string().required(),
+  price:      Joi.number().min(0).required(),
+});
+
 // ─── Club → Venues router (mounted at /api/clubs) ────────────────────────────
 async function addVenueHandler(req, res, next) {
   try {
@@ -90,6 +96,25 @@ async function updateSlotHandler(req, res, next) {
   }
 }
 
+async function bulkSlotPriceHandler(req, res, next) {
+  try {
+    const { error, value } = bulkSlotPriceSchema.validate(req.body);
+    if (error) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    }
+    const result = await venuesService.bulkUpdateSlotPrice(
+      req.params.id,
+      req.user.organization_id,
+      value.start_time,
+      value.end_time,
+      value.price,
+    );
+    return res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function deleteSlotHandler(req, res, next) {
   try {
     const slot = await venuesService.deleteSlot(
@@ -110,6 +135,7 @@ clubVenuesRouter.get('/:id/venues', authenticate, listVenuesHandler);
 const venueSlotsRouter = Router();
 venueSlotsRouter.post('/:id/slots', authenticate, requireRole('venue_admin'), addSlotHandler);
 venueSlotsRouter.get('/:id/slots', authenticate, listSlotsHandler);
+venueSlotsRouter.patch('/:id/slots/bulk-price', authenticate, requireRole('venue_admin'), bulkSlotPriceHandler);
 venueSlotsRouter.patch('/:id/slots/:slotId', authenticate, requireRole('venue_admin'), updateSlotHandler);
 venueSlotsRouter.delete('/:id/slots/:slotId', authenticate, requireRole('venue_admin'), deleteSlotHandler);
 
