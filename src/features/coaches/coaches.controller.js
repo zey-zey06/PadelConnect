@@ -86,6 +86,14 @@ async function getCoachSessionsHandler(req, res, next) {
 
 const coachesRouter = Router();
 coachesRouter.get('/', authenticate, listCoachesHandler);
+coachesRouter.get('/me', authenticate, requireRole('coach'), async (req, res, next) => {
+  try {
+    const coach = await coachesService.getMyCoachProfile(req.user.sub);
+    return res.json({ coach });
+  } catch (err) {
+    next(err);
+  }
+});
 coachesRouter.get('/:id/sessions', authenticate, getCoachSessionsHandler);
 coachesRouter.get('/:id', authenticate, getCoachHandler);
 coachesRouter.put('/:id/availability', authenticate, updateAvailabilityHandler);

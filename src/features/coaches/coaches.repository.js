@@ -46,6 +46,10 @@ async function attachToClub(userId, organizationId) {
   return row;
 }
 
+async function getByUserId(userId) {
+  return db('coach_profiles').where({ user_id: userId }).whereNull('deleted_at').first();
+}
+
 async function getSessionsByCoach(coachProfileId) {
   return db('sessions')
     .join('bookings', 'sessions.id', 'bookings.session_id')
@@ -59,4 +63,4 @@ async function getSessionsByCoach(coachProfileId) {
     .select('sessions.*');
 }
 
-module.exports = { listAvailable, getById, updateAvailability, getByOrg, getCoachUser, attachToClub, getSessionsByCoach };
+module.exports = { listAvailable, getById, getByUserId, updateAvailability, getByOrg, getCoachUser, attachToClub, getSessionsByCoach };

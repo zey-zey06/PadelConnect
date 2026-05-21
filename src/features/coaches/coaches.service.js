@@ -61,6 +61,16 @@ async function addCoachToClub(clubId, userOrgId, coachUserId) {
   return coachesRepo.attachToClub(coachUserId, club.id);
 }
 
+async function getMyCoachProfile(userId) {
+  const profile = await coachesRepo.getByUserId(userId);
+  if (!profile) {
+    const err = new Error('Profil coach introuvable.');
+    err.status = 404;
+    throw err;
+  }
+  return profile;
+}
+
 async function getCoachSessions(coachProfileId) {
   const profile = await coachesRepo.getById(coachProfileId);
   if (!profile) {
@@ -76,4 +86,4 @@ async function getCoachSessions(coachProfileId) {
   };
 }
 
-module.exports = { listAvailableCoaches, getCoach, updateAvailability, getClubCoaches, addCoachToClub, getCoachSessions };
+module.exports = { listAvailableCoaches, getCoach, getMyCoachProfile, updateAvailability, getClubCoaches, addCoachToClub, getCoachSessions };

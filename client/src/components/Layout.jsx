@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Bell, LogOut, Menu, X } from 'lucide-react';
+import { Bell, LogOut, Menu, X, User } from 'lucide-react';
 import { useAuth } from '@/App';
 import { logout } from '@/api/auth';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { to: '/sessions',  label: 'Sessions'   },
   { to: '/calendar',  label: 'Calendrier' },
   { to: '/clubs',     label: 'Clubs'      },
+  { to: '/profile',   label: 'Mon Profil' },
 ];
 
 export default function Layout({ children }) {
@@ -84,10 +85,22 @@ export default function Layout({ children }) {
             {/* Divider (desktop) */}
             <div className="hidden md:block w-px h-5 bg-border mx-1" />
 
-            {/* User email (desktop) */}
-            <span className="hidden md:block text-xs text-muted-foreground max-w-[160px] truncate">
-              {user?.email}
-            </span>
+            {/* Profile avatar link (desktop) */}
+            <Link
+              to="/profile"
+              className="hidden md:flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-accent transition-colors"
+            >
+              <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                {profile?.photo_url ? (
+                  <img src={profile.photo_url} alt="" className="h-full w-full rounded-full object-cover" />
+                ) : (
+                  <User className="h-3.5 w-3.5 text-primary" />
+                )}
+              </div>
+              <span className="text-xs text-muted-foreground max-w-[120px] truncate">
+                {user?.email?.split('@')[0]}
+              </span>
+            </Link>
 
             {/* Logout */}
             <Button
