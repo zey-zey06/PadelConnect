@@ -14,7 +14,7 @@ const NAV_LINKS = [
 ];
 
 export default function Layout({ children }) {
-  const { user, setUser } = useAuth();
+  const { user, setUser, profile } = useAuth();
   const navigate          = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
