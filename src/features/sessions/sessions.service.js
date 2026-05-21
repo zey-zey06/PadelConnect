@@ -1,4 +1,9 @@
 const sessionsRepo = require('./sessions.repository');
+const bookingsRepo = require('../bookings/bookings.repository');
+const venuesRepo   = require('../venues/venues.repository');
+const clubsRepo    = require('../clubs/clubs.repository');
+const notificationsService = require('../notifications/notifications.service');
+const { sendBookingCancellation } = require('../../emails/cancellation');
 
 async function create(userId, data) {
   return sessionsRepo.create({
@@ -37,7 +42,46 @@ async function updateStatus(sessionId, userId, status) {
     err.status = 403;
     throw err;
   }
-  return sessionsRepo.updateStatus(sessionId, status);
+
+  const updated = await sessionsRepo.updateStatus(sessionId, status);
+
+  if (status === 'cancelled') {
+    // Auto-cancel linked booking + notify players + manager — all non-fatal
+    try {
+      const booking = await bookingsRepo.getActiveBookingBySession(sessionId);
+      if (booking) {
+        await bookingsRepo.cancel(booking.id);
+        const slot = await venuesRepo.getSlotById(booking.venue_slot_id);
+        if (slot) await venuesRepo.updateSlot(booking.venue_slot_id, { status: 'available' });
+
+        const venue      = slot ? await venuesRepo.getById(slot.venue_id) : null;
+        const venueAdmin = venue ? await clubsRepo.getAdminByOrg(venue.organization_id) : null;
+        const players    = await sessionsRepo.getSessionPlayers(sessionId);
+
+        for (const player of players) {
+          await notificationsService.createNotification(
+            player.id,
+            'session_cancelled',
+            `La session du ${session.date} à ${session.time?.slice(0, 5)} a été annulée.`
+          ).catch(() => {});
+        }
+
+        if (venueAdmin) {
+          await notificationsService.createNotification(
+            venueAdmin.id,
+            'booking_cancelled',
+            `La réservation pour ${venue?.name} du ${slot?.date} a été annulée par le joueur.`
+          ).catch(() => {});
+        }
+
+        await sendBookingCancellation({ booking, session }).catch(() => {});
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  return updated;
 }
 
 async function listMySessions(userId) {

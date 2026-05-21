@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import {
   Building2, MapPin, Phone, Clock,
   AlertCircle, X, CreditCard, Banknote,
-  CheckCircle2, ChevronLeft, ChevronRight,
+  CheckCircle2, ChevronLeft, ChevronRight, Calendar,
 } from 'lucide-react';
 import { getPublicClub, getClubSlots } from '@/api/clubs';
 import { getMySessions }               from '@/api/sessions';
@@ -44,11 +44,82 @@ function durationLabel(start = '00:00', end = '00:00') {
   return mins % 60 === 0 ? `${mins / 60}h` : `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
 }
 
+function formatCardNumber(val) {
+  const digits = val.replace(/\D/g, '').slice(0, 16);
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+}
+
+function formatExpiry(val) {
+  const digits = val.replace(/\D/g, '').slice(0, 4);
+  if (digits.length >= 3) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return digits;
+}
+
+function generateICS({ date, startTime, endTime, venueName, clubName }) {
+  const st = startTime.replace(':', '').slice(0, 4);
+  const et = endTime.replace(':', '').slice(0, 4);
+  const dateStr = date.replace(/-/g, '');
+  const uid = `booking-${Date.now()}@padelconnect`;
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//PadelConnect//FR',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTART:${dateStr}T${st}00`,
+    `DTEND:${dateStr}T${et}00`,
+    `SUMMARY:Padel — ${venueName}`,
+    `DESCRIPTION:Réservation: ${venueName} chez ${clubName}`,
+    `LOCATION:${clubName}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+}
+
+function downloadICS(content, filename) {
+  const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // ── Slot button ───────────────────────────────────────────────────────────────
-function SlotBtn({ slot, venueName, onBook }) {
+function SlotBtn({ slot, venueName, clubName, onBook, isMyBooking }) {
   const avail     = slot.status === 'available';
-  const booked    = slot.status === 'booked';
   const cancelled = slot.status === 'cancelled';
+
+  if (isMyBooking) {
+    return (
+      <div className="inline-flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-3 py-2">
+        <span className="text-xs font-medium text-green-800 flex items-center gap-1">
+          <CheckCircle2 className="h-3 w-3 shrink-0" />
+          Terrain réservé ✓
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            const ics = generateICS({
+              date: slot.date,
+              startTime: slot.start_time?.slice(0, 5),
+              endTime: slot.end_time?.slice(0, 5),
+              venueName,
+              clubName,
+            });
+            downloadICS(ics, `padel-${slot.date}.ics`);
+          }}
+          className="flex items-center gap-0.5 text-xs text-green-700 underline hover:text-green-900 transition-colors"
+        >
+          <Calendar className="h-3 w-3" />
+          Calendrier
+        </button>
+      </div>
+    );
+  }
 
   return (
     <button
@@ -58,13 +129,13 @@ function SlotBtn({ slot, venueName, onBook }) {
       className={cn(
         'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all select-none',
         avail     && 'border-green-200 bg-green-50 text-green-800 hover:bg-green-100 hover:shadow-sm cursor-pointer',
-        booked    && 'border-zinc-200 bg-zinc-100 text-zinc-500 cursor-not-allowed',
+        !avail && !cancelled && 'border-zinc-200 bg-zinc-100 text-zinc-500 cursor-not-allowed',
         cancelled && 'border-border bg-muted/40 text-muted-foreground line-through cursor-not-allowed opacity-60',
       )}
     >
       {cancelled ? (
         'Annulé'
-      ) : booked ? (
+      ) : !avail ? (
         'Réservé'
       ) : (
         <>
@@ -90,7 +161,15 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [error,           setError]           = useState(null);
 
+  // Card fields
+  const [cardNumber,   setCardNumber]   = useState('');
+  const [cardExpiry,   setCardExpiry]   = useState('');
+  const [cardCvv,      setCardCvv]      = useState('');
+  const [cardHolder,   setCardHolder]   = useState('');
+  const [cardAccepted, setCardAccepted] = useState(false);
+
   const duration = durationLabel(slot.start_time, slot.end_time);
+  const showCard = paymentMethod === 'card';
 
   useEffect(() => {
     getMySessions()
@@ -103,9 +182,33 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
       .finally(() => setSessionsLoading(false));
   }, []);
 
+  // Reset card accepted state when switching payment method
+  useEffect(() => { setCardAccepted(false); setError(null); }, [paymentMethod]);
+
+  function validateCard() {
+    const num = cardNumber.replace(/\s/g, '');
+    if (!/^\d{16}$/.test(num)) return 'Numéro de carte invalide (16 chiffres).';
+    if (!/^\d{2}\/\d{2}$/.test(cardExpiry)) return 'Date d\'expiration invalide (MM/AA).';
+    const [m, y] = cardExpiry.split('/').map(Number);
+    if (m < 1 || m > 12) return 'Mois invalide.';
+    const expiryDate = new Date(2000 + y, m);
+    if (expiryDate < new Date()) return 'Carte expirée.';
+    if (!/^\d{3,4}$/.test(cardCvv)) return 'CVV invalide (3 ou 4 chiffres).';
+    if (!cardHolder.trim()) return 'Nom du titulaire requis.';
+    return null;
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!sessionId) { setError('Sélectionnez une session.'); return; }
+
+    if (showCard && !cardAccepted) {
+      const cardErr = validateCard();
+      if (cardErr) { setError(cardErr); return; }
+      setCardAccepted(true);
+      // Brief visual feedback — proceed immediately
+    }
+
     setLoading(true); setError(null);
     try {
       const { booking } = await createBooking({
@@ -116,17 +219,20 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
       onBooked(booking);
     } catch (err) {
       setError(err.message || 'Erreur lors de la réservation.');
+      setCardAccepted(false);
     } finally {
       setLoading(false);
     }
   }
+
+  const inputClass = 'w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20';
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-base font-semibold text-foreground">Réserver ce créneau</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
@@ -219,6 +325,66 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
             </div>
           </div>
 
+          {/* Card form — shown when Carte is selected */}
+          {showCard && (
+            <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+              {cardAccepted && (
+                <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  Paiement accepté
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground">Numéro de carte</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="1234 5678 9012 3456"
+                  value={cardNumber}
+                  onChange={(e) => { setCardNumber(formatCardNumber(e.target.value)); setCardAccepted(false); }}
+                  maxLength={19}
+                  className={inputClass}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-foreground">Date d'expiration</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="MM/AA"
+                    value={cardExpiry}
+                    onChange={(e) => { setCardExpiry(formatExpiry(e.target.value)); setCardAccepted(false); }}
+                    maxLength={5}
+                    className={inputClass}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-foreground">CVV</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="123"
+                    value={cardCvv}
+                    onChange={(e) => { setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4)); setCardAccepted(false); }}
+                    maxLength={4}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground">Nom du titulaire</label>
+                <input
+                  type="text"
+                  placeholder="PRENOM NOM"
+                  value={cardHolder}
+                  onChange={(e) => { setCardHolder(e.target.value.toUpperCase()); setCardAccepted(false); }}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-3 pt-1">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
               Annuler
@@ -249,8 +415,9 @@ export default function ClubProfile() {
   const [slotsData,    setSlotsData]    = useState(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
 
-  const [booking, setBooking] = useState(null);
-  const [booked,  setBooked]  = useState(false);
+  const [booking,   setBooking]   = useState(null);  // { slot, venueName } — opens modal
+  const [myBooking, setMyBooking] = useState(null);  // booking just made in this session
+  const [booked,    setBooked]    = useState(false);
 
   // Load club info once
   useEffect(() => {
@@ -468,6 +635,8 @@ export default function ClubProfile() {
                             key={slot.id}
                             slot={slot}
                             venueName={venue.name}
+                            clubName={club.name}
+                            isMyBooking={myBooking?.venue_slot_id === slot.id}
                             onBook={(s, name) => setBooking({ slot: s, venueName: name })}
                           />
                         ))}
@@ -487,10 +656,10 @@ export default function ClubProfile() {
           slot={booking.slot}
           venueName={booking.venueName}
           onClose={() => setBooking(null)}
-          onBooked={() => {
+          onBooked={(bookingResult) => {
+            setMyBooking(bookingResult);
             setBooking(null);
             setBooked(true);
-            // Refresh slots for current date so booked slot turns grey
             setSlotsLoading(true);
             getClubSlots(id, selectedDate)
               .then((data) => setSlotsData(data))

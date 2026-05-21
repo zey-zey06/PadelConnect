@@ -19,6 +19,7 @@ async function getByUser(userId) {
     .join('sessions', 'bookings.session_id', 'sessions.id')
     .join('venue_slots', 'bookings.venue_slot_id', 'venue_slots.id')
     .join('venues', 'venue_slots.venue_id', 'venues.id')
+    .join('organizations', 'venues.organization_id', 'organizations.id')
     .where('sessions.creator_id', userId)
     .whereNull('bookings.deleted_at')
     .orderBy('sessions.date', 'desc')
@@ -30,8 +31,17 @@ async function getByUser(userId) {
       'venue_slots.start_time',
       'venue_slots.end_time',
       'venue_slots.price',
-      'venues.name as venue_name'
+      'venues.name as venue_name',
+      'organizations.name as club_name',
     );
+}
+
+async function getActiveBookingBySession(sessionId) {
+  return db('bookings')
+    .where({ session_id: sessionId })
+    .whereNot({ status: 'cancelled' })
+    .whereNull('deleted_at')
+    .first();
 }
 
 async function cancel(id) {
@@ -47,4 +57,4 @@ async function createNoShowRecord(data) {
   return row;
 }
 
-module.exports = { create, createAddon, getById, getByUser, cancel, createNoShowRecord };
+module.exports = { create, createAddon, getById, getByUser, cancel, createNoShowRecord, getActiveBookingBySession };

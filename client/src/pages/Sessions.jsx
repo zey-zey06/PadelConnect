@@ -1,11 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { listSessions, createSession, requestJoin, getMySessions, getSessionRequests, respondToRequest } from '@/api/sessions';
+import {
+  listSessions, createSession, requestJoin, getMySessions,
+  getSessionRequests, respondToRequest, cancelSession,
+} from '@/api/sessions';
+import { getMyBookings, cancelBooking } from '@/api/bookings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Users, Plus, AlertCircle, X, Filter, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
+import {
+  Users, Plus, AlertCircle, X, Filter,
+  CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2,
+} from 'lucide-react';
 import { useAuth } from '@/App';
 import { cn } from '@/lib/utils';
 
@@ -400,14 +407,81 @@ function RequestRow({ request, sessionId, onRespond }) {
   );
 }
 
+// ── Booking detail modal ──────────────────────────────────────────────────────
+function BookingDetailModal({ booking, onClose }) {
+  const paymentLabel = booking.payment_method === 'card' ? 'Carte bancaire' : 'Sur place';
+  const d = new Date(booking.session_date + 'T00:00:00');
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-semibold text-foreground">Détail de la réservation</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="rounded-xl border border-border bg-muted/30 px-4 py-4 space-y-3">
+            {/* Club + venue */}
+            <div className="flex items-start gap-2.5">
+              <Building2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">{booking.club_name}</p>
+                <p className="text-xs text-muted-foreground">{booking.venue_name}</p>
+              </div>
+            </div>
+            {/* Date + time */}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              <span className="capitalize">
+                {d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </span>
+              <span>·</span>
+              <span>{booking.start_time?.slice(0, 5)}–{booking.end_time?.slice(0, 5)}</span>
+            </div>
+            {/* Price + payment */}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Prix</span>
+              <span className="font-semibold">{Number(booking.price).toLocaleString('fr-FR')} FCFA</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Paiement</span>
+              <span>{paymentLabel}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Référence</span>
+              <code className="text-xs bg-muted px-2 py-0.5 rounded font-mono">{booking.id?.slice(0, 8).toUpperCase()}</code>
+            </div>
+          </div>
+
+          <Button variant="outline" onClick={onClose} className="w-full">Fermer</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── My session card (with expandable requests) ────────────────────────────────
-function MySessionCard({ session, autoOpen = false }) {
-  const [requests,    setRequests]    = useState(null); // null = not loaded yet
+function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
+  const [requests,    setRequests]    = useState(null);
   const [loadingReqs, setLoadingReqs] = useState(false);
   const [open,        setOpen]        = useState(autoOpen);
-  const d = new Date(session.date);
 
+  const [showBookingModal,    setShowBookingModal]    = useState(false);
+  const [cancelBkConfirm,    setCancelBkConfirm]     = useState(false);
+  const [cancellingBk,       setCancellingBk]        = useState(false);
+  const [cancelSessConfirm,  setCancelSessConfirm]   = useState(false);
+  const [cancellingSess,     setCancellingSess]      = useState(false);
+  const [actionError,        setActionError]         = useState(null);
+
+  const d = new Date(session.date);
   const pending = (requests ?? []).filter((r) => r.status === 'pending').length;
+  const isCancelled = session.status === 'cancelled';
 
   async function loadRequests() {
     setLoadingReqs(true);
@@ -421,7 +495,6 @@ function MySessionCard({ session, autoOpen = false }) {
     }
   }
 
-  // Auto-fetch when navigated here from a notification
   useEffect(() => {
     if (autoOpen) loadRequests();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -434,6 +507,34 @@ function MySessionCard({ session, autoOpen = false }) {
   async function handleRespond(sessionId, requestId, status) {
     await respondToRequest(sessionId, requestId, status);
     await loadRequests();
+  }
+
+  async function handleCancelBooking() {
+    setCancellingBk(true);
+    setActionError(null);
+    try {
+      await cancelBooking(booking.id);
+      onRefresh();
+    } catch (e) {
+      setActionError(e.message || 'Erreur lors de l\'annulation.');
+    } finally {
+      setCancellingBk(false);
+      setCancelBkConfirm(false);
+    }
+  }
+
+  async function handleCancelSession() {
+    setCancellingSess(true);
+    setActionError(null);
+    try {
+      await cancelSession(session.id);
+      onRefresh();
+    } catch (e) {
+      setActionError(e.message || 'Erreur lors de l\'annulation.');
+    } finally {
+      setCancellingSess(false);
+      setCancelSessConfirm(false);
+    }
   }
 
   return (
@@ -465,26 +566,131 @@ function MySessionCard({ session, autoOpen = false }) {
       </button>
 
       {open && (
-        <div className="px-5 pb-4 border-t border-border pt-3 space-y-2">
+        <div className="px-5 pb-4 border-t border-border pt-3 space-y-3">
+
+          {/* Error */}
+          {actionError && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />{actionError}
+            </div>
+          )}
+
+          {/* Terrain info */}
+          {booking && booking.status !== 'cancelled' && (
+            <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <MapPin className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{booking.venue_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {booking.club_name} · {booking.start_time?.slice(0, 5)}–{booking.end_time?.slice(0, 5)} · {Number(booking.price).toLocaleString('fr-FR')} FCFA
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowBookingModal(true)}
+                >
+                  Voir la réservation
+                </Button>
+                {!isCancelled && (
+                  cancelBkConfirm ? (
+                    <>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="h-7 text-xs"
+                        disabled={cancellingBk}
+                        onClick={handleCancelBooking}
+                      >
+                        {cancellingBk ? 'Annulation…' : 'Confirmer l\'annulation'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setCancelBkConfirm(false)}
+                      >
+                        Retour
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                      onClick={() => setCancelBkConfirm(true)}
+                    >
+                      Annuler la réservation
+                    </Button>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Requests list */}
           {loadingReqs ? (
             <div className="space-y-2">
               {[1, 2].map((i) => <div key={i} className="h-14 rounded-xl bg-muted animate-pulse" />)}
             </div>
           ) : !requests?.length ? (
-            <p className="text-sm text-muted-foreground text-center py-3">Aucune demande reçue.</p>
+            <p className="text-sm text-muted-foreground text-center py-2">Aucune demande reçue.</p>
           ) : (
             requests.map((r) => (
               <RequestRow key={r.id} request={r} sessionId={session.id} onRespond={handleRespond} />
             ))
           )}
-          <div className="pt-2 border-t border-border">
-            <Link to="/clubs">
-              <Button variant="outline" size="sm" className="w-full">
-                Réserver un terrain
-              </Button>
-            </Link>
+
+          {/* Bottom actions */}
+          <div className="pt-1 border-t border-border flex flex-wrap gap-2 items-center">
+            {!isCancelled && (
+              <Link to="/clubs">
+                <Button variant="outline" size="sm">
+                  Réserver un terrain
+                </Button>
+              </Link>
+            )}
+            {!isCancelled && (
+              cancelSessConfirm ? (
+                <>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={cancellingSess}
+                    onClick={handleCancelSession}
+                  >
+                    {cancellingSess ? 'Annulation…' : 'Confirmer l\'annulation de la session'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCancelSessConfirm(false)}
+                  >
+                    Retour
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                  onClick={() => setCancelSessConfirm(true)}
+                >
+                  Annuler la session
+                </Button>
+              )
+            )}
           </div>
         </div>
+      )}
+
+      {/* Booking detail modal */}
+      {showBookingModal && booking && (
+        <BookingDetailModal booking={booking} onClose={() => setShowBookingModal(false)} />
       )}
     </div>
   );
@@ -492,16 +698,29 @@ function MySessionCard({ session, autoOpen = false }) {
 
 // ── My sessions tab ───────────────────────────────────────────────────────────
 function MySessions({ autoOpen = false }) {
-  const [sessions, setSessions] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(null);
+  const [sessions,    setSessions]    = useState([]);
+  const [bookingMap,  setBookingMap]  = useState({});
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [refreshKey,  setRefreshKey]  = useState(0);
+
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   useEffect(() => {
-    getMySessions()
-      .then(({ sessions: s }) => setSessions(s ?? []))
+    setLoading(true);
+    setError(null);
+    Promise.all([getMySessions(), getMyBookings()])
+      .then(([{ sessions: s }, { bookings: b }]) => {
+        setSessions(s ?? []);
+        const map = {};
+        for (const bk of (b ?? [])) {
+          if (bk.status !== 'cancelled') map[bk.session_id] = bk;
+        }
+        setBookingMap(map);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
   if (loading) return (
     <div className="space-y-3">
@@ -524,7 +743,15 @@ function MySessions({ autoOpen = false }) {
 
   return (
     <div className="space-y-3">
-      {sessions.map((s) => <MySessionCard key={s.id} session={s} autoOpen={autoOpen} />)}
+      {sessions.map((s) => (
+        <MySessionCard
+          key={s.id}
+          session={s}
+          booking={bookingMap[s.id] ?? null}
+          autoOpen={autoOpen}
+          onRefresh={refresh}
+        />
+      ))}
     </div>
   );
 }

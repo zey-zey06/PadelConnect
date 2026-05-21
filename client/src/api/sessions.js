@@ -32,3 +32,7 @@ export const respondToRequest = (sessionId, requestId, status) =>
 
 /** GET /api/sessions/my → { sessions: [...] } — sessions created by current user */
 export const getMySessions = () => client.get('/sessions/my');
+
+/** PATCH /api/sessions/:id/status { status: 'cancelled' } → { session } */
+export const cancelSession = (sessionId) =>
+  client.patch(`/sessions/${sessionId}/status`, { status: 'cancelled' });
