@@ -16,6 +16,14 @@ function ErrorBanner({ message }) {
   );
 }
 
+// ── Password requirements ─────────────────────────────────────────────────────
+const REQUIREMENTS = [
+  { label: 'Au moins 8 caractères',          test: (p) => p.length >= 8 },
+  { label: 'Une lettre majuscule',           test: (p) => /[A-Z]/.test(p) },
+  { label: 'Un chiffre',                     test: (p) => /[0-9]/.test(p) },
+  { label: 'Un caractère spécial (!@#$%^&*)', test: (p) => /[!@#$%^&*]/.test(p) },
+];
+
 // ── Role selection data ───────────────────────────────────────────────────────
 const ROLES = [
   {
@@ -98,10 +106,12 @@ export default function Signup() {
     if (error) setError(null);
   }
 
+  const passwordMeetsAll = REQUIREMENTS.every(({ test }) => test(form.password));
+
   async function handleSubmit(e) {
     e.preventDefault();
-    if (form.password.length < 8) {
-      setError('Le mot de passe doit contenir au moins 8 caractères.');
+    if (!passwordMeetsAll) {
+      setError('Le mot de passe ne respecte pas les critères requis.');
       return;
     }
     if (form.password !== form.confirmPassword) {
@@ -265,8 +275,20 @@ export default function Signup() {
                     value={form.password}
                     onChange={handleChange}
                     required
-                    minLength={8}
                   />
+                  {form.password && (
+                    <ul className="space-y-1 pt-1">
+                      {REQUIREMENTS.map(({ label, test }) => {
+                        const met = test(form.password);
+                        return (
+                          <li key={label} className={cn('flex items-center gap-2 text-xs transition-colors', met ? 'text-green-600' : 'text-muted-foreground')}>
+                            <CheckCircle2 className={cn('h-3.5 w-3.5 shrink-0 transition-colors', met ? 'text-green-600' : 'text-muted-foreground/30')} />
+                            {label}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -283,7 +305,7 @@ export default function Signup() {
                   />
                 </div>
 
-                <Button type="submit" className="w-full mt-2" size="lg" disabled={loading}>
+                <Button type="submit" className="w-full mt-2" size="lg" disabled={loading || !passwordMeetsAll}>
                   {loading ? (
                     <>
                       <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />
