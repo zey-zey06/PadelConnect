@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Bell, LogOut, Menu, X, User } from 'lucide-react';
 import { useAuth } from '@/App';
 import { logout } from '@/api/auth';
+import { getUnreadCount } from '@/api/notifications';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -16,7 +17,15 @@ const NAV_LINKS = [
 export default function Layout({ children }) {
   const { user, setUser, profile } = useAuth();
   const navigate          = useNavigate();
+  const location          = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    getUnreadCount()
+      .then(({ count }) => setUnreadCount(count ?? 0))
+      .catch(() => {}); // non-fatal — bell just shows no dot
+  }, [location.pathname]); // re-fetch when navigating (e.g. after visiting /notifications)
 
   async function handleLogout() {
     try { await logout(); } catch { /* non-fatal */ }
@@ -74,11 +83,12 @@ export default function Layout({ children }) {
                 aria-label="Notifications"
               >
                 <Bell className="h-4 w-4" />
-                {/* Unread dot */}
-                <span
-                  className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary"
-                  aria-hidden="true"
-                />
+                {unreadCount > 0 && (
+                  <span
+                    className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary"
+                    aria-hidden="true"
+                  />
+                )}
               </Button>
             </Link>
 

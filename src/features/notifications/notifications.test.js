@@ -4,9 +4,11 @@ process.env.COOKIE_SECURE = 'false';
 
 const request = require('supertest');
 
-jest.mock('@anthropic-ai/sdk', () =>
-  jest.fn().mockImplementation(() => ({ messages: { create: jest.fn() } }))
-);
+jest.mock('@google/generative-ai', () => ({
+  GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
+    getGenerativeModel: jest.fn().mockReturnValue({ generateContent: jest.fn() }),
+  })),
+}));
 jest.mock('multer', () => {
   const m = () => ({ single: () => (req, res, next) => next() });
   m.diskStorage = () => ({});
@@ -80,12 +82,12 @@ function resetQb() {
 }
 
 // ── GET /api/notifications ────────────────────────────────────────────────────
-// DB: where → orderBy → select() → [NOTIFICATION]
+// Returns ALL notifications (read + unread). DB: where({user_id}) → orderBy → select()
 describe('GET /api/notifications', () => {
   beforeEach(() => { jest.clearAllMocks(); resetQb(); });
 
-  it('CU-11: get notifications — 200', async () => {
-    qb.select.mockResolvedValueOnce([NOTIFICATION]);
+  it('CU-11: get notifications — 200 — returns read and unread', async () => {
+    qb.select.mockResolvedValueOnce([NOTIFICATION, NOTIFICATION_READ]);
 
     const res = await request(app)
       .get('/api/notifications')
@@ -93,12 +95,47 @@ describe('GET /api/notifications', () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.notifications)).toBe(true);
-    expect(res.body.notifications).toHaveLength(1);
+    expect(res.body.notifications).toHaveLength(2);
     expect(res.body.notifications[0].id).toBe(NOTIF_ID);
+    // Both read and unread are returned
+    expect(res.body.notifications.some((n) => n.read === false)).toBe(true);
+    expect(res.body.notifications.some((n) => n.read === true)).toBe(true);
   });
 
   it('CU-11: get notifications — without auth — 401', async () => {
     const res = await request(app).get('/api/notifications');
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── GET /api/notifications/unread-count ───────────────────────────────────────
+describe('GET /api/notifications/unread-count', () => {
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); });
+
+  it('CU-11: unread-count — 200 — returns count of unread notifications', async () => {
+    qb.select.mockResolvedValueOnce([NOTIFICATION]); // 1 unread
+
+    const res = await request(app)
+      .get('/api/notifications/unread-count')
+      .set('Cookie', `token=${PLAYER_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(1);
+  });
+
+  it('CU-11: unread-count — zero when no unread — 200', async () => {
+    qb.select.mockResolvedValueOnce([]); // no unread
+
+    const res = await request(app)
+      .get('/api/notifications/unread-count')
+      .set('Cookie', `token=${PLAYER_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(0);
+  });
+
+  it('CU-11: unread-count — without auth — 401', async () => {
+    const res = await request(app).get('/api/notifications/unread-count');
     expect(res.status).toBe(401);
   });
 });

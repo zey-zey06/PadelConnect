@@ -17,6 +17,13 @@ async function getById(id) {
   return db('notifications').where({ id }).first();
 }
 
+async function getAll(userId) {
+  return db('notifications')
+    .where({ user_id: userId })
+    .orderBy('created_at', 'desc')
+    .select();
+}
+
 async function getUnread(userId) {
   return db('notifications')
     .where({ user_id: userId, read: false })
@@ -32,4 +39,4 @@ async function markAsRead(id) {
   return row;
 }
 
-module.exports = { create, getById, getUnread, markAsRead };
+module.exports = { create, getById, getAll, getUnread, markAsRead };

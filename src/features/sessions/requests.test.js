@@ -4,14 +4,14 @@ process.env.COOKIE_SECURE = 'false';
 
 const request = require('supertest');
 
-// Expose __mockCreate so individual tests can configure AI responses
-jest.mock('@anthropic-ai/sdk', () => {
-  const mockCreate = jest.fn();
-  const MockAnthropic = jest.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
+// Expose __mockGenerateContent so individual tests can configure AI responses
+jest.mock('@google/generative-ai', () => {
+  const mockGenerateContent = jest.fn();
+  const MockGoogleGenerativeAI = jest.fn().mockImplementation(() => ({
+    getGenerativeModel: jest.fn().mockReturnValue({ generateContent: mockGenerateContent }),
   }));
-  MockAnthropic.__mockCreate = mockCreate;
-  return MockAnthropic;
+  MockGoogleGenerativeAI.__mockGenerateContent = mockGenerateContent;
+  return { GoogleGenerativeAI: MockGoogleGenerativeAI };
 });
 
 jest.mock('multer', () => {
@@ -41,11 +41,11 @@ jest.mock('../../db', () => {
 });
 
 const app = require('../../app');
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const db = require('../../db');
 const { signToken } = require('../../auth/jwt');
 
-const mockCreate = Anthropic.__mockCreate;
+const mockGenerateContent = GoogleGenerativeAI.__mockGenerateContent;
 const qb = db.__qb;
 
 // Two distinct users: CREATOR creates sessions, PLAYER requests to join
@@ -79,10 +79,18 @@ const SESSION_REQUEST = {
 };
 
 const AI_SCORE_RESPONSE = {
-  content: [{
-    type: 'text',
-    text: JSON.stringify({ score: 75, explication: 'Bonne compatibilité.' }),
-  }],
+  response: {
+    text: () => JSON.stringify({ score: 75, explication: 'Bonne compatibilité.' }),
+  },
+};
+
+const NOTIFICATION = {
+  id: 'ffffffff-0000-0000-0000-000000000001',
+  user_id: CREATOR_ID,
+  type: 'session_request',
+  message: `Nouvelle demande pour rejoindre votre session du ${SESSION.date}.`,
+  read: false,
+  created_at: new Date().toISOString(),
 };
 
 function resetQb() {
@@ -104,13 +112,14 @@ function resetQb() {
 //   first()     → requestsRepo.findBySessionAndPlayer (dup check)
 //   first()     → profileRepo.getByUserId (candidate profile)
 //   select()    → requestsRepo.getAcceptedBySession (group profiles)
-//   returning() → requestsRepo.create (insert)
+//   returning() → requestsRepo.create (insert session_request)
+//   returning() → notificationsRepo.create (notify session creator)
 // ---------------------------------------------------------------------------
 describe('POST /api/sessions/:id/requests', () => {
-  beforeEach(() => { jest.clearAllMocks(); resetQb(); mockCreate.mockReset(); });
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); mockGenerateContent.mockReset(); });
 
   it('CU-06: create request — 201 with AI score', async () => {
-    mockCreate.mockResolvedValue(AI_SCORE_RESPONSE);
+    mockGenerateContent.mockResolvedValue(AI_SCORE_RESPONSE);
     qb.first
       .mockResolvedValueOnce(SESSION)        // session exists
       .mockResolvedValueOnce(null)           // no duplicate
@@ -128,7 +137,7 @@ describe('POST /api/sessions/:id/requests', () => {
   });
 
   it('CU-06: create request — AI failure returns degraded score, never blocks', async () => {
-    mockCreate.mockRejectedValue(new Error('Anthropic down'));
+    mockGenerateContent.mockRejectedValue(new Error('Gemini down'));
     qb.first
       .mockResolvedValueOnce(SESSION)
       .mockResolvedValueOnce(null)
@@ -142,6 +151,32 @@ describe('POST /api/sessions/:id/requests', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.sessionRequest.ai_score).toBe(50);
+  });
+
+  it('CU-06: create request — notification written to DB for session creator', async () => {
+    mockGenerateContent.mockResolvedValue(AI_SCORE_RESPONSE);
+    qb.first
+      .mockResolvedValueOnce(SESSION)   // session exists
+      .mockResolvedValueOnce(null)      // no duplicate
+      .mockResolvedValueOnce(null);     // no candidate profile
+    qb.select.mockResolvedValueOnce([]); // no accepted players yet
+    qb.returning
+      .mockResolvedValueOnce([SESSION_REQUEST]) // session_request insert
+      .mockResolvedValueOnce([NOTIFICATION]);   // notifications insert
+
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/requests`)
+      .set('Cookie', `token=${PLAYER_TOKEN}`);
+
+    expect(res.status).toBe(201);
+
+    // Verify db('notifications') was called — i.e. a row was inserted for the creator
+    const notifTableCall = db.mock.calls.find(([table]) => table === 'notifications');
+    expect(notifTableCall).toBeDefined();
+    // Verify the notification targets the session creator, not the player who requested
+    expect(qb.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: CREATOR_ID, type: 'session_request' })
+    );
   });
 
   it('CU-06: creator joins own session — 403', async () => {

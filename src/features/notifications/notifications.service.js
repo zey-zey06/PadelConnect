@@ -18,6 +18,15 @@ async function createNotification(userId, type, message) {
   }
 }
 
+async function getAll(userId) {
+  return notificationsRepo.getAll(userId);
+}
+
+async function getUnreadCount(userId) {
+  const rows = await notificationsRepo.getUnread(userId);
+  return rows.length;
+}
+
 async function getUnread(userId) {
   return notificationsRepo.getUnread(userId);
 }
@@ -29,4 +38,4 @@ async function markAsRead(notificationId, userId) {
   return notificationsRepo.markAsRead(notificationId);
 }
 
-module.exports = { createNotification, getUnread, markAsRead };
+module.exports = { createNotification, getAll, getUnreadCount, getUnread, markAsRead };
