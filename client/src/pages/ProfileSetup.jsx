@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Sparkles, Upload, CheckCircle2, ChevronRight, ChevronLeft, AlertCircle, X } from 'lucide-react';
 import { useAuth } from '@/App';
-import { generateProfile, uploadPhoto } from '@/api/profile';
+import { generateProfile, uploadPhoto, getProfile } from '@/api/profile';
 import { Button }   from '@/components/ui/button';
 import { Label }    from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -88,6 +88,7 @@ export default function ProfileSetup() {
   const [error, setError] = useState(null);
 
   // ── Step 1: basic info
+  const [birthDate,    setBirthDate]    = useState('');
   const [yearsPlaying, setYearsPlaying] = useState('');
   const [selfLevel,    setSelfLevel]    = useState(null);
 
@@ -105,16 +106,16 @@ export default function ProfileSetup() {
 
   // ── Step 1 → 2 ──────────────────────────────────────────────────────────
   function handleStep1Next() {
-    if (!yearsPlaying || !selfLevel) {
+    if (!birthDate || !yearsPlaying || !selfLevel) {
       setError('Veuillez renseigner tous les champs.');
       return;
     }
     setError(null);
+    const age       = Math.floor((Date.now() - new Date(birthDate)) / (365.25 * 24 * 3600 * 1000));
     const yearsText = YEARS_OPTIONS.find((o) => o.value === yearsPlaying)?.label?.toLowerCase() ?? yearsPlaying;
     const levelText = LEVEL_LABELS[selfLevel]?.toLowerCase() ?? String(selfLevel);
-    // Pre-populate description to give AI good context
     setDescription(
-      `Je joue au padel depuis ${yearsText}. Mon niveau est ${levelText} (${selfLevel}/7). ` +
+      `J'ai ${age} ans. Je joue au padel depuis ${yearsText}. Mon niveau de forme physique et de jeu est ${levelText} (${selfLevel}/7). ` +
       `Décrivez ici votre style de jeu, vos points forts, ce que vous aimez et souhaitez améliorer.`
     );
     setStep(2);
@@ -159,9 +160,10 @@ export default function ProfileSetup() {
       if (photo) {
         await uploadPhoto(photo);
       }
-      // Profile was already upserted by generateProfile — just sync context
-      setProfile(generatedProfile);
-      navigate('/dashboard');
+      // Re-fetch from server so photo_url (and any server-side updates) are reflected in context
+      const { profile: saved } = await getProfile();
+      setProfile(saved);
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.message || 'Erreur lors de la sauvegarde.');
     } finally {
@@ -209,6 +211,18 @@ export default function ProfileSetup() {
 
               <div className="space-y-5">
                 <div className="space-y-2">
+                  <Label htmlFor="birthDate">Date de naissance</Label>
+                  <input
+                    id="birthDate"
+                    type="date"
+                    max={new Date().toISOString().split('T')[0]}
+                    value={birthDate}
+                    onChange={(e) => setBirthDate(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="years">Depuis combien de temps jouez-vous au padel ?</Label>
                   <Select
                     id="years"
@@ -224,7 +238,7 @@ export default function ProfileSetup() {
 
                 <div className="space-y-2">
                   <Label>
-                    Votre niveau auto-évalué{' '}
+                    Niveau de jeu / forme physique{' '}
                     {selfLevel && (
                       <span className="text-primary font-medium">
                         — {LEVEL_LABELS[selfLevel]}
