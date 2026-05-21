@@ -5,9 +5,11 @@ process.env.COOKIE_SECURE = 'false';
 const request = require('supertest');
 
 // Minimal mocks for modules loaded transitively by app.js
-jest.mock('@anthropic-ai/sdk', () =>
-  jest.fn().mockImplementation(() => ({ messages: { create: jest.fn() } }))
-);
+jest.mock('@google/generative-ai', () => ({
+  GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
+    getGenerativeModel: jest.fn().mockReturnValue({ generateContent: jest.fn() }),
+  })),
+}));
 jest.mock('multer', () => {
   const m = () => ({ single: () => (req, res, next) => next() });
   m.diskStorage = () => ({});
@@ -49,7 +51,7 @@ const SESSION = {
   date: '2026-06-01',
   time: '10:00:00',
   max_players: 4,
-  current_players: 0,
+  current_players: 1, // creator is automatically player #1
   status: 'open',
   preferences: null,
   created_at: new Date().toISOString(),
@@ -84,6 +86,21 @@ describe('POST /api/sessions', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.session).toMatchObject({ creator_id: CREATOR_ID, status: 'open' });
+  });
+
+  it('CU-05: create session — creator is automatically player #1 (current_players = 1)', async () => {
+    qb.returning.mockResolvedValueOnce([SESSION]);
+
+    const res = await request(app)
+      .post('/api/sessions')
+      .set('Cookie', `token=${AUTH_TOKEN}`)
+      .send({ date: '2026-06-01', time: '10:00', max_players: 4 });
+
+    expect(res.status).toBe(201);
+    // Verify the insert included current_players: 1
+    expect(qb.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ current_players: 1, creator_id: CREATOR_ID })
+    );
   });
 
   it('CU-05: create session without auth — 401', async () => {

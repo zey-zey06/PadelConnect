@@ -6,6 +6,7 @@ async function create(userId, data) {
     date: data.date,
     time: data.time,
     max_players: data.max_players,
+    current_players: 1, // creator is automatically player #1
     preferences: data.preferences || null,
   });
 }

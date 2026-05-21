@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Users, Plus, AlertCircle, X, Filter, CheckCircle2, XCircle, User, Sparkles } from 'lucide-react';
+import { Users, Plus, AlertCircle, X, Filter, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '@/App';
 import { cn } from '@/lib/utils';
 
@@ -92,7 +92,7 @@ function SessionCard({ session, onJoin }) {
       <div className="flex items-center gap-4 text-sm text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <Users className="h-3.5 w-3.5" />
-          {session.current_players ?? 0}/{session.max_players} joueurs
+          {session.current_players ?? 0}/{session.max_players} joueurs confirmés
         </span>
         {session.preferences?.level_min && (
           <span>Niv. {LEVEL_LABELS[session.preferences.level_min] ?? session.preferences.level_min}+</span>
@@ -105,7 +105,11 @@ function SessionCard({ session, onJoin }) {
       {/* Action */}
       <div className="mt-auto">
         {isOwner ? (
-          <p className="text-xs text-muted-foreground text-center py-1">Votre session</p>
+          <Link to="/clubs">
+            <Button variant="outline" size="sm" className="w-full">
+              Réserver un terrain
+            </Button>
+          </Link>
         ) : state === 'done' ? (
           <p className="text-sm font-medium text-green-600">
             Demande envoyée ✓ — le créateur vous répondra bientôt.
@@ -219,9 +223,9 @@ function CreateSessionModal({ onClose, onCreate }) {
 
           {/* Max players */}
           <div className="space-y-2">
-            <Label>Joueurs maximum</Label>
+            <Label>Nombre de joueurs souhaité (vous inclus)</Label>
             <div className="flex gap-2">
-              {[2, 4].map((n) => (
+              {[2, 3, 4].map((n) => (
                 <button
                   key={n}
                   type="button"
@@ -313,13 +317,21 @@ function RequestRow({ request, sessionId, onRespond }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3">
       {/* Avatar */}
-      <Link to={`/players/${request.player_id}`} state={{ name }} className="shrink-0">
+      <Link
+        to={`/players/${request.player_id}`}
+        state={{ name }}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="shrink-0"
+      >
         <div className="h-10 w-10 rounded-full overflow-hidden bg-muted ring-2 ring-border">
           {request.player_photo_url ? (
             <img src={request.player_photo_url} alt={name} className="h-full w-full object-cover" />
           ) : (
-            <div className="h-full w-full flex items-center justify-center bg-primary/10">
-              <User className="h-4 w-4 text-primary/60" />
+            <div className="h-full w-full flex items-center justify-center bg-green-100">
+              <span className="text-[11px] font-bold text-green-700 select-none">
+                {name.slice(0, 2).toUpperCase()}
+              </span>
             </div>
           )}
         </div>
@@ -328,7 +340,7 @@ function RequestRow({ request, sessionId, onRespond }) {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <Link to={`/players/${request.player_id}`} state={{ name }} className="text-sm font-semibold text-foreground hover:underline truncate capitalize">
+          <Link to={`/players/${request.player_id}`} state={{ name }} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-foreground hover:underline truncate capitalize">
             {name}
           </Link>
           {request.player_level && (
@@ -437,7 +449,7 @@ function MySessionCard({ session, autoOpen = false }) {
             {d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
           <p className="text-sm text-muted-foreground">
-            {session.time?.slice(0, 5)} · {session.current_players ?? 0}/{session.max_players} joueurs
+            {session.time?.slice(0, 5)} · {session.current_players ?? 0}/{session.max_players} joueurs confirmés
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -465,6 +477,13 @@ function MySessionCard({ session, autoOpen = false }) {
               <RequestRow key={r.id} request={r} sessionId={session.id} onRespond={handleRespond} />
             ))
           )}
+          <div className="pt-2 border-t border-border">
+            <Link to="/clubs">
+              <Button variant="outline" size="sm" className="w-full">
+                Réserver un terrain
+              </Button>
+            </Link>
+          </div>
         </div>
       )}
     </div>

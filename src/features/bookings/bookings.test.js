@@ -4,9 +4,11 @@ process.env.COOKIE_SECURE = 'false';
 
 const request = require('supertest');
 
-jest.mock('@anthropic-ai/sdk', () =>
-  jest.fn().mockImplementation(() => ({ messages: { create: jest.fn() } }))
-);
+jest.mock('@google/generative-ai', () => ({
+  GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
+    getGenerativeModel: jest.fn().mockReturnValue({ generateContent: jest.fn() }),
+  })),
+}));
 jest.mock('multer', () => {
   const m = () => ({ single: () => (req, res, next) => next() });
   m.diskStorage = () => ({});
@@ -71,9 +73,13 @@ const SESSION_COMPLETE = {
   status: 'complete', current_players: 2, max_players: 4,
   preferences: null, deleted_at: null,
 };
-// Session with status 'open' → not bookable
+// Session with status 'open' but creator present (current_players=1) → bookable
 const SESSION_OPEN = {
   ...SESSION_COMPLETE, status: 'open', current_players: 1,
+};
+// Session with no players yet (creator not counted yet) → not bookable
+const SESSION_EMPTY = {
+  ...SESSION_COMPLETE, status: 'open', current_players: 0,
 };
 // Session in the past → late cancel (within 4h deadline)
 const SESSION_PAST = {
@@ -117,14 +123,15 @@ function resetQb() {
 
 // ── POST /api/bookings ────────────────────────────────────────────────────────
 // penaltiesRepo.getActiveAppBan is mocked → always null (no ban)
-// success (no addons):   first()→SESSION_COMPLETE, first()→SLOT_AVAILABLE,
-//                        returning()→BOOKING, returning()→SLOT_BOOKED
-// with addons:           first()x2, returning()x3 (booking+slot+addon)
-// non-creator:           first()→SESSION_COMPLETE (creator_id≠userId) → 403
-// session not complete:  first()→SESSION_OPEN → 422
-// slot not available:    first()→SESSION_COMPLETE, first()→SLOT_BOOKED → 409
-// session not found:     first()→null → 404
-// missing field:         validation → 422
+// success (no addons):      first()→SESSION_COMPLETE, first()→SLOT_AVAILABLE,
+//                           returning()→BOOKING, returning()→SLOT_BOOKED
+// success (open, 1 player): first()→SESSION_OPEN, first()→SLOT_AVAILABLE, ...
+// with addons:              first()x2, returning()x3 (booking+slot+addon)
+// non-creator:              first()→SESSION_COMPLETE (creator_id≠userId) → 403
+// session has no players:   first()→SESSION_EMPTY (current_players=0) → 422
+// slot not available:       first()→SESSION_COMPLETE, first()→SLOT_BOOKED → 409
+// session not found:        first()→null → 404
+// missing field:            validation → 422
 describe('POST /api/bookings', () => {
   beforeEach(() => { jest.clearAllMocks(); resetQb(); });
 
@@ -183,8 +190,24 @@ describe('POST /api/bookings', () => {
     expect(res.status).toBe(403);
   });
 
-  it('CU-09: create booking — session not complete — 422', async () => {
-    qb.first.mockResolvedValueOnce(SESSION_OPEN);
+  it('CU-09: create booking — open session with 1 player (creator) — 201', async () => {
+    qb.first
+      .mockResolvedValueOnce(SESSION_OPEN)    // current_players=1 → allowed
+      .mockResolvedValueOnce(SLOT_AVAILABLE);
+    qb.returning
+      .mockResolvedValueOnce([BOOKING])
+      .mockResolvedValueOnce([{ ...SLOT_AVAILABLE, status: 'booked' }]);
+
+    const res = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', `token=${CREATOR_TOKEN}`)
+      .send({ session_id: SESSION_ID, venue_slot_id: SLOT_ID });
+
+    expect(res.status).toBe(201);
+  });
+
+  it('CU-09: create booking — session has no players (current_players=0) — 422', async () => {
+    qb.first.mockResolvedValueOnce(SESSION_EMPTY);
 
     const res = await request(app)
       .post('/api/bookings')

@@ -26,7 +26,7 @@ async function createBooking(userId, { session_id, venue_slot_id, addons = [] })
   const session = await sessionsRepo.getById(session_id);
   if (!session) throw makeError(404, 'Session introuvable.');
   if (session.creator_id !== userId) throw makeError(403, 'Seul le créateur de la session peut effectuer la réservation.');
-  if (session.status !== 'complete') throw makeError(422, 'La session doit avoir au moins 2 joueurs confirmés.');
+  if ((session.current_players ?? 0) < 1) throw makeError(422, 'La session doit avoir au moins 1 joueur confirmé.');
 
   const slot = await venuesRepo.getSlotById(venue_slot_id);
   if (!slot) throw makeError(404, 'Créneau introuvable.');
