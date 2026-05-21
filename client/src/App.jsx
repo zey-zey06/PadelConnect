@@ -14,6 +14,7 @@ import CoachDashboard   from '@/pages/CoachDashboard';
 import ManagerDashboard from '@/pages/ManagerDashboard';
 import AdminDashboard   from '@/pages/AdminDashboard';
 import Profile          from '@/pages/Profile';
+import PlayerProfile    from '@/pages/PlayerProfile';
 import Layout           from '@/components/Layout';
 import { me }           from '@/api/auth';
 import { getProfile }   from '@/api/profile';
@@ -129,6 +130,10 @@ export default function App() {
           <Route
             path="/profile"
             element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>}
+          />
+          <Route
+            path="/players/:userId"
+            element={<ProtectedRoute><Layout><PlayerProfile /></Layout></ProtectedRoute>}
           />
           <Route
             path="/coach/dashboard"

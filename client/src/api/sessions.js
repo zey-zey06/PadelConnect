@@ -29,3 +29,6 @@ export const getSessionRequests = (sessionId) => client.get(`/sessions/${session
 /** PATCH /api/sessions/:id/requests/:requestId → { request } */
 export const respondToRequest = (sessionId, requestId, status) =>
   client.patch(`/sessions/${sessionId}/requests/${requestId}`, { status });
+
+/** GET /api/sessions/my → { sessions: [...] } — sessions created by current user */
+export const getMySessions = () => client.get('/sessions/my');

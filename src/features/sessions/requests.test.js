@@ -27,6 +27,8 @@ jest.mock('../../db', () => {
     whereNull: jest.fn().mockReturnThis(),
     whereRaw: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
+    join: jest.fn().mockReturnThis(),
+    leftJoin: jest.fn().mockReturnThis(),
     select: jest.fn(),
     first: jest.fn(),
     insert: jest.fn().mockReturnThis(),

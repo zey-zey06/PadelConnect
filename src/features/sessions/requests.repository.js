@@ -13,11 +13,26 @@ async function findBySessionAndPlayer(sessionId, playerId) {
 }
 
 async function getBySession(sessionId) {
-  return db('session_requests')
-    .where({ session_id: sessionId })
-    .whereNull('deleted_at')
-    .orderBy('created_at', 'asc')
-    .select();
+  const rows = await db('session_requests')
+    .join('users', 'session_requests.player_id', 'users.id')
+    .leftJoin('player_profiles', 'users.id', 'player_profiles.user_id')
+    .where('session_requests.session_id', sessionId)
+    .whereNull('session_requests.deleted_at')
+    .orderBy('session_requests.created_at', 'asc')
+    .select(
+      'session_requests.*',
+      'users.email as player_email',
+      'player_profiles.level as player_level',
+      'player_profiles.style as player_style',
+      'player_profiles.strengths as player_strengths',
+      'player_profiles.photo_url as player_photo_url',
+    );
+  return rows.map((row) => ({
+    ...row,
+    player_strengths: typeof row.player_strengths === 'string'
+      ? JSON.parse(row.player_strengths)
+      : (row.player_strengths ?? []),
+  }));
 }
 
 async function getAcceptedBySession(sessionId) {

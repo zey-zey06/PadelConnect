@@ -39,4 +39,8 @@ async function updateStatus(sessionId, userId, status) {
   return sessionsRepo.updateStatus(sessionId, status);
 }
 
-module.exports = { create, list, getById, updateStatus };
+async function listMySessions(userId) {
+  return sessionsRepo.listByCreator(userId);
+}
+
+module.exports = { create, list, listMySessions, getById, updateStatus };

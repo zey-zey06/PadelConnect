@@ -65,9 +65,19 @@ async function updateStatusHandler(req, res, next) {
   }
 }
 
+async function listMySessionsHandler(req, res, next) {
+  try {
+    const sessions = await sessionsService.listMySessions(req.user.sub);
+    return res.json({ sessions });
+  } catch (err) {
+    next(err);
+  }
+}
+
 const router = Router();
 router.get('/', authenticate, listHandler);
 router.post('/', authenticate, createHandler);
+router.get('/my', authenticate, listMySessionsHandler); // must be before /:id
 router.get('/:id', authenticate, getByIdHandler);
 router.patch('/:id/status', authenticate, updateStatusHandler);
 

@@ -47,4 +47,12 @@ async function updateCurrentPlayers(id, count) {
   return row;
 }
 
-module.exports = { create, list, getById, updateStatus, updateCurrentPlayers };
+async function listByCreator(userId) {
+  return db('sessions')
+    .where({ creator_id: userId })
+    .whereNull('deleted_at')
+    .orderBy('date', 'desc')
+    .select();
+}
+
+module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers };

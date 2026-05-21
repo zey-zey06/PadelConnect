@@ -3,6 +3,9 @@ import client from './client';
 /** GET /api/profile/me → { profile } (null if not set up yet) */
 export const getProfile = () => client.get('/profile/me');
 
+/** GET /api/profile/user/:userId → { profile } — public profile of any user */
+export const getUserProfile = (userId) => client.get(`/profile/user/${userId}`);
+
 /**
  * POST /api/profile/generate
  * { description: string } → { profile }  — AI upserts and returns the profile

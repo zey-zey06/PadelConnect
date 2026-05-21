@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { getNotifications, markAsRead } from '@/api/notifications';
 import { Button } from '@/components/ui/button';
 import { Bell, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -120,17 +121,26 @@ export default function Notifications() {
                 </p>
               </div>
 
-              {/* Mark read */}
-              {!n.read && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleMarkRead(n.id)}
-                  className="text-xs text-muted-foreground shrink-0"
-                >
-                  Lire
-                </Button>
-              )}
+              {/* Actions */}
+              <div className="flex items-center gap-1 shrink-0">
+                {n.type === 'session_request' && (
+                  <Link to="/sessions?tab=mine">
+                    <Button size="sm" variant="outline" className="text-xs h-7 px-2">
+                      Gérer
+                    </Button>
+                  </Link>
+                )}
+                {!n.read && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleMarkRead(n.id)}
+                    className="text-xs text-muted-foreground"
+                  >
+                    Lire
+                  </Button>
+                )}
+              </div>
             </div>
           ))}
         </div>
