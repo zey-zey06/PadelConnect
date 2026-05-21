@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   Users, Plus, AlertCircle, X, Filter,
-  CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2,
+  CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2, Calendar,
 } from 'lucide-react';
 import { useAuth } from '@/App';
 import { cn } from '@/lib/utils';
@@ -21,44 +21,18 @@ const LEVEL_LABELS = {
   4: 'Inter +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
 };
 
-// ── Organizer avatar + name ───────────────────────────────────────────────────
-function OrganizerLine({ session }) {
-  const name    = session.creator_email?.split('@')[0] ?? 'Joueur';
-  const initials = name.slice(0, 2).toUpperCase();
-
-  return (
-    <Link
-      to={`/players/${session.creator_id}`}
-      state={{ name }}
-      className="flex items-center gap-1.5 group w-fit"
-    >
-      <div className="h-5 w-5 rounded-full overflow-hidden bg-primary/10 shrink-0 ring-1 ring-border">
-        {session.creator_photo_url ? (
-          <img src={session.creator_photo_url} alt={name} className="h-full w-full object-cover" />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-[8px] font-bold text-primary/70">
-            {initials}
-          </span>
-        )}
-      </div>
-      <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
-        Organisé par <span className="font-medium capitalize">{name}</span>
-        {session.creator_level && (
-          <span className="ml-1 font-bold text-primary/70">· niv. {session.creator_level}</span>
-        )}
-      </span>
-    </Link>
-  );
-}
-
-// ── Session card ──────────────────────────────────────────────────────────────
+// ── Session card (browse tab) ─────────────────────────────────────────────────
 function SessionCard({ session, onJoin }) {
   const { user } = useAuth();
   const [state, setState] = useState('idle'); // idle | loading | done | error
-  const [msg, setMsg] = useState('');
-  const isFull = (session.current_players ?? 0) >= session.max_players;
+  const [msg,   setMsg]   = useState('');
+
+  const isFull  = (session.current_players ?? 0) >= session.max_players;
   const isOwner = user?.id === session.creator_id;
-  const d = new Date(session.date);
+  const d = new Date(session.date + 'T00:00:00');
+
+  const creatorName = session.creator_email?.split('@')[0] ?? 'Joueur';
+  const levelMin    = session.preferences?.level_min;
 
   async function handleJoin() {
     setState('loading');
@@ -73,53 +47,58 @@ function SessionCard({ session, onJoin }) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-4 hover:shadow-sm transition-shadow flex flex-col">
-      {/* Date + status */}
+    <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3 hover:shadow-sm transition-shadow">
+      {/* Date row */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-3">
-          <div className="flex flex-col items-center justify-center w-[52px] h-[52px] rounded-xl bg-accent shrink-0">
+          <div className="flex flex-col items-center justify-center w-[48px] h-[48px] rounded-xl bg-accent shrink-0">
             <span className="text-[9px] font-bold text-primary/60 uppercase leading-none">
               {d.toLocaleDateString('fr-FR', { month: 'short' })}
             </span>
-            <span className="text-2xl font-bold text-primary leading-none">{d.getDate()}</span>
+            <span className="text-xl font-bold text-primary leading-none">{d.getDate()}</span>
           </div>
           <div>
-            <p className="font-semibold text-foreground capitalize">
+            <p className="font-semibold text-foreground capitalize text-sm leading-snug">
               {d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
-            <p className="text-sm text-muted-foreground">{session.time?.slice(0, 5) ?? '—'}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {session.time?.slice(0, 5) ?? '—'}
+            </p>
           </div>
         </div>
-        <Badge variant={isFull ? 'secondary' : 'success'}>
+        <Badge variant={isFull ? 'secondary' : 'success'} className="shrink-0">
           {isFull ? 'Complet' : 'Ouvert'}
         </Badge>
       </div>
 
-      {/* Players + level */}
-      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-        <span className="flex items-center gap-1.5">
+      {/* Players + level + organiser — compact row */}
+      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+        <span className="flex items-center gap-1">
           <Users className="h-3.5 w-3.5" />
-          {session.current_players ?? 0}/{session.max_players} joueurs confirmés
+          {session.current_players ?? 0}/{session.max_players} joueurs
         </span>
-        {session.preferences?.level_min && (
-          <span>Niv. {LEVEL_LABELS[session.preferences.level_min] ?? session.preferences.level_min}+</span>
+        {levelMin && (
+          <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+            Niveau {levelMin}+
+          </span>
         )}
+        <span className="capitalize ml-auto truncate max-w-[120px]">{creatorName}</span>
       </div>
 
-      {/* Organizer */}
-      <OrganizerLine session={session} />
-
       {/* Action */}
-      <div className="mt-auto">
+      <div className="mt-auto pt-1">
         {isOwner ? (
           <Link to="/clubs">
             <Button variant="outline" size="sm" className="w-full">
+              <Calendar className="h-3.5 w-3.5" />
               Réserver un terrain
             </Button>
           </Link>
         ) : state === 'done' ? (
-          <p className="text-sm font-medium text-green-600">
-            Demande envoyée ✓ — le créateur vous répondra bientôt.
+          <p className="text-xs font-medium text-green-600 flex items-center gap-1">
+            <CheckCircle2 className="h-3 w-3 shrink-0" />
+            Demande envoyée — en attente de confirmation.
           </p>
         ) : state === 'error' ? (
           <p className="text-xs text-red-600 flex items-center gap-1">
@@ -133,7 +112,7 @@ function SessionCard({ session, onJoin }) {
             disabled={isFull || state === 'loading'}
             variant={isFull ? 'outline' : 'default'}
           >
-            {state === 'loading' ? 'Envoi…' : isFull ? 'Session complète' : 'Rejoindre cette session'}
+            {state === 'loading' ? 'Envoi…' : isFull ? 'Session complète' : 'Rejoindre'}
           </Button>
         )}
       </div>

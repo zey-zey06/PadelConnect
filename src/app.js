@@ -19,6 +19,7 @@ const { penaltiesRouter, adminRouter } = require('./features/penalties/penalties
 const notificationsRouter = require('./features/notifications/notifications.controller');
 const adminDashboardRouter = require('./features/admin/admin.controller');
 const calendarRouter = require('./features/calendar/calendar.controller');
+const managerRouter  = require('./features/manager/manager.controller');
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use('/api/admin', adminRouter);
 app.use('/api/admin', adminDashboardRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/calendar', calendarRouter);
+app.use('/api/manager', managerRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';

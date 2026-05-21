@@ -1,5 +1,12 @@
 import client from './client';
 
+// ── Manager dashboard ─────────────────────────────────────────────────────────
+/**
+ * GET /api/manager/dashboard
+ * → { stats: { total_venues, bookings_today, bookings_week, revenue_today } }
+ */
+export const getManagerDashboard = () => client.get('/manager/dashboard');
+
 // ── Club ──────────────────────────────────────────────────────────────────────
 /** POST /api/clubs → { club }  (also refreshes JWT cookie with new org_id) */
 export const createClub = (data) => client.post('/clubs', data);

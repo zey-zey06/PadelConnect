@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, MapPin, CalendarDays, TrendingUp, ChevronRight, AlertCircle, Plus } from 'lucide-react';
+import {
+  Building2, MapPin, CalendarDays, TrendingUp,
+  ChevronRight, AlertCircle, Plus, CalendarCheck,
+} from 'lucide-react';
 import { useAuth } from '@/App';
-import { getMyClub, getMyVenues, getVenueSlots } from '@/api/manager';
+import { getManagerDashboard, getMyClub, getMyVenues, getVenueSlots } from '@/api/manager';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
@@ -62,9 +65,10 @@ function VenueRow({ venue, todaySlots = [] }) {
 export default function ManagerDashboard() {
   const { user } = useAuth();
 
+  const [stats,      setStats]      = useState(null);
   const [club,       setClub]       = useState(null);
   const [venues,     setVenues]     = useState([]);
-  const [todaySlots, setTodaySlots] = useState({}); // venueId → slots[]
+  const [todaySlots, setTodaySlots] = useState({});
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(null);
 
@@ -73,18 +77,21 @@ export default function ManagerDashboard() {
 
     async function load() {
       try {
-        const [{ club: c }, { venues: v }] = await Promise.all([
+        const [{ stats: s }, { club: c }, { venues: v }] = await Promise.all([
+          getManagerDashboard(),
           getMyClub(user.organization_id),
           getMyVenues(user.organization_id),
         ]);
+        setStats(s);
         setClub(c);
         setVenues(v ?? []);
 
-        // Fetch today's slots for each venue in parallel
+        // Today's per-venue slot breakdown for the venue overview list
         const today = new Date().toISOString().slice(0, 10);
         const results = await Promise.allSettled(
           (v ?? []).map((venue) =>
-            getVenueSlots(venue.id, { date: today }).then(({ slots: s }) => ({ id: venue.id, slots: s ?? [] }))
+            getVenueSlots(venue.id, { date: today })
+              .then(({ slots: sl }) => ({ id: venue.id, slots: sl ?? [] }))
           )
         );
         const map = {};
@@ -100,13 +107,6 @@ export default function ManagerDashboard() {
     }
     load();
   }, [user?.organization_id]);
-
-  // Computed stats
-  const allTodaySlots  = Object.values(todaySlots).flat();
-  const bookedToday    = allTodaySlots.filter((s) => s.status === 'booked').length;
-  const revenueToday   = allTodaySlots
-    .filter((s) => s.status === 'booked')
-    .reduce((sum, s) => sum + Number(s.price || 0), 0);
 
   return (
     <div className="space-y-8">
@@ -140,8 +140,8 @@ export default function ManagerDashboard() {
 
       {loading ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => <div key={i} className="h-28 rounded-xl bg-muted animate-pulse" />)}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => <div key={i} className="h-28 rounded-xl bg-muted animate-pulse" />)}
           </div>
           <div className="space-y-3">
             {[1, 2].map((i) => <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />)}
@@ -170,23 +170,29 @@ export default function ManagerDashboard() {
       ) : (
         <>
           {/* ── Stats ──────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <StatCard
               label="Terrains"
-              value={venues.length}
-              note={venues.length === 1 ? 'terrain enregistré' : 'terrains enregistrés'}
+              value={stats?.total_venues ?? venues.length}
+              note={`terrain${(stats?.total_venues ?? venues.length) !== 1 ? 's' : ''} enregistré${(stats?.total_venues ?? venues.length) !== 1 ? 's' : ''}`}
               icon={MapPin}
             />
             <StatCard
-              label="Réservations aujourd'hui"
-              value={bookedToday}
-              note={bookedToday === 0 ? 'aucune réservation' : 'créneaux réservés'}
+              label="Réservés aujourd'hui"
+              value={stats?.bookings_today ?? 0}
+              note={stats?.bookings_today === 0 ? 'aucune réservation' : 'créneaux réservés'}
               icon={CalendarDays}
               accent
             />
             <StatCard
+              label="Réservés cette semaine"
+              value={stats?.bookings_week ?? 0}
+              note={stats?.bookings_week === 0 ? 'aucune réservation' : 'sur les 7 prochains jours'}
+              icon={CalendarCheck}
+            />
+            <StatCard
               label="Revenus aujourd'hui"
-              value={`${revenueToday.toLocaleString('fr-FR')} FCFA`}
+              value={`${(stats?.revenue_today ?? 0).toLocaleString('fr-FR')} FCFA`}
               note="créneaux réservés ce jour"
               icon={TrendingUp}
             />
@@ -211,7 +217,7 @@ export default function ManagerDashboard() {
           {/* ── Venues overview ─────────────────────────────────────── */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-foreground">Mes terrains</h2>
+              <h2 className="text-base font-semibold text-foreground">Mes terrains — aujourd'hui</h2>
               <Link to="/manager/venues" className="flex items-center gap-0.5 text-sm font-medium text-primary hover:underline">
                 Gérer <ChevronRight className="h-3.5 w-3.5" />
               </Link>
