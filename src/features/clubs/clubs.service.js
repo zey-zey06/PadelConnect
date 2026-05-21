@@ -8,7 +8,7 @@ async function createClub(userId, data) {
 }
 
 async function listClubs() {
-  return clubsRepo.list();
+  return clubsRepo.listWithStats();
 }
 
 async function getClub(id) {

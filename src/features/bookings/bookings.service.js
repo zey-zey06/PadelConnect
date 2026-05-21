@@ -1,9 +1,10 @@
 const bookingsRepo = require('./bookings.repository');
 const sessionsRepo = require('../sessions/sessions.repository');
 const venuesRepo = require('../venues/venues.repository');
+const clubsRepo = require('../clubs/clubs.repository');
 const penaltiesRepo = require('../penalties/penalties.repository');
 const notificationsService = require('../notifications/notifications.service');
-const { sendBookingConfirmation } = require('../../emails/confirmation');
+const { sendBookingConfirmation, sendManagerBookingNotification } = require('../../emails/confirmation');
 const { sendBookingCancellation } = require('../../emails/cancellation');
 
 function makeError(status, message) {
@@ -39,13 +40,37 @@ async function createBooking(userId, { session_id, venue_slot_id, payment_method
     await bookingsRepo.createAddon({ booking_id: booking.id, ...addon });
   }
 
+  // Post-booking notifications — all non-fatal
   try {
-    await sendBookingConfirmation({ booking, session });
+    const venue = await venuesRepo.getById(slot.venue_id);
+    const [venueAdmin, booker, players] = await Promise.all([
+      venue ? clubsRepo.getAdminByOrg(venue.organization_id) : Promise.resolve(null),
+      clubsRepo.getUserById(userId),
+      sessionsRepo.getSessionPlayers(session_id),
+    ]);
+
+    // Confirmation email to all session players
+    await sendBookingConfirmation({ booking, session, slot, venue, players }).catch(() => {});
+
+    // In-app + email notification to venue admin
+    if (venueAdmin) {
+      await notificationsService.createNotification(
+        venueAdmin.id,
+        'new_booking',
+        `Nouvelle réservation — ${venue.name} · ${slot.date} · ${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}`
+      );
+      await sendManagerBookingNotification({
+        booking, session, slot, venue,
+        booker:      booker  || { name: 'Joueur', email: '' },
+        managerEmail: venueAdmin.email,
+        playerCount: players.length,
+      }).catch(() => {});
+    }
   } catch {
-    // Non-fatal: email failure must not block booking
+    // Non-fatal: notification failure must not block booking
   }
 
-  // Notification AFTER all DB ops
+  // In-app notification to the booking creator
   await notificationsService.createNotification(
     userId,
     'booking_confirmed',

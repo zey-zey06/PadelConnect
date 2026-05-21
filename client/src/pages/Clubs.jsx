@@ -1,121 +1,71 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, MapPin, ChevronDown, ChevronRight, Clock, AlertCircle, ExternalLink } from 'lucide-react';
-import { listClubs, getClubVenues } from '@/api/clubs';
+import { Building2, MapPin, ChevronRight, AlertCircle } from 'lucide-react';
+import { listClubs } from '@/api/clubs';
 import { Button } from '@/components/ui/button';
-
-// ── Slot badge ────────────────────────────────────────────────────────────────
-function SlotBadge({ slot }) {
-  const colors = {
-    available: 'bg-green-100 text-green-700',
-    booked:    'bg-blue-100 text-blue-700',
-    cancelled: 'bg-red-100 text-red-600',
-  };
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${colors[slot.status] ?? 'bg-muted text-muted-foreground'}`}>
-      <Clock className="h-3 w-3" />
-      {slot.start_time?.slice(0, 5)}–{slot.end_time?.slice(0, 5)}
-      {slot.price != null && (
-        <span className="ml-1 font-normal opacity-75">{Number(slot.price).toLocaleString('fr-FR')} FCFA</span>
-      )}
-    </span>
-  );
-}
-
-// ── Venue row (expandable slots) ──────────────────────────────────────────────
-function VenueCard({ venue }) {
-  return (
-    <div className="rounded-lg border border-border bg-background px-4 py-3 space-y-2">
-      <div className="flex items-center gap-2">
-        <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <p className="text-sm font-medium text-foreground">{venue.name}</p>
-        {venue.description && (
-          <p className="text-xs text-muted-foreground truncate max-w-xs">{venue.description}</p>
-        )}
-      </div>
-    </div>
-  );
-}
+import { cn } from '@/lib/utils';
 
 // ── Club card ─────────────────────────────────────────────────────────────────
 function ClubCard({ club }) {
-  const [open,    setOpen]    = useState(false);
-  const [venues,  setVenues]  = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState(null);
+  const photo      = club.logo_url || (Array.isArray(club.photos_urls) && club.photos_urls[0]) || null;
+  const venueCount = parseInt(club.venue_count ?? 0, 10);
+  const minPrice   = club.min_price != null ? Number(club.min_price) : null;
+  const maxPrice   = club.max_price != null ? Number(club.max_price) : null;
 
-  async function handleToggle() {
-    if (!open && venues.length === 0) {
-      setLoading(true);
-      setError(null);
-      try {
-        const { venues: v } = await getClubVenues(club.id);
-        setVenues(v ?? []);
-      } catch (err) {
-        setError(err.message || 'Impossible de charger les terrains.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    setOpen((o) => !o);
+  let priceLabel = null;
+  if (minPrice !== null && maxPrice !== null) {
+    priceLabel = minPrice === maxPrice
+      ? `${minPrice.toLocaleString('fr-FR')} FCFA`
+      : `${minPrice.toLocaleString('fr-FR')} – ${maxPrice.toLocaleString('fr-FR')} FCFA`;
   }
 
-  const statusColors = {
-    active:   'bg-green-100 text-green-700',
-    inactive: 'bg-muted text-muted-foreground',
-  };
-
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      {/* Header */}
-      <button
-        onClick={handleToggle}
-        className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-accent/50 transition-colors"
-      >
-        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <Building2 className="h-5 w-5 text-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-foreground">{club.name}</p>
-          <p className="text-xs text-muted-foreground">/{club.slug}</p>
-        </div>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColors[club.status] ?? 'bg-muted text-muted-foreground'}`}>
+    <div className="rounded-xl border border-border bg-card overflow-hidden hover:shadow-sm hover:border-primary/20 transition-all flex flex-col">
+      {/* Photo / gradient header */}
+      <div className="h-32 bg-gradient-to-br from-primary/15 to-primary/5 relative overflow-hidden shrink-0">
+        {photo && (
+          <img src={photo} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+        <span className={cn(
+          'absolute top-3 right-3 text-xs font-medium px-2 py-0.5 rounded-full',
+          club.status === 'active'
+            ? 'bg-green-100/90 text-green-700'
+            : 'bg-muted/90 text-muted-foreground'
+        )}>
           {club.status === 'active' ? 'Actif' : 'Inactif'}
         </span>
-        {open
-          ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-          : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-      </button>
-      <div className="px-5 pb-3 flex justify-end border-b border-border -mt-1">
-        <Link
-          to={`/clubs/${club.id}`}
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-        >
-          <ExternalLink className="h-3 w-3" />
-          Voir le profil
-        </Link>
       </div>
 
-      {/* Venues */}
-      {open && (
-        <div className="px-5 pb-4 border-t border-border pt-3 space-y-2">
-          {loading ? (
-            <div className="space-y-2">
-              {[1, 2].map((i) => <div key={i} className="h-10 rounded-lg bg-muted animate-pulse" />)}
-            </div>
-          ) : error ? (
-            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              {error}
-            </div>
-          ) : venues.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">Aucun terrain enregistré pour ce club.</p>
-          ) : (
-            venues.map((v) => <VenueCard key={v.id} venue={v} />)
+      {/* Content */}
+      <div className="p-4 flex flex-col gap-3 flex-1">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-foreground truncate">{club.name}</h3>
+          <p className="text-xs text-muted-foreground truncate mt-0.5">
+            {club.address || `/${club.slug}`}
+          </p>
+        </div>
+
+        {/* Stats row */}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+          {venueCount > 0 && (
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              {venueCount} terrain{venueCount > 1 ? 's' : ''}
+            </span>
+          )}
+          {priceLabel && (
+            <span className="font-medium text-foreground">{priceLabel}</span>
           )}
         </div>
-      )}
+
+        <Link to={`/clubs/${club.id}`} className="mt-auto">
+          <Button size="sm" className="w-full">
+            Réserver
+            <ChevronRight className="h-3.5 w-3.5 ml-auto" />
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }
@@ -143,13 +93,12 @@ export default function Clubs() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => <div key={i} className="h-56 rounded-xl bg-muted animate-pulse" />)}
         </div>
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {error}
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
         </div>
       ) : clubs.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-16 text-center space-y-3">
@@ -160,7 +109,7 @@ export default function Clubs() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {clubs.map((c) => <ClubCard key={c.id} club={c} />)}
         </div>
       )}

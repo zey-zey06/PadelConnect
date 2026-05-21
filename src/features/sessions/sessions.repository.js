@@ -62,4 +62,23 @@ async function listByCreator(userId) {
     .select();
 }
 
-module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers };
+async function getSessionPlayers(sessionId) {
+  const session = await db('sessions').where({ id: sessionId }).first();
+  if (!session) return [];
+  const [creator, accepted] = await Promise.all([
+    db('users').where({ id: session.creator_id }).first(),
+    db('session_requests')
+      .join('users', 'session_requests.player_id', 'users.id')
+      .where({ 'session_requests.session_id': sessionId, 'session_requests.status': 'accepted' })
+      .whereNull('session_requests.deleted_at')
+      .select('users.id', 'users.email', 'users.name'),
+  ]);
+  const players = [];
+  if (creator) players.push({ id: creator.id, email: creator.email, name: creator.name });
+  for (const p of accepted) {
+    if (!players.some((x) => x.id === p.id)) players.push(p);
+  }
+  return players;
+}
+
+module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers, getSessionPlayers };
