@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { listSessions, createSession, requestJoin, getMySessions, getSessionRequests, respondToRequest } from '@/api/sessions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -286,17 +286,20 @@ function CreateSessionModal({ onClose, onCreate }) {
 
 // ── Request row (inside a session managed by current user) ────────────────────
 function RequestRow({ request, sessionId, onRespond }) {
-  const [state, setState] = useState('idle'); // idle | loading | done
+  const [state, setState] = useState('idle'); // idle | loading | done | error
+  const [errMsg, setErrMsg] = useState('');
   const name = request.player_email?.split('@')[0] ?? 'Joueur';
   const strengths = Array.isArray(request.player_strengths) ? request.player_strengths : [];
 
   async function handle(status) {
     setState('loading');
+    setErrMsg('');
     try {
       await onRespond(sessionId, request.id, status);
       setState('done');
-    } catch {
-      setState('idle');
+    } catch (e) {
+      setErrMsg(e.message || 'Erreur');
+      setState('error');
     }
   }
 
@@ -351,29 +354,33 @@ function RequestRow({ request, sessionId, onRespond }) {
 
       {/* Status / actions */}
       {request.status !== 'pending' ? (
-        <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full border', statusColors[request.status])}>
+        <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full border shrink-0', statusColors[request.status])}>
           {statusLabel[request.status]}
         </span>
       ) : state === 'done' ? (
-        <span className="text-xs text-muted-foreground">Répondu</span>
+        <span className="text-xs text-muted-foreground shrink-0">Répondu</span>
+      ) : state === 'error' ? (
+        <span className="text-xs text-red-600 shrink-0 max-w-[120px] text-right">{errMsg}</span>
       ) : (
-        <div className="flex gap-1.5 shrink-0">
+        <div className="flex gap-2 shrink-0">
           <Button
             size="sm"
             variant="outline"
             disabled={state === 'loading'}
             onClick={() => handle('refused')}
-            className="h-7 px-2 text-red-600 border-red-200 hover:bg-red-50"
+            className="h-8 px-3 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
           >
-            <XCircle className="h-3.5 w-3.5" />
+            <XCircle className="h-3.5 w-3.5 mr-1" />
+            Refuser
           </Button>
           <Button
             size="sm"
             disabled={state === 'loading'}
             onClick={() => handle('accepted')}
-            className="h-7 px-2"
+            className="h-8 px-3 bg-green-600 hover:bg-green-700 text-white border-0"
           >
-            <CheckCircle2 className="h-3.5 w-3.5" />
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+            Accepter
           </Button>
         </div>
       )}
@@ -382,34 +389,39 @@ function RequestRow({ request, sessionId, onRespond }) {
 }
 
 // ── My session card (with expandable requests) ────────────────────────────────
-function MySessionCard({ session }) {
+function MySessionCard({ session, autoOpen = false }) {
   const [requests,    setRequests]    = useState(null); // null = not loaded yet
   const [loadingReqs, setLoadingReqs] = useState(false);
-  const [open,        setOpen]        = useState(false);
+  const [open,        setOpen]        = useState(autoOpen);
   const d = new Date(session.date);
 
   const pending = (requests ?? []).filter((r) => r.status === 'pending').length;
 
-  async function toggleRequests() {
-    if (!open && requests === null) {
-      setLoadingReqs(true);
-      try {
-        const { requests: r } = await getSessionRequests(session.id);
-        setRequests(r ?? []);
-      } catch {
-        setRequests([]);
-      } finally {
-        setLoadingReqs(false);
-      }
+  async function loadRequests() {
+    setLoadingReqs(true);
+    try {
+      const { requests: r } = await getSessionRequests(session.id);
+      setRequests(r ?? []);
+    } catch {
+      setRequests([]);
+    } finally {
+      setLoadingReqs(false);
     }
+  }
+
+  // Auto-fetch when navigated here from a notification
+  useEffect(() => {
+    if (autoOpen) loadRequests();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function toggleRequests() {
+    if (!open && requests === null) await loadRequests();
     setOpen((o) => !o);
   }
 
   async function handleRespond(sessionId, requestId, status) {
     await respondToRequest(sessionId, requestId, status);
-    // Refresh requests list
-    const { requests: r } = await getSessionRequests(session.id);
-    setRequests(r ?? []);
+    await loadRequests();
   }
 
   return (
@@ -460,7 +472,7 @@ function MySessionCard({ session }) {
 }
 
 // ── My sessions tab ───────────────────────────────────────────────────────────
-function MySessions() {
+function MySessions({ autoOpen = false }) {
   const [sessions, setSessions] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
@@ -493,14 +505,16 @@ function MySessions() {
 
   return (
     <div className="space-y-3">
-      {sessions.map((s) => <MySessionCard key={s.id} session={s} />)}
+      {sessions.map((s) => <MySessionCard key={s.id} session={s} autoOpen={autoOpen} />)}
     </div>
   );
 }
 
 // ── Sessions page ─────────────────────────────────────────────────────────────
 export default function Sessions() {
-  const [tab, setTab] = useState('browse'); // browse | mine
+  const [searchParams] = useSearchParams();
+  const fromNotification = searchParams.get('tab') === 'mine';
+  const [tab, setTab] = useState(fromNotification ? 'mine' : 'browse'); // browse | mine
 
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -586,7 +600,7 @@ export default function Sessions() {
       </div>
 
       {/* My sessions tab */}
-      {tab === 'mine' && <MySessions />}
+      {tab === 'mine' && <MySessions autoOpen={fromNotification} />}
 
       {/* Browse tab: filters + session list */}
       {tab === 'browse' && <div className="flex items-center gap-3 flex-wrap">
