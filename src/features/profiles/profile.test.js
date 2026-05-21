@@ -4,14 +4,14 @@ process.env.COOKIE_SECURE = 'false';
 
 const request = require('supertest');
 
-// Mock Anthropic SDK — __mockCreate is exposed so tests can configure it
-jest.mock('@anthropic-ai/sdk', () => {
-  const mockCreate = jest.fn();
-  const MockAnthropic = jest.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
+// Mock Google Gemini SDK — __mockGenerateContent is exposed so tests can configure it
+jest.mock('@google/generative-ai', () => {
+  const mockGenerateContent = jest.fn();
+  const MockGoogleGenerativeAI = jest.fn().mockImplementation(() => ({
+    getGenerativeModel: jest.fn().mockReturnValue({ generateContent: mockGenerateContent }),
   }));
-  MockAnthropic.__mockCreate = mockCreate;
-  return MockAnthropic;
+  MockGoogleGenerativeAI.__mockGenerateContent = mockGenerateContent;
+  return { GoogleGenerativeAI: MockGoogleGenerativeAI };
 });
 
 // Mock multer — reads req.file from a global so individual tests can control it
@@ -42,11 +42,11 @@ jest.mock('../../db', () => {
 });
 
 const app = require('../../app');
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const db = require('../../db');
 const { signToken } = require('../../auth/jwt');
 
-const mockCreate = Anthropic.__mockCreate;
+const mockGenerateContent = GoogleGenerativeAI.__mockGenerateContent;
 const qb = db.__qb;
 
 const USER_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
@@ -66,16 +66,15 @@ const PROFILE = {
 };
 
 const AI_RESPONSE = {
-  content: [{
-    type: 'text',
-    text: JSON.stringify({
+  response: {
+    text: () => JSON.stringify({
       niveau: 5,
       style: 'attaquant',
       points_forts: ['smash', 'volée'],
       points_faibles: ['défense'],
       description_courte: 'Joueur offensif.',
     }),
-  }],
+  },
 };
 
 function resetQb() {
@@ -94,11 +93,11 @@ describe('POST /api/profile/generate', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resetQb();
-    mockCreate.mockReset();
+    mockGenerateContent.mockReset();
   });
 
   it('CU-04: generate success — 200 with AI-generated profile', async () => {
-    mockCreate.mockResolvedValue(AI_RESPONSE);
+    mockGenerateContent.mockResolvedValue(AI_RESPONSE);
     qb.first.mockResolvedValueOnce(null);
     qb.returning.mockResolvedValueOnce([PROFILE]);
 
@@ -113,7 +112,7 @@ describe('POST /api/profile/generate', () => {
   });
 
   it('CU-04: generate — AI failure returns degraded profile, never blocks user', async () => {
-    mockCreate.mockRejectedValue(new Error('Anthropic API down'));
+    mockGenerateContent.mockRejectedValue(new Error('Gemini API down'));
     qb.first.mockResolvedValueOnce(null);
     qb.returning.mockResolvedValueOnce([{ ...PROFILE, level: 4, style: 'unknown' }]);
 

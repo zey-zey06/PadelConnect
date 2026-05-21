@@ -1,0 +1,37 @@
+app: padelconnect
+services:
+  - name: web
+    type: web
+    docker:
+      dockerfile: Dockerfile
+    ports:
+      - port: 8080
+        protocol: http
+    routes:
+      - port: 8080
+        path: /
+    env:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DATABASE_URL
+        secret: DATABASE_URL
+      - key: JWT_SECRET
+        secret: JWT_SECRET
+      - key: GEMINI_API_KEY
+        secret: GEMINI_API_KEY
+      - key: RESEND_API_KEY
+        secret: RESEND_API_KEY
+      - key: EMAIL_FROM
+        secret: EMAIL_FROM
+      - key: CORS_ORIGIN
+        secret: CORS_ORIGIN
+    checks:
+      - type: http
+        port: 8080
+        path: /healthz
+        interval: 30s
+        timeout: 5s

@@ -7,15 +7,22 @@ import { getUnreadCount } from '@/api/notifications';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const NAV_LINKS = [
-  { to: '/sessions',  label: 'Sessions'   },
-  { to: '/calendar',  label: 'Calendrier' },
-  { to: '/clubs',     label: 'Clubs'      },
-  { to: '/profile',   label: 'Mon Profil' },
+const PLAYER_NAV = [
+  { to: '/sessions',         label: 'Sessions'   },
+  { to: '/calendar',         label: 'Calendrier' },
+  { to: '/clubs',            label: 'Clubs'      },
+  { to: '/profile',          label: 'Mon Profil' },
+];
+
+const MANAGER_NAV = [
+  { to: '/manager/dashboard', label: 'Tableau de bord' },
+  { to: '/manager/venues',    label: 'Mes terrains'    },
+  { to: '/profile',           label: 'Mon Profil'      },
 ];
 
 export default function Layout({ children }) {
   const { user, setUser, profile } = useAuth();
+  const NAV_LINKS = user?.role === 'venue_admin' ? MANAGER_NAV : PLAYER_NAV;
   const navigate          = useNavigate();
   const location          = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);

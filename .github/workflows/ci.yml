@@ -32,7 +32,7 @@ jobs:
       JWT_SECRET: ci-secret-that-is-at-least-64-characters-long-for-testing-purposes-00
       COOKIE_SECURE: "false"
       # Dummy values so modules load without crashing — never used in tests (DB is mocked)
-      ANTHROPIC_API_KEY: dummy
+      GEMINI_API_KEY: dummy
       RESEND_API_KEY: dummy
       EMAIL_FROM: noreply@example.com
 
