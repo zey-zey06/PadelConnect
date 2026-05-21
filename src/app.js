@@ -29,6 +29,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
+app.use('/uploads', express.static('uploads'));
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

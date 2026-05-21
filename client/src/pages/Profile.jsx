@@ -247,7 +247,7 @@ function PhotoUpload({ currentUrl, onUploaded }) {
 }
 
 // ── Edit form ─────────────────────────────────────────────────────────────────
-function EditForm({ profile, onSave, onCancel }) {
+function EditForm({ profile, onSave, onCancel, onPhotoUploaded }) {
   const [form, setForm] = useState({
     style:      profile?.style      ?? '',
     strengths:  Array.isArray(profile?.strengths)  ? [...profile.strengths]  : [],
@@ -286,7 +286,10 @@ function EditForm({ profile, onSave, onCancel }) {
       {/* Photo */}
       <PhotoUpload
         currentUrl={localProfile?.photo_url}
-        onUploaded={(updated) => setLocalProfile(updated)}
+        onUploaded={(updated) => {
+          setLocalProfile(updated);
+          onPhotoUploaded?.(updated);
+        }}
       />
 
       {/* Style de jeu */}
@@ -449,6 +452,10 @@ export default function Profile() {
               profile={profile}
               onSave={handleSave}
               onCancel={() => setEditing(false)}
+              onPhotoUploaded={(updated) => {
+                setLocal(updated);
+                setProfile(updated);
+              }}
             />
           </div>
         )}
