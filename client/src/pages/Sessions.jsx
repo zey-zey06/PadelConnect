@@ -23,6 +23,16 @@ const LEVEL_LABELS = {
   4: 'Inter +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
 };
 
+/**
+ * PostgreSQL date columns arrive as full ISO strings ("2025-05-22T00:00:00.000Z")
+ * after JSON serialisation.  Appending 'T00:00:00' directly breaks the Date
+ * constructor → "Invalid Date".  Always slice to the 10-char date part first.
+ */
+function parseSessionDate(dateVal) {
+  const str = (dateVal ?? '').toString().slice(0, 10); // "YYYY-MM-DD"
+  return new Date(str + 'T00:00:00');                  // local midnight
+}
+
 // Preset time slots every 30 min, 07:00 → 22:00  (31 options)
 const TIME_OPTIONS = (() => {
   const opts = [];
@@ -54,7 +64,7 @@ function SessionCard({ session, onJoin }) {
 
   const isFull  = (session.current_players ?? 0) >= session.max_players;
   const isOwner = user?.id === session.creator_id;
-  const d = new Date(session.date + 'T00:00:00');
+  const d = parseSessionDate(session.date);
 
   const creatorName = session.creator_email?.split('@')[0] ?? 'Joueur';
   const levelMin    = session.preferences?.level_min;
@@ -184,11 +194,13 @@ function CreateSessionModal({ onClose, onCreate }) {
       if (form.level_min) preferences.level_min = form.level_min;
       if (form.gender)    preferences.gender    = form.gender;
       const payload = {
-        date: form.date,
-        time: form.time,
+        date: form.date,          // "YYYY-MM-DD" from <input type="date">
+        time: form.time,          // "HH:MM" from preset <select>
         max_players: form.max_players,
         ...(Object.keys(preferences).length > 0 && { preferences }),
       };
+      // eslint-disable-next-line no-console
+      console.log('[CreateSession] payload →', payload);
       const result = await onCreate(payload);
       onClose(result.session ?? result);
     } catch (err) {
@@ -356,7 +368,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
   const [venueData,    setVenueData]    = useState([]);   // [{ id, name, matchingSlots }]
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null); // slot + venue_name
-  const [payment,      setPayment]      = useState('place'); // 'place' | 'card'
+  const [payment,      setPayment]      = useState('on_arrival'); // 'on_arrival' | 'card'
   const [card,         setCard]         = useState({ number: '', expiry: '', cvv: '', holder: '' });
   const [cardAccepted, setCardAccepted] = useState(false);
   const [confirmedBk,  setConfirmedBk]  = useState(null);
@@ -364,7 +376,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
   const [error,        setError]        = useState(null);
 
   const sessionTime = session.time?.slice(0, 5) ?? '';
-  const sessionDate = new Date(session.date + 'T00:00:00')
+  const sessionDate = parseSessionDate(session.date)
     .toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   // Load clubs on mount
@@ -594,7 +606,9 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                   <p className="font-medium text-foreground text-sm">Aucun terrain disponible</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Pas de créneau à {sessionTime} le{' '}
-                    <span className="capitalize">{sessionDate}</span>.
+                    <span className="capitalize">
+                      {parseSessionDate(session.date).toLocaleDateString('fr-FR')}
+                    </span>.
                   </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setStep(1)}>
@@ -661,8 +675,8 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                 <Label>Moyen de paiement</Label>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { value: 'place', label: 'Sur place',      Icon: Banknote },
-                    { value: 'card',  label: 'Carte bancaire', Icon: CreditCard },
+                    { value: 'on_arrival', label: 'Sur place',      Icon: Banknote },
+                    { value: 'card',       label: 'Carte bancaire', Icon: CreditCard },
                   ].map(({ value, label, Icon }) => (
                     <button
                       key={value}
@@ -878,7 +892,7 @@ function RequestRow({ request, sessionId, onRespond }) {
 // ── Booking detail modal ──────────────────────────────────────────────────────
 function BookingDetailModal({ booking, onClose }) {
   const paymentLabel = booking.payment_method === 'card' ? 'Carte bancaire' : 'Sur place';
-  const d = new Date(booking.session_date + 'T00:00:00');
+  const d = parseSessionDate(booking.session_date);
 
   return (
     <div
@@ -945,7 +959,7 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
   const [cancellingSess,     setCancellingSess]     = useState(false);
   const [actionError,        setActionError]        = useState(null);
 
-  const d = new Date(session.date + 'T00:00:00');
+  const d = parseSessionDate(session.date);
   const pending = (requests ?? []).filter((r) => r.status === 'pending').length;
   const isCancelled = session.status === 'cancelled';
   const hasActiveBooking = booking && booking.status !== 'cancelled';
