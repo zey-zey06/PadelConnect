@@ -53,7 +53,7 @@ function homeFor(user) {
   if (user.role === 'venue_admin') return user.organization_id ? '/manager/dashboard' : '/manager/setup';
   if (user.role === 'coach')       return '/coach/dashboard';
   if (user.role === 'super_admin') return '/admin/dashboard';
-  return '/dashboard';
+  return '/sessions';
 }
 
 function PublicRoute({ children }) {
@@ -77,7 +77,7 @@ function ManagerRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading)                        return <LoadingScreen />;
   if (!user)                          return <Navigate to="/login"           replace />;
-  if (user.role !== 'venue_admin')    return <Navigate to="/dashboard"       replace />;
+  if (user.role !== 'venue_admin')    return <Navigate to="/sessions"        replace />;
   if (!user.organization_id)          return <Navigate to="/manager/setup"   replace />;
   return children;
 }
@@ -141,7 +141,7 @@ export default function App() {
           {/* ── Main app — auth + layout ────────────────────────────── */}
           <Route
             path="/dashboard"
-            element={<PlayerRoute><Layout><Dashboard /></Layout></PlayerRoute>}
+            element={<Navigate to="/sessions" replace />}
           />
           <Route
             path="/sessions"
@@ -204,8 +204,8 @@ export default function App() {
           />
 
           {/* ── Default redirects ────────────────────────────────────── */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/sessions" replace />} />
+          <Route path="*" element={<Navigate to="/sessions" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthContext.Provider>
