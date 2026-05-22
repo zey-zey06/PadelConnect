@@ -311,7 +311,16 @@ function SlotRow({ slot, venueId, onCancel, onPriceUpdated }) {
         </p>
         <p className="text-xs text-muted-foreground truncate">
           {slot.status === 'booked' && slot.booked_by_email
-            ? slot.booked_by_email
+            ? (
+              <Link
+                to={`/players/${slot.booked_by_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-primary hover:underline transition-colors"
+              >
+                {slot.booked_by_email}
+              </Link>
+            )
             : slot.price != null ? `${Number(slot.price).toLocaleString('fr-FR')} FCFA` : '—'}
         </p>
       </div>

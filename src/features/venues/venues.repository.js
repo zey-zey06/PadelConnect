@@ -40,7 +40,7 @@ async function getSlots(venueId, filters = {}) {
     query = query.where('venue_slots.date', filters.date);
   }
 
-  return query.select(['venue_slots.*', 'users.email as booked_by_email']);
+  return query.select(['venue_slots.*', 'users.id as booked_by_id', 'users.email as booked_by_email']);
 }
 
 async function getSlotById(id) {
