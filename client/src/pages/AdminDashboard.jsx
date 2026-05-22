@@ -462,7 +462,7 @@ function ClubsTab() {
                             <Building2 className="h-4 w-4 text-amber-500" />
                           </div>
                         )}
-                        <Link to={`/clubs/${c.slug}`} className="font-medium text-slate-700 hover:text-amber-600 transition-colors">
+                        <Link to={`/clubs/${c.id}`} className="font-medium text-slate-700 hover:text-amber-600 transition-colors">
                           {c.name}
                         </Link>
                       </div>

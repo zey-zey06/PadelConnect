@@ -19,6 +19,16 @@ const COOKIE_OPTIONS = {
   maxAge:   7 * 24 * 60 * 60 * 1000,
 };
 
+// ── UUID param guard ──────────────────────────────────────────────────────────
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateId(req, res, next) {
+  if (!UUID_RE.test(req.params.id)) {
+    return res.status(400).json({ status: 400, error: 'Bad Request', message: 'Identifiant de club invalide.' });
+  }
+  next();
+}
+
 // ── Validation schemas ────────────────────────────────────────────────────────
 const amenitiesSchema = Joi.object({
   vestiaires:     Joi.boolean(), douches:    Joi.boolean(), parking:         Joi.boolean(),
@@ -184,13 +194,13 @@ async function clubSlotsHandler(req, res, next) {
 const router = Router();
 router.post('/',              authenticate, requireRole('venue_admin'), createClubHandler);
 router.get('/',               authenticate, listClubsHandler);
-router.get('/:id/public',     authenticate, publicClubHandler);
-router.get('/:id/slots',      authenticate, clubSlotsHandler);
-router.get('/:id',            authenticate, getClubHandler);
-router.patch('/:id',          authenticate, requireRole('venue_admin'), updateClubHandler);
-router.post('/:id/logo',      authenticate, requireRole('venue_admin'), uploadImage.single('logo'),  logoHandler);
-router.post('/:id/cover',     authenticate, requireRole('venue_admin'), uploadImage.single('cover'), coverHandler);
-router.post('/:id/photos',    authenticate, requireRole('venue_admin'), uploadImage.single('photo'), addPhotoHandler);
-router.delete('/:id/photos',  authenticate, requireRole('venue_admin'), removePhotoHandler);
+router.get('/:id/public',     authenticate, validateId, publicClubHandler);
+router.get('/:id/slots',      authenticate, validateId, clubSlotsHandler);
+router.get('/:id',            authenticate, validateId, getClubHandler);
+router.patch('/:id',          authenticate, validateId, requireRole('venue_admin'), updateClubHandler);
+router.post('/:id/logo',      authenticate, validateId, requireRole('venue_admin'), uploadImage.single('logo'),  logoHandler);
+router.post('/:id/cover',     authenticate, validateId, requireRole('venue_admin'), uploadImage.single('cover'), coverHandler);
+router.post('/:id/photos',    authenticate, validateId, requireRole('venue_admin'), uploadImage.single('photo'), addPhotoHandler);
+router.delete('/:id/photos',  authenticate, validateId, requireRole('venue_admin'), removePhotoHandler);
 
 module.exports = router;
