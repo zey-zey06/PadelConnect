@@ -108,9 +108,11 @@ function VenueCard({ venue }) {
         today.setHours(0, 0, 0, 0);
         const weekEnd = new Date(today);
         weekEnd.setDate(today.getDate() + 7);
+        const todayStr   = today.toISOString().slice(0, 10);
+        const weekEndStr = weekEnd.toISOString().slice(0, 10);
         const thisWeek = (s ?? []).filter((sl) => {
-          const d = new Date(sl.date);
-          return d >= today && d < weekEnd;
+          const d = String(sl.date).slice(0, 10);
+          return d >= todayStr && d < weekEndStr;
         });
         setWeekSlots(thisWeek);
       })

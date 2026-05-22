@@ -71,7 +71,9 @@ async function addSlotHandler(req, res, next) {
 
 async function listSlotsHandler(req, res, next) {
   try {
+    console.log('[slots] GET venueId:', req.params.id, '| query:', JSON.stringify(req.query));
     const slots = await venuesService.getAvailableSlots(req.params.id, req.query);
+    console.log('[slots] returned', slots.length, 'slots | sample:', JSON.stringify(slots[0]));
     return res.json({ slots });
   } catch (err) {
     next(err);

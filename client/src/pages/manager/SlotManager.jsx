@@ -380,10 +380,13 @@ export default function SlotManager() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    console.log('[SlotManager] loading slots for venueId:', venueId);
     try {
-      const { slots: s } = await getVenueSlots(venueId);
-      setSlots(s ?? []);
+      const res = await getVenueSlots(venueId);
+      console.log('[SlotManager] API response: slots count =', res.slots?.length, '| sample date =', res.slots?.[0]?.date, '| sample =', res.slots?.[0]);
+      setSlots(res.slots ?? []);
     } catch (err) {
+      console.error('[SlotManager] load error:', err);
       setError(err.message || 'Erreur de chargement.');
     } finally {
       setLoading(false);
@@ -392,16 +395,24 @@ export default function SlotManager() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Filter + group slots for the current week
+  // Filter + group slots for the current week.
+  // PostgreSQL date columns arrive as full ISO strings ("2026-05-22T00:00:00.000Z"),
+  // so we normalise to "YYYY-MM-DD" before comparing and keying into slotsByDay.
   const weekStartStr = toISODate(weekStart);
   const weekEndStr   = toISODate(weekDays[6]);
+
+  console.log('[SlotManager] weekStartStr:', weekStartStr, '| weekEndStr:', weekEndStr, '| total slots loaded:', slots.length);
 
   const slotsByDay = {};
   weekDays.forEach((d) => { slotsByDay[toISODate(d)] = []; });
   slots
-    .filter((s) => s.date >= weekStartStr && s.date <= weekEndStr)
+    .filter((s) => {
+      const d = String(s.date).slice(0, 10);
+      return d >= weekStartStr && d <= weekEndStr;
+    })
     .forEach((s) => {
-      if (slotsByDay[s.date]) slotsByDay[s.date].push(s);
+      const dateKey = String(s.date).slice(0, 10);
+      if (slotsByDay[dateKey]) slotsByDay[dateKey].push(s);
     });
   weekDays.forEach((d) => {
     slotsByDay[toISODate(d)].sort((a, b) => (a.start_time > b.start_time ? 1 : -1));
