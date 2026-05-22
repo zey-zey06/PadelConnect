@@ -48,14 +48,31 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Returns the correct home URL for an authenticated user based on their role.
+function homeFor(user) {
+  if (user.role === 'venue_admin') return user.organization_id ? '/manager/dashboard' : '/manager/setup';
+  if (user.role === 'coach')       return '/coach/dashboard';
+  if (user.role === 'super_admin') return '/admin/dashboard';
+  return '/dashboard';
+}
+
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
-  if (user)    return <Navigate to="/dashboard" replace />;
+  if (user)    return <Navigate to={homeFor(user)} replace />;
   return children;
 }
 
-// Requires auth + venue_admin role + existing organization; redirects to setup if org missing
+// Auth required; venue_admin is bounced to their dashboard instead of the player area.
+function PlayerRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading)                     return <LoadingScreen />;
+  if (!user)                       return <Navigate to="/login"         replace />;
+  if (user.role === 'venue_admin') return <Navigate to={homeFor(user)} replace />;
+  return children;
+}
+
+// Requires auth + venue_admin role + existing organization; redirects to setup if org missing.
 function ManagerRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading)                        return <LoadingScreen />;
@@ -124,7 +141,7 @@ export default function App() {
           {/* ── Main app — auth + layout ────────────────────────────── */}
           <Route
             path="/dashboard"
-            element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>}
+            element={<PlayerRoute><Layout><Dashboard /></Layout></PlayerRoute>}
           />
           <Route
             path="/sessions"
