@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle } from 'lucide-react';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone } from 'lucide-react';
 import { useAuth } from '@/App';
 import { getProfile, updateProfile, uploadPhoto } from '@/api/profile';
 import { getMyBookings } from '@/api/bookings';
@@ -249,9 +249,10 @@ function PhotoUpload({ currentUrl, onUploaded }) {
 // ── Edit form ─────────────────────────────────────────────────────────────────
 function EditForm({ profile, onSave, onCancel, onPhotoUploaded }) {
   const [form, setForm] = useState({
-    style:      profile?.style      ?? '',
-    strengths:  Array.isArray(profile?.strengths)  ? [...profile.strengths]  : [],
-    weaknesses: Array.isArray(profile?.weaknesses) ? [...profile.weaknesses] : [],
+    style:        profile?.style        ?? '',
+    strengths:    Array.isArray(profile?.strengths)  ? [...profile.strengths]  : [],
+    weaknesses:   Array.isArray(profile?.weaknesses) ? [...profile.weaknesses] : [],
+    phone_number: profile?.phone_number ?? '',
   });
   const [localProfile, setLocalProfile] = useState(profile);
   const [saving, setSaving] = useState(false);
@@ -263,9 +264,10 @@ function EditForm({ profile, onSave, onCancel, onPhotoUploaded }) {
     setError(null);
     try {
       const { profile: updated } = await updateProfile({
-        style:      form.style || undefined,
-        strengths:  form.strengths,
-        weaknesses: form.weaknesses,
+        style:        form.style        || undefined,
+        strengths:    form.strengths,
+        weaknesses:   form.weaknesses,
+        phone_number: form.phone_number || null,
       });
       onSave(updated);
     } catch (err) {
@@ -301,6 +303,25 @@ function EditForm({ profile, onSave, onCancel, onPhotoUploaded }) {
           onChange={(e) => setForm((f) => ({ ...f, style: e.target.value }))}
           placeholder="ex : Attaquant, Défenseur, Polyvalent…"
         />
+      </div>
+
+      {/* Téléphone */}
+      <div className="space-y-1.5">
+        <Label htmlFor="phone" className="text-sm font-medium">
+          Téléphone{' '}
+          <span className="font-normal text-muted-foreground">(optionnel)</span>
+        </Label>
+        <div className="relative">
+          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            id="phone"
+            type="tel"
+            value={form.phone_number}
+            onChange={(e) => setForm((f) => ({ ...f, phone_number: e.target.value }))}
+            placeholder="+225 07 XX XX XX XX"
+            className="pl-9"
+          />
+        </div>
       </div>
 
       {/* Points forts */}

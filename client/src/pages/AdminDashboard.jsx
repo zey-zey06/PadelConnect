@@ -53,7 +53,10 @@ function UserRow({ user: u, onStatusChange }) {
     <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{u.email}</p>
-        <p className="text-xs text-muted-foreground">{ROLE_LABEL[u.role] ?? u.role}</p>
+        <p className="text-xs text-muted-foreground">
+          {ROLE_LABEL[u.role] ?? u.role}
+          {u.phone_number && <span className="ml-2 text-muted-foreground/70">{u.phone_number}</span>}
+        </p>
       </div>
       <div className="relative">
         <button

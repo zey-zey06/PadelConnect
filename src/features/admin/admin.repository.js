@@ -19,10 +19,16 @@ async function getDashboardStats() {
 // ── Users ─────────────────────────────────────────────────────────────────────
 
 async function listUsers(filters = {}) {
-  let query = db('users').whereNull('deleted_at').orderBy('created_at', 'desc');
-  if (filters.status) query = query.where('status', filters.status);
-  if (filters.role)   query = query.where('role', filters.role);
-  return query.select();
+  let query = db('users')
+    .leftJoin('player_profiles', function () {
+      this.on('player_profiles.user_id', '=', 'users.id')
+        .andOnNull('player_profiles.deleted_at');
+    })
+    .whereNull('users.deleted_at')
+    .orderBy('users.created_at', 'desc');
+  if (filters.status) query = query.where('users.status', filters.status);
+  if (filters.role)   query = query.where('users.role', filters.role);
+  return query.select(['users.*', 'player_profiles.phone_number']);
 }
 
 async function getUserById(id) {

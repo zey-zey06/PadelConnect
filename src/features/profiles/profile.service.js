@@ -15,11 +15,12 @@ async function generateProfile(userId, description) {
 
 async function updateProfile(userId, data) {
   const profileData = {};
-  if (data.level !== undefined) profileData.level = data.level;
-  if (data.style !== undefined) profileData.style = data.style;
-  if (data.strengths !== undefined) profileData.strengths = data.strengths;
-  if (data.weaknesses !== undefined) profileData.weaknesses = data.weaknesses;
-  if (data.description !== undefined) profileData.description = data.description;
+  if (data.level        !== undefined) profileData.level        = data.level;
+  if (data.style        !== undefined) profileData.style        = data.style;
+  if (data.strengths    !== undefined) profileData.strengths    = data.strengths;
+  if (data.weaknesses   !== undefined) profileData.weaknesses   = data.weaknesses;
+  if (data.description  !== undefined) profileData.description  = data.description;
+  if (data.phone_number !== undefined) profileData.phone_number = data.phone_number || null;
 
   return profileRepo.upsert(userId, profileData);
 }

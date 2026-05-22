@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Sparkles, Upload, CheckCircle2, ChevronRight, ChevronLeft, AlertCircle, X } from 'lucide-react';
+import { Sparkles, Upload, CheckCircle2, ChevronRight, ChevronLeft, AlertCircle, X, Phone } from 'lucide-react';
 import { useAuth } from '@/App';
-import { generateProfile, uploadPhoto, getProfile } from '@/api/profile';
+import { generateProfile, updateProfile, uploadPhoto, getProfile } from '@/api/profile';
 import { Button }   from '@/components/ui/button';
 import { Label }    from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -91,6 +91,7 @@ export default function ProfileSetup() {
   const [birthDate,    setBirthDate]    = useState('');
   const [yearsPlaying, setYearsPlaying] = useState('');
   const [selfLevel,    setSelfLevel]    = useState(null);
+  const [phoneNumber,  setPhoneNumber]  = useState('');
 
   // ── Step 2: description + AI result
   const [description,      setDescription]      = useState('');
@@ -157,13 +158,14 @@ export default function ProfileSetup() {
     setSaving(true);
     setError(null);
     try {
-      if (photo) {
-        await uploadPhoto(photo);
-      }
+      const saves = [];
+      if (photo) saves.push(uploadPhoto(photo));
+      if (phoneNumber.trim()) saves.push(updateProfile({ phone_number: phoneNumber.trim() }));
+      await Promise.all(saves);
       // Re-fetch from server so photo_url (and any server-side updates) are reflected in context
       const { profile: saved } = await getProfile();
       setProfile(saved);
-      navigate('/dashboard', { replace: true });
+      navigate('/sessions', { replace: true });
     } catch (err) {
       setError(err.message || 'Erreur lors de la sauvegarde.');
     } finally {
@@ -265,6 +267,24 @@ export default function ProfileSetup() {
                   <p className="text-xs text-muted-foreground">
                     1 = Débutant complet &nbsp;·&nbsp; 7 = Expert
                   </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">
+                    Numéro de téléphone{' '}
+                    <span className="font-normal text-muted-foreground">(optionnel)</span>
+                  </Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <input
+                      id="phone"
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="+225 07 XX XX XX XX"
+                      className="flex h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    />
+                  </div>
                 </div>
               </div>
 

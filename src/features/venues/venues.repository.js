@@ -31,6 +31,10 @@ async function getSlots(venueId, filters = {}) {
     })
     .leftJoin('sessions', 'sessions.id', 'bookings.session_id')
     .leftJoin('users', 'users.id', 'sessions.creator_id')
+    .leftJoin('player_profiles', function () {
+      this.on('player_profiles.user_id', '=', 'users.id')
+        .andOnNull('player_profiles.deleted_at');
+    })
     .where({ 'venue_slots.venue_id': venueId })
     .whereNull('venue_slots.deleted_at')
     .orderBy('venue_slots.date', 'asc')
@@ -40,7 +44,12 @@ async function getSlots(venueId, filters = {}) {
     query = query.where('venue_slots.date', filters.date);
   }
 
-  return query.select(['venue_slots.*', 'users.id as booked_by_id', 'users.email as booked_by_email']);
+  return query.select([
+    'venue_slots.*',
+    'users.id as booked_by_id',
+    'users.email as booked_by_email',
+    'player_profiles.phone_number as booked_by_phone',
+  ]);
 }
 
 async function getSlotById(id) {

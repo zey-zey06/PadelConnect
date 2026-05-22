@@ -36,6 +36,7 @@ const updateProfileSchema = Joi.object({
   strengths: Joi.array().items(Joi.string()),
   weaknesses: Joi.array().items(Joi.string()),
   description: Joi.string().max(1000),
+  phone_number: Joi.string().max(20).optional().allow(null, ''),
 }).min(1);
 
 async function generateHandler(req, res, next) {
@@ -88,7 +89,15 @@ async function getMeHandler(req, res, next) {
 async function getUserProfileHandler(req, res, next) {
   try {
     const profile = await profileService.getProfile(req.params.userId);
-    return res.json({ profile: profile || null });
+    if (!profile) return res.json({ profile: null });
+
+    // phone_number is sensitive — only expose to venue_admin and super_admin
+    const canSeePhone = ['venue_admin', 'super_admin'].includes(req.user.role);
+    if (!canSeePhone) {
+      const { phone_number, ...publicProfile } = profile;
+      return res.json({ profile: publicProfile });
+    }
+    return res.json({ profile });
   } catch (err) {
     next(err);
   }
