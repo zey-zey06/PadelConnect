@@ -34,6 +34,11 @@ const IDS = {
   venue6: 'eeeeeeee-0006-0006-0006-000000000006',
   venue7: 'eeeeeeee-0007-0007-0007-000000000007',
   venue8: 'eeeeeeee-0008-0008-0008-000000000008',
+
+  // Sessions (11111111 prefix — digits are valid hex)
+  session1: '11111111-0001-0001-0001-000000000001',
+  session2: '11111111-0002-0002-0002-000000000002',
+  session3: '11111111-0003-0003-0003-000000000003',
 };
 
 /**
@@ -395,7 +400,7 @@ exports.seed = async function (knex) {
 
   await knex('sessions').insert([
     {
-      id: 'ssssssss-0001-0001-0001-000000000001',
+      id: IDS.session1,
       creator_id: IDS.player1,
       date: d1,
       time: '08:00',
@@ -408,7 +413,7 @@ exports.seed = async function (knex) {
       updated_at: now,
     },
     {
-      id: 'ssssssss-0002-0002-0002-000000000002',
+      id: IDS.session2,
       creator_id: IDS.player2,
       date: d2,
       time: '14:00',
@@ -421,7 +426,7 @@ exports.seed = async function (knex) {
       updated_at: now,
     },
     {
-      id: 'ssssssss-0003-0003-0003-000000000003',
+      id: IDS.session3,
       creator_id: IDS.player3,
       date: d3,
       time: '18:00',
