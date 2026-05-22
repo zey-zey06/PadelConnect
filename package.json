@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "predev:backend": "for /f \"tokens=5\" %a in ('netstat -ano ^| findstr :4000') do taskkill /F /PID %a & exit 0",
+    "predev:backend": "node -e \"const { execSync } = require('child_process'); try { const r = execSync('netstat -ano | findstr :4000').toString(); const pid = r.trim().split(/\\s+/).pop(); if(pid && !isNaN(pid)) execSync('taskkill /F /PID ' + pid); } catch(e) {}\"",
     "dev:backend": "nodemon src/app.js",
     "dev:frontend": "cd client && npm run dev",
     "kill-port": "for /f \"tokens=5\" %a in ('netstat -ano ^| findstr :4000') do taskkill /F /PID %a",
