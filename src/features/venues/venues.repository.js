@@ -24,16 +24,23 @@ async function createSlot(data) {
 
 async function getSlots(venueId, filters = {}) {
   let query = db('venue_slots')
-    .where({ venue_id: venueId })
-    .whereNull('deleted_at')
-    .orderBy('date', 'asc')
-    .orderBy('start_time', 'asc');
+    .leftJoin('bookings', function () {
+      this.on('bookings.venue_slot_id', '=', 'venue_slots.id')
+        .andOnVal('bookings.status', '=', 'confirmed')
+        .andOnNull('bookings.deleted_at');
+    })
+    .leftJoin('sessions', 'sessions.id', 'bookings.session_id')
+    .leftJoin('users', 'users.id', 'sessions.creator_id')
+    .where({ 'venue_slots.venue_id': venueId })
+    .whereNull('venue_slots.deleted_at')
+    .orderBy('venue_slots.date', 'asc')
+    .orderBy('venue_slots.start_time', 'asc');
 
   if (filters.date) {
-    query = query.where('date', filters.date);
+    query = query.where('venue_slots.date', filters.date);
   }
 
-  return query.select();
+  return query.select(['venue_slots.*', 'users.email as booked_by_email']);
 }
 
 async function getSlotById(id) {

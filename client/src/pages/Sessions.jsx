@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import {
   listSessions, createSession, requestJoin, getMySessions,
   getSessionRequests, respondToRequest, cancelSession,
@@ -993,8 +993,18 @@ function BookingDetailModal({ booking, onClose }) {
             <div className="flex items-start gap-2.5">
               <Building2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-foreground">{booking.club_name}</p>
-                <p className="text-xs text-muted-foreground">{booking.venue_name}</p>
+                <Link
+                  to={`/clubs/${booking.club_id}`}
+                  className="text-sm font-semibold text-foreground hover:text-primary hover:underline transition-colors"
+                >
+                  {booking.club_name}
+                </Link>
+                <Link
+                  to={`/clubs/${booking.club_id}`}
+                  className="block text-xs text-muted-foreground hover:text-primary hover:underline transition-colors"
+                >
+                  {booking.venue_name}
+                </Link>
               </div>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

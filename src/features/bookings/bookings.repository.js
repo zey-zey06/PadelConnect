@@ -33,6 +33,7 @@ async function getByUser(userId) {
       'venue_slots.price',
       'venues.name as venue_name',
       'organizations.name as club_name',
+      'organizations.id as club_id',
     );
 }
 

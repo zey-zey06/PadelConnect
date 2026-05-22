@@ -295,17 +295,24 @@ function SlotRow({ slot, venueId, onCancel, onPriceUpdated }) {
       'flex items-center gap-3 rounded-lg border px-4 py-3 transition-all group',
       slot.status === 'cancelled'
         ? 'border-border bg-muted/20 opacity-60'
-        : 'border-border bg-card hover:border-primary/20 hover:shadow-sm'
+        : slot.status === 'booked'
+          ? 'border-blue-200 bg-blue-50/50 hover:shadow-sm'
+          : 'border-border bg-card hover:border-primary/20 hover:shadow-sm'
     )}>
-      <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-        <Clock className="h-4 w-4 text-primary" />
+      <div className={cn(
+        'h-8 w-8 rounded-lg flex items-center justify-center shrink-0',
+        slot.status === 'booked' ? 'bg-blue-100' : 'bg-primary/10'
+      )}>
+        <Clock className={cn('h-4 w-4', slot.status === 'booked' ? 'text-blue-600' : 'text-primary')} />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground">
           {slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}
         </p>
-        <p className="text-xs text-muted-foreground">
-          {slot.price != null ? `${Number(slot.price).toLocaleString('fr-FR')} FCFA` : '—'}
+        <p className="text-xs text-muted-foreground truncate">
+          {slot.status === 'booked' && slot.booked_by_email
+            ? slot.booked_by_email
+            : slot.price != null ? `${Number(slot.price).toLocaleString('fr-FR')} FCFA` : '—'}
         </p>
       </div>
       <SlotBadge status={slot.status} />
