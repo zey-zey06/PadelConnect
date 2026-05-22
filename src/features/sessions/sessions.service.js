@@ -10,6 +10,7 @@ async function create(userId, data) {
     creator_id: userId,
     date: data.date,
     time: data.time,
+    end_time: data.end_time || null,
     max_players: data.max_players,
     current_players: 1, // creator is automatically player #1
     preferences: data.preferences || null,

@@ -127,33 +127,40 @@ function WeekDatePicker({ value, onChange }) {
 }
 
 // ── Time chip picker ──────────────────────────────────────────────────────────
-function TimeChipPicker({ value, onChange }) {
+// afterTime: if set, only render chips strictly after this "HH:MM" value
+function TimeChipPicker({ value, onChange, afterTime = null }) {
   return (
     <div className="space-y-3">
-      {TIME_SECTIONS.map(({ label, emoji, times }) => (
-        <div key={label} className="space-y-1.5">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1">
-            <span>{emoji}</span>{label}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {times.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => onChange(t === value ? '' : t)}
-                className={cn(
-                  'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                  value === t
-                    ? 'bg-green-700 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                )}
-              >
-                {t}
-              </button>
-            ))}
+      {TIME_SECTIONS.map(({ label, emoji, times }) => {
+        const filtered = afterTime
+          ? times.filter((t) => t > afterTime)
+          : times;
+        if (filtered.length === 0) return null;
+        return (
+          <div key={label} className="space-y-1.5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+              <span>{emoji}</span>{label}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {filtered.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => onChange(t === value ? '' : t)}
+                  className={cn(
+                    'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                    value === t
+                      ? 'bg-green-700 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  )}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -214,6 +221,7 @@ function SessionCard({ session, onJoin, hasBooking = false, onBooked }) {
             <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
               <Clock className="h-3 w-3" />
               {session.time?.slice(0, 5) ?? '—'}
+              {session.end_time && <span>– {session.end_time.slice(0, 5)}</span>}
             </p>
           </div>
         </div>
@@ -296,7 +304,7 @@ function SessionCard({ session, onJoin, hasBooking = false, onBooked }) {
 // ── Create session modal (redesigned) ─────────────────────────────────────────
 function CreateSessionModal({ onClose, onCreate }) {
   const [form, setForm] = useState({
-    date: '', time: '', max_players: 4, level_min: null, gender: null,
+    date: '', time: '', end_time: '', max_players: 4, level_min: null, gender: null,
   });
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
@@ -308,8 +316,12 @@ function CreateSessionModal({ onClose, onCreate }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.date || !form.time) {
-      setError('La date et l\'heure sont obligatoires.');
+    if (!form.date || !form.time || !form.end_time) {
+      setError('La date, l\'heure de début et l\'heure de fin sont obligatoires.');
+      return;
+    }
+    if (form.end_time <= form.time) {
+      setError('L\'heure de fin doit être après l\'heure de début.');
       return;
     }
     setLoading(true);
@@ -319,8 +331,9 @@ function CreateSessionModal({ onClose, onCreate }) {
       if (form.level_min) preferences.level_min = form.level_min;
       if (form.gender)    preferences.gender    = form.gender;
       const payload = {
-        date: form.date,          // "YYYY-MM-DD" from <input type="date">
-        time: form.time,          // "HH:MM" from preset <select>
+        date:     form.date,
+        time:     form.time,
+        end_time: form.end_time,
         max_players: form.max_players,
         ...(Object.keys(preferences).length > 0 && { preferences }),
       };
@@ -366,16 +379,40 @@ function CreateSessionModal({ onClose, onCreate }) {
             <WeekDatePicker value={form.date} onChange={(d) => set('date', d)} />
           </div>
 
-          {/* Time — visual chip grid */}
+          {/* Start time — visual chip grid */}
           <div className="space-y-2">
             <Label>
-              Heure
+              Heure de début
               {form.time && (
                 <span className="ml-2 text-green-700 font-semibold">{form.time}</span>
               )}
             </Label>
-            <TimeChipPicker value={form.time} onChange={(t) => set('time', t)} />
+            <TimeChipPicker
+              value={form.time}
+              onChange={(t) => {
+                set('time', t);
+                // Clear end_time if it's now <= new start_time
+                if (form.end_time && form.end_time <= t) set('end_time', '');
+              }}
+            />
           </div>
+
+          {/* End time — only shown once start time is chosen */}
+          {form.time && (
+            <div className="space-y-2">
+              <Label>
+                Heure de fin
+                {form.end_time && (
+                  <span className="ml-2 text-green-700 font-semibold">{form.end_time}</span>
+                )}
+              </Label>
+              <TimeChipPicker
+                value={form.end_time}
+                afterTime={form.time}
+                onChange={(t) => set('end_time', t)}
+              />
+            </div>
+          )}
 
           {/* Max players — big visual cards */}
           <div className="space-y-2">
@@ -469,6 +506,48 @@ function CreateSessionModal({ onClose, onCreate }) {
   );
 }
 
+// ── Smart slot chain matcher ──────────────────────────────────────────────────
+/**
+ * Given available slots (already filtered to status === 'available') sorted by
+ * start_time, find the minimal consecutive chain that exactly covers
+ * [sessionStart, sessionEnd].
+ *
+ * When sessionEnd is null/undefined, falls back to finding a single slot that
+ * contains sessionStart (original behaviour).
+ *
+ * Returns the chain array, or null when no exact match is possible.
+ */
+function findCoveringChain(slots, sessionStart, sessionEnd) {
+  if (!sessionEnd) {
+    // Legacy: single-slot overlap
+    const single = slots.find((s) => {
+      const st = (s.start_time ?? '').slice(0, 5);
+      const et = (s.end_time   ?? '').slice(0, 5);
+      return st <= sessionStart && sessionStart < et;
+    });
+    return single ? [single] : null;
+  }
+
+  // Index available slots by start_time (HH:MM)
+  const byStart = {};
+  for (const sl of slots) {
+    byStart[(sl.start_time ?? '').slice(0, 5)] = sl;
+  }
+
+  // Walk forward from sessionStart, stitching slots until sessionEnd
+  const chain = [];
+  let cursor = sessionStart;
+  while (cursor < sessionEnd) {
+    const slot = byStart[cursor];
+    if (!slot) return null;          // gap — no contiguous chain
+    chain.push(slot);
+    cursor = (slot.end_time ?? '').slice(0, 5);
+    if (!cursor) return null;
+  }
+  if (cursor !== sessionEnd) return null; // chain overshoots
+  return chain.length > 0 ? chain : null;
+}
+
 // ── Terrain picker modal ───────────────────────────────────────────────────────
 // 3-step: choose club → choose slot covering session time → confirm + pay
 function TerrainPickerModal({ session, onClose, onBooked }) {
@@ -487,7 +566,8 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState(null);
 
-  const sessionTime = session.time?.slice(0, 5) ?? '';
+  const sessionTime    = session.time?.slice(0, 5) ?? '';
+  const sessionEndTime = session.end_time?.slice(0, 5) ?? null;
   const sessionDate = parseSessionDate(session.date)
     .toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -506,15 +586,25 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
     try {
       const { venues } = await getClubSlots(club.id, session.date);
       const filtered = (venues ?? [])
-        .map((v) => ({
-          ...v,
-          matchingSlots: (v.slots ?? []).filter((sl) => {
-            const st = (sl.start_time ?? '').slice(0, 5);
-            const et = (sl.end_time   ?? '').slice(0, 5);
-            return sl.status === 'available' && st <= sessionTime && sessionTime < et;
-          }),
-        }))
-        .filter((v) => v.matchingSlots.length > 0);
+        .map((v) => {
+          const availSlots = (v.slots ?? [])
+            .filter((sl) => sl.status === 'available')
+            .sort((a, b) => ((a.start_time ?? '') < (b.start_time ?? '') ? -1 : 1));
+
+          // Find the consecutive chain that exactly covers the session window
+          const chain = findCoveringChain(availSlots, sessionTime, sessionEndTime);
+          const matchingChains = chain
+            ? [{
+                slots:      chain,
+                start_time: chain[0].start_time,
+                end_time:   chain[chain.length - 1].end_time,
+                totalPrice: chain.reduce((sum, s) => sum + Number(s.price ?? 0), 0),
+              }]
+            : [];
+
+          return { ...v, matchingChains };
+        })
+        .filter((v) => v.matchingChains.length > 0);
       setVenueData(filtered);
       setStep(2);
     } catch (e) {
@@ -524,8 +614,14 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
     }
   }
 
-  function handleSelectSlot(slot, venueName) {
-    setSelectedSlot({ ...slot, venue_name: venueName });
+  function handleSelectChain(chain, venueName) {
+    setSelectedSlot({
+      slots:      chain.slots,
+      venue_name: venueName,
+      start_time: chain.start_time,
+      end_time:   chain.end_time,
+      totalPrice: chain.totalPrice,
+    });
     setStep(3);
     setError(null);
   }
@@ -584,12 +680,19 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
       const payment_phone = (payment === 'wave' || payment === 'orange_money') && phoneDigits
         ? `+225${phoneDigits}`
         : undefined;
-      const { booking } = await createBooking({
-        session_id:     session.id,
-        venue_slot_id:  selectedSlot.id,
-        payment_method: payment,
-        ...(payment_phone && { payment_phone }),
-      });
+
+      // Book every slot in the chain (consecutive slots covering the session window)
+      const results = await Promise.all(
+        (selectedSlot.slots ?? [selectedSlot]).map((slot) =>
+          createBooking({
+            session_id:     session.id,
+            venue_slot_id:  slot.id,
+            payment_method: payment,
+            ...(payment_phone && { payment_phone }),
+          })
+        )
+      );
+      const { booking } = results[0];
       setConfirmedBk(booking);
       onBooked();
     } catch (e) {
@@ -741,7 +844,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                 <div>
                   <p className="font-medium text-foreground text-sm">Aucun terrain disponible</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Pas de créneau à {sessionTime} le{' '}
+                    Pas de créneau couvrant {sessionTime}{sessionEndTime ? ` – ${sessionEndTime}` : ''} le{' '}
                     <span className="capitalize">
                       {parseSessionDate(session.date).toLocaleDateString('fr-FR')}
                     </span>.
@@ -757,10 +860,10 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                   <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">
                     {venue.name}
                   </p>
-                  {venue.matchingSlots.map((sl) => (
+                  {venue.matchingChains.map((chain, idx) => (
                     <button
-                      key={sl.id}
-                      onClick={() => handleSelectSlot(sl, venue.name)}
+                      key={idx}
+                      onClick={() => handleSelectChain(chain, venue.name)}
                       className="w-full flex items-center gap-4 rounded-xl border-2 border-primary/30 bg-primary/5 px-4 py-3.5 hover:border-primary hover:bg-primary/10 transition-all text-left"
                     >
                       <div className="h-9 w-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
@@ -768,10 +871,12 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-semibold text-foreground">
-                          {sl.start_time?.slice(0, 5)} – {sl.end_time?.slice(0, 5)}
+                          {chain.start_time?.slice(0, 5)} – {chain.end_time?.slice(0, 5)}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {Number(sl.price).toLocaleString('fr-FR')} FCFA · disponible
+                          {chain.totalPrice.toLocaleString('fr-FR')} FCFA
+                          {chain.slots.length > 1 && ` · ${chain.slots.length} créneaux`}
+                          {' · disponible'}
                         </p>
                       </div>
                       <ChevronRight className="h-4 w-4 text-primary shrink-0" />
@@ -799,9 +904,11 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                   <span>{selectedSlot.start_time?.slice(0, 5)} – {selectedSlot.end_time?.slice(0, 5)}</span>
                 </div>
                 <div className="flex items-center justify-between pt-1 border-t border-border">
-                  <span className="text-muted-foreground">Total</span>
+                  <span className="text-muted-foreground">
+                    Total{selectedSlot.slots?.length > 1 && ` (${selectedSlot.slots.length} créneaux)`}
+                  </span>
                   <span className="font-bold text-foreground">
-                    {Number(selectedSlot.price).toLocaleString('fr-FR')} FCFA
+                    {(selectedSlot.totalPrice ?? Number(selectedSlot.price ?? 0)).toLocaleString('fr-FR')} FCFA
                   </span>
                 </div>
               </div>
@@ -939,7 +1046,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
               >
                 {loading
                   ? 'Réservation en cours…'
-                  : `Réserver — ${Number(selectedSlot.price).toLocaleString('fr-FR')} FCFA`}
+                  : `Réserver — ${(selectedSlot.totalPrice ?? Number(selectedSlot.price ?? 0)).toLocaleString('fr-FR')} FCFA`}
               </Button>
             </div>
           )}

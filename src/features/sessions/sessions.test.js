@@ -50,6 +50,7 @@ const SESSION = {
   creator_id: CREATOR_ID,
   date: '2026-06-01',
   time: '10:00:00',
+  end_time: '12:00:00',
   max_players: 4,
   current_players: 1, // creator is automatically player #1
   status: 'open',
@@ -82,7 +83,7 @@ describe('POST /api/sessions', () => {
     const res = await request(app)
       .post('/api/sessions')
       .set('Cookie', `token=${AUTH_TOKEN}`)
-      .send({ date: '2026-06-01', time: '10:00', max_players: 4 });
+      .send({ date: '2026-06-01', time: '10:00', end_time: '12:00', max_players: 4 });
 
     expect(res.status).toBe(201);
     expect(res.body.session).toMatchObject({ creator_id: CREATOR_ID, status: 'open' });
@@ -94,7 +95,7 @@ describe('POST /api/sessions', () => {
     const res = await request(app)
       .post('/api/sessions')
       .set('Cookie', `token=${AUTH_TOKEN}`)
-      .send({ date: '2026-06-01', time: '10:00', max_players: 4 });
+      .send({ date: '2026-06-01', time: '10:00', end_time: '12:00', max_players: 4 });
 
     expect(res.status).toBe(201);
     // Verify the insert included current_players: 1
@@ -106,7 +107,7 @@ describe('POST /api/sessions', () => {
   it('CU-05: create session without auth — 401', async () => {
     const res = await request(app)
       .post('/api/sessions')
-      .send({ date: '2026-06-01', time: '10:00', max_players: 4 });
+      .send({ date: '2026-06-01', time: '10:00', end_time: '12:00', max_players: 4 });
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('Unauthorized');

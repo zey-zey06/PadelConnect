@@ -5,8 +5,9 @@ const authenticate = require('../../middleware/authenticate');
 const sessionsService = require('./sessions.service');
 
 const createSessionSchema = Joi.object({
-  date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
-  time: Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).required(),
+  date:       Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+  time:       Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).required(),
+  end_time:   Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).optional().allow(null, ''),
   max_players: Joi.number().integer().min(2).max(4).required(),
   preferences: Joi.object().optional(),
 });

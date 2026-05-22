@@ -388,10 +388,54 @@ exports.seed = async function (knex) {
     },
   ]);
 
-  // ── Venue slots (10 total, spread across venues and upcoming dates) ──
+  // ── Sessions ─────────────────────────────────────────────────────
   const d1 = '2026-05-24'; // Saturday
   const d2 = '2026-05-25'; // Sunday
   const d3 = '2026-05-27'; // Tuesday
+
+  await knex('sessions').insert([
+    {
+      id: 'ssssssss-0001-0001-0001-000000000001',
+      creator_id: IDS.player1,
+      date: d1,
+      time: '08:00',
+      end_time: '09:30',
+      max_players: 4,
+      current_players: 1,
+      status: 'open',
+      preferences: null,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: 'ssssssss-0002-0002-0002-000000000002',
+      creator_id: IDS.player2,
+      date: d2,
+      time: '14:00',
+      end_time: '15:30',
+      max_players: 4,
+      current_players: 1,
+      status: 'open',
+      preferences: null,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: 'ssssssss-0003-0003-0003-000000000003',
+      creator_id: IDS.player3,
+      date: d3,
+      time: '18:00',
+      end_time: '19:30',
+      max_players: 2,
+      current_players: 1,
+      status: 'open',
+      preferences: JSON.stringify({ level_min: 3 }),
+      created_at: now,
+      updated_at: now,
+    },
+  ]);
+
+  // ── Venue slots (10 total, spread across venues and upcoming dates) ──
 
   await knex('venue_slots').insert([
     // Elite — Terrain 1
