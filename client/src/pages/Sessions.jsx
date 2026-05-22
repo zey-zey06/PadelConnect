@@ -56,7 +56,7 @@ const GENDER_PREFS = [
 ];
 
 // ── Session card (browse tab) ─────────────────────────────────────────────────
-function SessionCard({ session, onJoin }) {
+function SessionCard({ session, onJoin, hasBooking = false, onBooked }) {
   const { user } = useAuth();
   const [state, setState] = useState('idle'); // idle | loading | done | error
   const [msg,   setMsg]   = useState('');
@@ -124,15 +124,27 @@ function SessionCard({ session, onJoin }) {
       {/* Action */}
       <div className="mt-auto pt-1">
         {isOwner ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => setShowTerrainPicker(true)}
-          >
-            <Calendar className="h-3.5 w-3.5" />
-            Réserver un terrain
-          </Button>
+          hasBooking ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-green-600 border-green-200 bg-green-50 hover:bg-green-50 hover:border-green-200 cursor-default"
+              disabled
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Terrain réservé ✓
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => setShowTerrainPicker(true)}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              Réserver un terrain
+            </Button>
+          )
         ) : state === 'done' ? (
           <p className="text-xs font-medium text-green-600 flex items-center gap-1">
             <CheckCircle2 className="h-3 w-3 shrink-0" />
@@ -159,7 +171,7 @@ function SessionCard({ session, onJoin }) {
         <TerrainPickerModal
           session={session}
           onClose={() => setShowTerrainPicker(false)}
-          onBooked={() => setShowTerrainPicker(false)}
+          onBooked={() => { setShowTerrainPicker(false); onBooked?.(); }}
         />
       )}
     </div>
@@ -1325,10 +1337,11 @@ export default function Sessions() {
   const fromNotification = searchParams.get('tab') === 'mine';
   const [tab, setTab] = useState(fromNotification ? 'mine' : 'browse');
 
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
+  const [sessions,    setSessions]    = useState([]);
+  const [bookingMap,  setBookingMap]  = useState({});
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [showCreate,  setShowCreate]  = useState(false);
 
   const [dateFilter,  setDateFilter]  = useState('');
   const [levelFilter, setLevelFilter] = useState('');
@@ -1342,8 +1355,16 @@ export default function Sessions() {
       const params = { status: 'open' };
       if (dateFilter)  params.date      = dateFilter;
       if (levelFilter) params.level_min = levelFilter;
-      const { sessions: s } = await listSessions(params);
+      const [{ sessions: s }, { bookings: b }] = await Promise.all([
+        listSessions(params),
+        getMyBookings(),
+      ]);
       setSessions(s ?? []);
+      const map = {};
+      for (const bk of (b ?? [])) {
+        if (bk.status !== 'cancelled') map[bk.session_id] = bk;
+      }
+      setBookingMap(map);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1487,7 +1508,13 @@ export default function Sessions() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {sessions.map((s) => (
-              <SessionCard key={s.id} session={s} onJoin={handleJoin} />
+              <SessionCard
+                key={s.id}
+                session={s}
+                onJoin={handleJoin}
+                hasBooking={!!bookingMap[s.id]}
+                onBooked={load}
+              />
             ))}
           </div>
         )
