@@ -10,12 +10,14 @@ import { Label }  from '@/components/ui/label';
 import { cn }     from '@/lib/utils';
 
 export const CLUB_AMENITIES = [
-  { key: 'vestiaires',  label: 'Vestiaires'  },
-  { key: 'douches',     label: 'Douches'     },
-  { key: 'parking',     label: 'Parking'     },
-  { key: 'pro_shop',    label: 'Pro shop'    },
-  { key: 'restaurant',  label: 'Restaurant'  },
-  { key: 'wifi',        label: 'Wifi'        },
+  { key: 'vestiaires',     label: 'Vestiaires'     },
+  { key: 'douches',        label: 'Douches'        },
+  { key: 'parking',        label: 'Parking'        },
+  { key: 'pro_shop',       label: 'Pro shop'       },
+  { key: 'restaurant',     label: 'Restaurant'     },
+  { key: 'wifi',           label: 'Wifi'           },
+  { key: 'boutique',       label: 'Boutique'       },
+  { key: 'eclairage_nuit', label: 'Éclairage nuit' },
 ];
 
 function toSlug(name) {

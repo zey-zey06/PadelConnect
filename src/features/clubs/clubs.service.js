@@ -62,6 +62,13 @@ async function getPublicClub(id) {
   return { club, venues };
 }
 
+async function updateCover(clubId, userOrgId, filename) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) { const err = new Error('Club introuvable.'); err.status = 404; throw err; }
+  if (club.id !== userOrgId) { const err = new Error('Accès refusé.'); err.status = 403; throw err; }
+  return clubsRepo.update(clubId, { cover_url: `/uploads/clubs/${filename}` });
+}
+
 async function addPhoto(clubId, userOrgId, filename) {
   const club = await clubsRepo.getById(clubId);
   if (!club) { const err = new Error('Club introuvable.'); err.status = 404; throw err; }
@@ -105,4 +112,4 @@ async function getClubSlots(clubId, date) {
   };
 }
 
-module.exports = { createClub, listClubs, getClub, updateClub, updateLogo, getPublicClub, addPhoto, removePhoto, getClubSlots };
+module.exports = { createClub, listClubs, getClub, updateClub, updateLogo, updateCover, getPublicClub, addPhoto, removePhoto, getClubSlots };

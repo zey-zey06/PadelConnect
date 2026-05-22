@@ -27,7 +27,7 @@ router.get('/dashboard', async (req, res, next) => {
     weekEnd.setDate(weekEnd.getDate() + 7);
     const weekEndStr = weekEnd.toISOString().slice(0, 10);
 
-    const [venueRow, todayRow, weekRow, revenueRow] = await Promise.all([
+    const [venueRow, todayRow, weekRow, revenueRow, totalRow] = await Promise.all([
       // Total active venues for this org
       db('venues')
         .where({ organization_id: orgId })
@@ -65,14 +65,24 @@ router.get('/dashboard', async (req, res, next) => {
         .whereNull('venue_slots.deleted_at')
         .sum('venue_slots.price as total')
         .first(),
+
+      // Total all-time confirmed bookings for this org
+      db('bookings')
+        .join('venue_slots', 'bookings.venue_slot_id', 'venue_slots.id')
+        .join('venues', 'venue_slots.venue_id', 'venues.id')
+        .where('venues.organization_id', orgId)
+        .whereIn('bookings.status', ['confirmed', 'completed'])
+        .count('bookings.id as count')
+        .first(),
     ]);
 
     return res.json({
       stats: {
-        total_venues:   Number(venueRow?.count   ?? 0),
-        bookings_today: Number(todayRow?.count    ?? 0),
-        bookings_week:  Number(weekRow?.count     ?? 0),
-        revenue_today:  Number(revenueRow?.total  ?? 0),
+        total_venues:    Number(venueRow?.count   ?? 0),
+        bookings_today:  Number(todayRow?.count    ?? 0),
+        bookings_week:   Number(weekRow?.count     ?? 0),
+        revenue_today:   Number(revenueRow?.total  ?? 0),
+        bookings_total:  Number(totalRow?.count    ?? 0),
       },
     });
   } catch (err) {

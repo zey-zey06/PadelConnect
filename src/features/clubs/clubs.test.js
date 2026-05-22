@@ -26,6 +26,7 @@ jest.mock('../../db', () => {
   };
   const mockDb = jest.fn(() => qb);
   mockDb.__qb = qb;
+  mockDb.raw = jest.fn().mockReturnValue({});
   return mockDb;
 });
 

@@ -30,6 +30,9 @@ function _multipartPost(url, fieldName, file) {
 /** POST /api/clubs/:id/logo  (multipart, field: logo) → { club } */
 export const uploadClubLogo  = (clubId, file) => _multipartPost(`/api/clubs/${clubId}/logo`,   'logo',  file);
 
+/** POST /api/clubs/:id/cover (multipart, field: cover) → { club } */
+export const uploadClubCover = (clubId, file) => _multipartPost(`/api/clubs/${clubId}/cover`,  'cover', file);
+
 /** POST /api/clubs/:id/photos (multipart, field: photo) → { club } */
 export const uploadClubPhoto = (clubId, file) => _multipartPost(`/api/clubs/${clubId}/photos`, 'photo', file);
 

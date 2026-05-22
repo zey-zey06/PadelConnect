@@ -21,8 +21,9 @@ const COOKIE_OPTIONS = {
 
 // ── Validation schemas ────────────────────────────────────────────────────────
 const amenitiesSchema = Joi.object({
-  vestiaires: Joi.boolean(), douches: Joi.boolean(), parking:     Joi.boolean(),
-  pro_shop:   Joi.boolean(), restaurant: Joi.boolean(), wifi:     Joi.boolean(),
+  vestiaires:     Joi.boolean(), douches:    Joi.boolean(), parking:         Joi.boolean(),
+  pro_shop:       Joi.boolean(), restaurant: Joi.boolean(), wifi:            Joi.boolean(),
+  boutique:       Joi.boolean(), eclairage_nuit: Joi.boolean(),
 }).optional().allow(null);
 
 const createClubSchema = Joi.object({
@@ -39,6 +40,7 @@ const updateClubSchema = Joi.object({
   description: Joi.string().optional().allow(null, ''),
   address:     Joi.string().optional().allow(null, ''),
   phone:       Joi.string().optional().allow(null, ''),
+  email:       Joi.string().email({ tlds: { allow: false } }).optional().allow(null, ''),
   amenities:   amenitiesSchema,
 }).min(1);
 
@@ -129,6 +131,18 @@ async function removePhotoHandler(req, res, next) {
   }
 }
 
+async function coverHandler(req, res, next) {
+  try {
+    if (!req.file) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Fichier image requis.' });
+    }
+    const club = await clubsService.updateCover(req.params.id, req.user.organization_id, req.file.filename);
+    return res.json({ club });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function listClubsHandler(req, res, next) {
   try {
     const clubs = await clubsService.listClubs();
@@ -175,6 +189,7 @@ router.get('/:id/slots',      authenticate, clubSlotsHandler);
 router.get('/:id',            authenticate, getClubHandler);
 router.patch('/:id',          authenticate, requireRole('venue_admin'), updateClubHandler);
 router.post('/:id/logo',      authenticate, requireRole('venue_admin'), uploadImage.single('logo'),  logoHandler);
+router.post('/:id/cover',     authenticate, requireRole('venue_admin'), uploadImage.single('cover'), coverHandler);
 router.post('/:id/photos',    authenticate, requireRole('venue_admin'), uploadImage.single('photo'), addPhotoHandler);
 router.delete('/:id/photos',  authenticate, requireRole('venue_admin'), removePhotoHandler);
 
