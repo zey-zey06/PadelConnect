@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone } from 'lucide-react';
 import { useAuth } from '@/App';
 import { getProfile, updateProfile, uploadPhoto } from '@/api/profile';
+import { updateMe } from '@/api/auth';
 import { getMyBookings } from '@/api/bookings';
 import { Button }   from '@/components/ui/button';
 import { Input }    from '@/components/ui/input';
@@ -247,8 +248,10 @@ function PhotoUpload({ currentUrl, onUploaded }) {
 }
 
 // ── Edit form ─────────────────────────────────────────────────────────────────
-function EditForm({ profile, onSave, onCancel, onPhotoUploaded }) {
+function EditForm({ profile, user, onSave, onCancel, onPhotoUploaded }) {
   const [form, setForm] = useState({
+    first_name:   user?.first_name   ?? '',
+    last_name:    user?.last_name    ?? '',
     style:        profile?.style        ?? '',
     strengths:    Array.isArray(profile?.strengths)  ? [...profile.strengths]  : [],
     weaknesses:   Array.isArray(profile?.weaknesses) ? [...profile.weaknesses] : [],
@@ -263,13 +266,19 @@ function EditForm({ profile, onSave, onCancel, onPhotoUploaded }) {
     setSaving(true);
     setError(null);
     try {
-      const { profile: updated } = await updateProfile({
-        style:        form.style        || undefined,
-        strengths:    form.strengths,
-        weaknesses:   form.weaknesses,
-        phone_number: form.phone_number || null,
-      });
-      onSave(updated);
+      const [{ profile: updated }, { user: updatedUser }] = await Promise.all([
+        updateProfile({
+          style:        form.style        || undefined,
+          strengths:    form.strengths,
+          weaknesses:   form.weaknesses,
+          phone_number: form.phone_number || null,
+        }),
+        updateMe({
+          first_name: form.first_name.trim() || null,
+          last_name:  form.last_name.trim()  || null,
+        }),
+      ]);
+      onSave(updated, updatedUser);
     } catch (err) {
       setError(err.message || 'Erreur lors de la sauvegarde.');
       setSaving(false);
@@ -283,6 +292,28 @@ function EditForm({ profile, onSave, onCancel, onPhotoUploaded }) {
         <button type="button" onClick={onCancel} className="text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
         </button>
+      </div>
+
+      {/* Nom */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="first_name" className="text-sm font-medium">Prénom</Label>
+          <Input
+            id="first_name"
+            value={form.first_name}
+            onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))}
+            placeholder="Kofi"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="last_name" className="text-sm font-medium">Nom</Label>
+          <Input
+            id="last_name"
+            value={form.last_name}
+            onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))}
+            placeholder="Mensah"
+          />
+        </div>
       </div>
 
       {/* Photo */}
@@ -374,7 +405,7 @@ function EditForm({ profile, onSave, onCancel, onPhotoUploaded }) {
 
 // ── Profile page ──────────────────────────────────────────────────────────────
 export default function Profile() {
-  const { user, profile: ctxProfile, setProfile } = useAuth();
+  const { user, setUser, profile: ctxProfile, setProfile } = useAuth();
 
   const [profile,  setLocal]  = useState(ctxProfile ?? undefined);
   const [bookings, setBookings] = useState([]);
@@ -382,7 +413,10 @@ export default function Profile() {
   const [error,    setError]   = useState(null);
   const [editing,  setEditing] = useState(false);
 
-  const name = user?.email?.split('@')[0] ?? 'Joueur';
+  const name =
+    (user?.first_name && user?.last_name)
+      ? `${user.first_name} ${user.last_name}`
+      : user?.email?.split('@')[0] ?? 'Joueur';
 
   useEffect(() => {
     async function load() {
@@ -409,9 +443,10 @@ export default function Profile() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleSave(updated) {
+  function handleSave(updated, updatedUser) {
     setLocal(updated);
     setProfile(updated);
+    if (updatedUser) setUser((prev) => ({ ...prev, ...updatedUser }));
     setEditing(false);
   }
 
@@ -471,6 +506,7 @@ export default function Profile() {
           <div className="lg:pt-0">
             <EditForm
               profile={profile}
+              user={user}
               onSave={handleSave}
               onCancel={() => setEditing(false)}
               onPhotoUploaded={(updated) => {

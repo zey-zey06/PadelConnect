@@ -22,7 +22,7 @@ async function getRecentActivity() {
       .whereNull('deleted_at')
       .orderBy('created_at', 'desc')
       .limit(5)
-      .select(['id', 'email', 'role', 'created_at']),
+      .select(['id', 'email', 'first_name', 'last_name', 'role', 'created_at']),
     db('bookings')
       .join('sessions', 'bookings.session_id', 'sessions.id')
       .join('users', 'sessions.creator_id', 'users.id')

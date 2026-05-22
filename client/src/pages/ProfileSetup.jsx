@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Sparkles, Upload, CheckCircle2, ChevronRight, ChevronLeft, AlertCircle, X, Phone } from 'lucide-react';
 import { useAuth } from '@/App';
 import { generateProfile, updateProfile, uploadPhoto, getProfile } from '@/api/profile';
+import { updateMe } from '@/api/auth';
 import { Button }   from '@/components/ui/button';
 import { Label }    from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -81,13 +82,15 @@ function ErrorBanner({ message, onClose }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ProfileSetup() {
-  const { setProfile } = useAuth();
+  const { user, setProfile } = useAuth();
   const navigate = useNavigate();
 
   // ── shared error
   const [error, setError] = useState(null);
 
   // ── Step 1: basic info
+  const [firstName,    setFirstName]    = useState(user?.first_name ?? '');
+  const [lastName,     setLastName]     = useState(user?.last_name  ?? '');
   const [birthDate,    setBirthDate]    = useState('');
   const [yearsPlaying, setYearsPlaying] = useState('');
   const [selfLevel,    setSelfLevel]    = useState(null);
@@ -107,8 +110,8 @@ export default function ProfileSetup() {
 
   // ── Step 1 → 2 ──────────────────────────────────────────────────────────
   function handleStep1Next() {
-    if (!birthDate || !yearsPlaying || !selfLevel) {
-      setError('Veuillez renseigner tous les champs.');
+    if (!firstName.trim() || !lastName.trim() || !birthDate || !yearsPlaying || !selfLevel) {
+      setError('Veuillez renseigner tous les champs obligatoires.');
       return;
     }
     setError(null);
@@ -161,6 +164,8 @@ export default function ProfileSetup() {
       const saves = [];
       if (photo) saves.push(uploadPhoto(photo));
       if (phoneNumber.trim()) saves.push(updateProfile({ phone_number: phoneNumber.trim() }));
+      // Always save first_name/last_name if provided
+      saves.push(updateMe({ first_name: firstName.trim() || null, last_name: lastName.trim() || null }));
       await Promise.all(saves);
       // Re-fetch from server so photo_url (and any server-side updates) are reflected in context
       const { profile: saved } = await getProfile();
@@ -212,8 +217,35 @@ export default function ProfileSetup() {
               </div>
 
               <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">Prénom <span className="text-red-500">*</span></Label>
+                    <input
+                      id="firstName"
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Kofi"
+                      autoComplete="given-name"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Nom <span className="text-red-500">*</span></Label>
+                    <input
+                      id="lastName"
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Mensah"
+                      autoComplete="family-name"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="birthDate">Date de naissance</Label>
+                  <Label htmlFor="birthDate">Date de naissance <span className="text-red-500">*</span></Label>
                   <input
                     id="birthDate"
                     type="date"

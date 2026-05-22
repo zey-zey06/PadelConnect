@@ -319,7 +319,9 @@ function SlotRow({ slot, venueId, onCancel, onPriceUpdated }) {
                   rel="noopener noreferrer"
                   className="hover:text-primary hover:underline transition-colors"
                 >
-                  {slot.booked_by_email}
+                  {(slot.booked_by_first_name || slot.booked_by_last_name)
+                    ? `${slot.booked_by_first_name ?? ''} ${slot.booked_by_last_name ?? ''}`.trim()
+                    : slot.booked_by_email}
                 </Link>
                 {slot.booked_by_phone && (
                   <span className="text-muted-foreground"> · {slot.booked_by_phone}</span>

@@ -7,7 +7,7 @@ const { sendVerificationEmail } = require('../emails/verification');
 const BCRYPT_ROUNDS = 12;
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-async function signup({ email, password, role = 'player', organization_id = null }) {
+async function signup({ email, password, role = 'player', organization_id = null, first_name = null, last_name = null }) {
   const existing = await db('users').where({ email }).whereNull('deleted_at').first();
   if (existing) {
     const err = new Error('Email déjà utilisé.');
@@ -21,8 +21,8 @@ async function signup({ email, password, role = 'player', organization_id = null
   // const verification_expires = new Date(Date.now() + VERIFICATION_TTL_MS);
 
   const [row] = await db('users')
-    .insert({ email, password_hash, role, organization_id, email_verified: true })
-    .returning(['id', 'email', 'role', 'organization_id', 'status', 'created_at']);
+    .insert({ email, password_hash, role, organization_id, email_verified: true, first_name: first_name || null, last_name: last_name || null })
+    .returning(['id', 'email', 'role', 'organization_id', 'status', 'first_name', 'last_name', 'created_at']);
 
   // [DEV] Skip token storage and verification email
   // await db('users').where({ id: row.id }).update({
@@ -43,6 +43,8 @@ async function signup({ email, password, role = 'player', organization_id = null
     role: row.role,
     organization_id: row.organization_id,
     status: row.status,
+    first_name: row.first_name ?? null,
+    last_name: row.last_name ?? null,
     created_at: row.created_at,
   };
 }
@@ -75,6 +77,8 @@ async function login({ email, password }) {
     role: user.role,
     organization_id: user.organization_id,
     status: user.status,
+    first_name: user.first_name ?? null,
+    last_name: user.last_name ?? null,
   };
 }
 
@@ -123,7 +127,17 @@ async function getUserById(id) {
     role: user.role,
     organization_id: user.organization_id,
     status: user.status,
+    first_name: user.first_name ?? null,
+    last_name: user.last_name ?? null,
   };
+}
+
+async function updateName(userId, first_name, last_name) {
+  await db('users').where({ id: userId }).update({
+    first_name: first_name || null,
+    last_name:  last_name  || null,
+    updated_at: new Date(),
+  });
 }
 
 async function changePassword(userId, currentPassword, newPassword) {
@@ -143,4 +157,4 @@ async function changePassword(userId, currentPassword, newPassword) {
   await db('users').where({ id: userId }).update({ password_hash: hash, updated_at: new Date() });
 }
 
-module.exports = { signup, login, verifyEmail, getUserById, changePassword };
+module.exports = { signup, login, verifyEmail, getUserById, updateName, changePassword };

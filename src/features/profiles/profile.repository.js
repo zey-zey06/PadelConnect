@@ -20,7 +20,7 @@ async function getByUserId(userId) {
     .leftJoin('users', 'player_profiles.user_id', 'users.id')
     .where({ 'player_profiles.user_id': userId })
     .whereNull('player_profiles.deleted_at')
-    .select(['player_profiles.*', 'users.email as user_email'])
+    .select(['player_profiles.*', 'users.email as user_email', 'users.first_name as user_first_name', 'users.last_name as user_last_name'])
     .first();
   return deserialize(row);
 }

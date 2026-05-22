@@ -33,6 +33,12 @@ export const verifyEmail = (token) =>
   client.get(`/auth/verify-email?token=${encodeURIComponent(token)}`);
 
 /**
+ * PATCH /api/auth/me
+ * { first_name, last_name } → { user }
+ */
+export const updateMe = (data) => client.patch('/auth/me', data);
+
+/**
  * PATCH /api/auth/password
  * { current_password, new_password } → { ok: true }
  */

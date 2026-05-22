@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { signupSchema, loginSchema } = require('./auth.validation');
-const { signup, login, verifyEmail, getUserById, changePassword } = require('./auth.service');
+const { signup, login, verifyEmail, getUserById, updateName, changePassword } = require('./auth.service');
 const { signToken } = require('./jwt');
 const authenticate = require('../middleware/authenticate');
 
@@ -105,6 +105,17 @@ async function meHandler(req, res, next) {
   }
 }
 
+async function updateMeHandler(req, res, next) {
+  try {
+    const { first_name, last_name } = req.body;
+    await updateName(req.user.sub, first_name, last_name);
+    const user = await getUserById(req.user.sub);
+    return res.json({ user });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function changePasswordHandler(req, res, next) {
   try {
     const { current_password, new_password } = req.body;
@@ -127,6 +138,7 @@ router.post('/login', loginHandler);
 router.get('/verify-email', verifyEmailHandler);
 router.post('/logout', logoutHandler);
 router.get('/me', authenticate, meHandler);
+router.patch('/me', authenticate, updateMeHandler);
 router.patch('/password', authenticate, changePasswordHandler);
 
 module.exports = router;

@@ -34,8 +34,11 @@ export default function PlayerProfile() {
       .finally(() => setLoading(false));
   }, [userId]);
 
-  // Use email username from profile (returned via JOIN), fallback to "Joueur"
-  const displayName = profile?.user_email?.split('@')[0] ?? 'Joueur';
+  // Use full name if available, fallback to email username, then "Joueur"
+  const displayName =
+    (profile?.user_first_name && profile?.user_last_name)
+      ? `${profile.user_first_name} ${profile.user_last_name}`
+      : profile?.user_email?.split('@')[0] ?? 'Joueur';
   const level       = profile?.level ?? null;
   const levelLabel  = LEVEL_LABELS[level] ?? null;
   const gradient    = LEVEL_COLORS[level] ?? LEVEL_COLORS[6];

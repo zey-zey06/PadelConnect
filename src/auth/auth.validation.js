@@ -1,6 +1,8 @@
 const Joi = require('joi');
 
 const signupSchema = Joi.object({
+  first_name: Joi.string().max(50).optional().allow(null, ''),
+  last_name:  Joi.string().max(50).optional().allow(null, ''),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
   role: Joi.string()

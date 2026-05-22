@@ -97,7 +97,7 @@ export default function Signup() {
   const [step, setStep] = useState(0); // 0 = role, 1 = email+password
   const [selectedRole, setSelectedRole] = useState(null);
 
-  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -110,6 +110,10 @@ export default function Signup() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      setError('Le prénom et le nom sont obligatoires.');
+      return;
+    }
     if (!passwordMeetsAll) {
       setError('Le mot de passe ne respecte pas les critères requis.');
       return;
@@ -121,7 +125,7 @@ export default function Signup() {
     setLoading(true);
     setError(null);
     try {
-      await signup({ email: form.email, password: form.password, role: selectedRole });
+      await signup({ email: form.email, password: form.password, role: selectedRole, first_name: form.firstName.trim(), last_name: form.lastName.trim() });
       // No JWT cookie yet — user must verify email
       navigate('/verify-email', { state: { email: form.email } });
     } catch (err) {
@@ -250,6 +254,35 @@ export default function Signup() {
               <form onSubmit={handleSubmit} className="space-y-5">
                 {error && <ErrorBanner message={error} />}
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="firstName">Prénom</Label>
+                    <Input
+                      id="firstName"
+                      name="firstName"
+                      type="text"
+                      placeholder="Kofi"
+                      autoComplete="given-name"
+                      value={form.firstName}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="lastName">Nom</Label>
+                    <Input
+                      id="lastName"
+                      name="lastName"
+                      type="text"
+                      placeholder="Mensah"
+                      autoComplete="family-name"
+                      value={form.lastName}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -305,7 +338,7 @@ export default function Signup() {
                   />
                 </div>
 
-                <Button type="submit" className="w-full mt-2" size="lg" disabled={loading || !passwordMeetsAll}>
+                <Button type="submit" className="w-full mt-2" size="lg" disabled={loading || !passwordMeetsAll || !form.firstName.trim() || !form.lastName.trim()}>
                   {loading ? (
                     <>
                       <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />

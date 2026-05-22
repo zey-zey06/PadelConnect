@@ -140,7 +140,11 @@ function OverviewTab({ stats }) {
               {(activity?.recentUsers ?? []).map((u) => (
                 <div key={u.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                   <div>
-                    <p className="text-sm font-medium text-slate-700 truncate max-w-[220px]">{u.email}</p>
+                    <p className="text-sm font-medium text-slate-700 truncate max-w-[220px]">
+                      {(u.first_name || u.last_name)
+                        ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim()
+                        : u.email}
+                    </p>
                     <p className="text-xs text-slate-400">{ROLE_LABEL[u.role] ?? u.role}</p>
                   </div>
                   <span className="text-xs text-slate-400 shrink-0 ml-2">{fmt(u.created_at)}</span>
@@ -205,7 +209,11 @@ function UsersTab() {
   const filtered = users.filter((u) => {
     if (roleF   && u.role   !== roleF)   return false;
     if (statusF && u.status !== statusF) return false;
-    if (search  && !u.email.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const fullName = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase();
+      if (!u.email.toLowerCase().includes(q) && !fullName.includes(q)) return false;
+    }
     return true;
   });
 
@@ -216,10 +224,10 @@ function UsersTab() {
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           <Input
-            placeholder="Rechercher par email…"
+            placeholder="Rechercher par nom ou email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-9 text-sm w-64"
+            className="pl-8 h-9 text-sm w-72"
           />
         </div>
         <select
@@ -251,7 +259,8 @@ function UsersTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nom</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Email</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Rôle</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Téléphone</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Inscrit le</th>
@@ -261,7 +270,7 @@ function UsersTab() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">Aucun utilisateur trouvé.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm">Aucun utilisateur trouvé.</td></tr>
                 ) : filtered.map((u) => (
                   <UserRow key={u.id} user={u} onStatusChange={handleStatus} />
                 ))}
@@ -285,13 +294,19 @@ function UserRow({ user: u, onStatusChange }) {
     finally { setSaving(false); setOpen(false); }
   }
 
+  const fullName = (u.first_name || u.last_name)
+    ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim()
+    : null;
+
   return (
     <tr className="hover:bg-slate-50/60 transition-colors">
       <td className="px-4 py-3">
-        <Link to={`/players/${u.id}`} className="font-medium text-slate-700 hover:text-amber-600 transition-colors truncate max-w-[200px] block">
-          {u.email}
+        <Link to={`/players/${u.id}`} className="font-medium text-slate-700 hover:text-amber-600 transition-colors block">
+          <span className="truncate max-w-[180px] block">{fullName ?? u.email.split('@')[0]}</span>
+          {fullName && <span className="text-xs text-slate-400 truncate max-w-[180px] block lg:hidden">{u.email}</span>}
         </Link>
       </td>
+      <td className="px-4 py-3 text-slate-500 text-sm hidden lg:table-cell truncate max-w-[200px]">{u.email}</td>
       <td className="px-4 py-3 text-slate-500">{ROLE_LABEL[u.role] ?? u.role}</td>
       <td className="px-4 py-3 text-slate-400 hidden sm:table-cell">{u.phone_number || '—'}</td>
       <td className="px-4 py-3 text-slate-400 hidden md:table-cell">{fmt(u.created_at)}</td>

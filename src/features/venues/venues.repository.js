@@ -48,6 +48,8 @@ async function getSlots(venueId, filters = {}) {
     'venue_slots.*',
     'users.id as booked_by_id',
     'users.email as booked_by_email',
+    'users.first_name as booked_by_first_name',
+    'users.last_name as booked_by_last_name',
     'player_profiles.phone_number as booked_by_phone',
   ]);
 }
