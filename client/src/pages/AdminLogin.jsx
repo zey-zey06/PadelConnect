@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/App';
 import { login } from '@/api/auth';
 import { Button } from '@/components/ui/button';
@@ -152,9 +152,9 @@ export default function AdminLogin() {
 
           <p className="text-center text-xs text-muted-foreground">
             Portail réservé aux administrateurs.{' '}
-            <a href="/login" className="text-foreground/70 underline underline-offset-2">
+            <Link to="/login" className="text-foreground/70 underline underline-offset-2">
               Connexion joueur
-            </a>
+            </Link>
           </p>
         </div>
       </div>

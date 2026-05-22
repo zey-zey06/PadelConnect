@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Building2, MapPin, Phone, Clock,
   AlertCircle, X, CreditCard, Banknote,
-  CheckCircle2, ChevronLeft, ChevronRight, Calendar,
+  CheckCircle2, ChevronLeft, ChevronRight, Calendar, ArrowLeft,
 } from 'lucide-react';
 import { getPublicClub, getClubSlots } from '@/api/clubs';
 import { getMySessions }               from '@/api/sessions';
@@ -466,7 +466,8 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
 
 // ── ClubProfile page ──────────────────────────────────────────────────────────
 export default function ClubProfile() {
-  const { id } = useParams();
+  const { id }   = useParams();
+  const navigate = useNavigate();
 
   const [club,         setClub]         = useState(null);
   const [clubLoading,  setClubLoading]  = useState(true);
@@ -527,6 +528,15 @@ export default function ClubProfile() {
 
   return (
     <div className="space-y-8">
+
+      {/* ── Back ─────────────────────────────────────────────────────────── */}
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Retour
+      </button>
 
       {/* ── Club header ──────────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
