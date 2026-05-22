@@ -16,6 +16,34 @@ async function getDashboardStats() {
   };
 }
 
+async function getRecentActivity() {
+  const [recentUsers, recentBookings] = await Promise.all([
+    db('users')
+      .whereNull('deleted_at')
+      .orderBy('created_at', 'desc')
+      .limit(5)
+      .select(['id', 'email', 'role', 'created_at']),
+    db('bookings')
+      .join('sessions', 'bookings.session_id', 'sessions.id')
+      .join('users', 'sessions.creator_id', 'users.id')
+      .join('venue_slots', 'bookings.venue_slot_id', 'venue_slots.id')
+      .join('venues', 'venue_slots.venue_id', 'venues.id')
+      .join('organizations', 'venues.organization_id', 'organizations.id')
+      .whereNull('bookings.deleted_at')
+      .orderBy('bookings.created_at', 'desc')
+      .limit(5)
+      .select([
+        'bookings.id',
+        'bookings.created_at',
+        'bookings.status',
+        'users.email as player_email',
+        'organizations.name as club_name',
+        'venues.name as venue_name',
+      ]),
+  ]);
+  return { recentUsers, recentBookings };
+}
+
 // ── Users ─────────────────────────────────────────────────────────────────────
 
 async function listUsers(filters = {}) {
@@ -56,15 +84,41 @@ async function cancelActiveSessionsForUser(userId) {
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
 async function listSessions(filters = {}) {
-  let query = db('sessions').whereNull('deleted_at').orderBy('date', 'desc');
-  if (filters.status) query = query.where('status', filters.status);
-  return query.select();
+  let query = db('sessions')
+    .join('users', 'sessions.creator_id', 'users.id')
+    .whereNull('sessions.deleted_at')
+    .orderBy('sessions.date', 'desc')
+    .orderBy('sessions.time', 'desc');
+  if (filters.status) query = query.where('sessions.status', filters.status);
+  return query.select([
+    'sessions.*',
+    'users.email as creator_email',
+  ]);
+}
+
+async function deleteSession(id) {
+  const [row] = await db('sessions')
+    .where({ id })
+    .update({ deleted_at: new Date(), updated_at: new Date() })
+    .returning('*');
+  return row;
 }
 
 // ── Clubs ─────────────────────────────────────────────────────────────────────
 
 async function listClubs() {
-  return db('organizations').whereNull('deleted_at').orderBy('name', 'asc').select();
+  return db('organizations')
+    .leftJoin('venues', function () {
+      this.on('venues.organization_id', '=', 'organizations.id')
+        .andOnNull('venues.deleted_at');
+    })
+    .whereNull('organizations.deleted_at')
+    .groupBy('organizations.id')
+    .orderBy('organizations.name', 'asc')
+    .select([
+      'organizations.*',
+      db.raw('COUNT(DISTINCT venues.id)::int as venues_count'),
+    ]);
 }
 
 async function getClubById(id) {
@@ -89,15 +143,91 @@ async function cancelAvailableSlotsForClub(organizationId) {
     .update({ status: 'cancelled', updated_at: new Date() });
 }
 
+// ── Bookings ──────────────────────────────────────────────────────────────────
+
+async function listBookings(filters = {}) {
+  let query = db('bookings')
+    .join('sessions', 'bookings.session_id', 'sessions.id')
+    .join('users', 'sessions.creator_id', 'users.id')
+    .join('venue_slots', 'bookings.venue_slot_id', 'venue_slots.id')
+    .join('venues', 'venue_slots.venue_id', 'venues.id')
+    .join('organizations', 'venues.organization_id', 'organizations.id')
+    .whereNull('bookings.deleted_at')
+    .orderBy('venue_slots.date', 'desc')
+    .orderBy('venue_slots.start_time', 'desc');
+
+  if (filters.date) {
+    query = query.where('venue_slots.date', filters.date);
+  }
+
+  return query.select([
+    'bookings.id',
+    'bookings.status',
+    'bookings.payment_method',
+    'bookings.created_at',
+    'users.id as player_id',
+    'users.email as player_email',
+    'organizations.id as club_id',
+    'organizations.name as club_name',
+    'venues.id as venue_id',
+    'venues.name as venue_name',
+    'venue_slots.date as slot_date',
+    'venue_slots.start_time',
+    'venue_slots.end_time',
+    'venue_slots.price',
+  ]);
+}
+
+// ── Sanctions ─────────────────────────────────────────────────────────────────
+
+async function listSanctions(filters = {}) {
+  let query = db('penalties')
+    .join('users', 'penalties.user_id', 'users.id')
+    .leftJoin('organizations', 'penalties.organization_id', 'organizations.id')
+    .whereNull('penalties.deleted_at')
+    .orderBy('penalties.created_at', 'desc');
+
+  if (filters.type)  query = query.where('penalties.type', filters.type);
+  if (filters.paid !== undefined) query = query.where('penalties.paid', filters.paid);
+
+  return query.select([
+    'penalties.*',
+    'users.email as user_email',
+    'organizations.name as club_name',
+  ]);
+}
+
+async function markPenaltyPaid(id) {
+  const [row] = await db('penalties')
+    .where({ id })
+    .update({ paid: true, updated_at: new Date() })
+    .returning('*');
+  return row;
+}
+
+async function deletePenalty(id) {
+  const [row] = await db('penalties')
+    .where({ id })
+    .update({ deleted_at: new Date(), updated_at: new Date() })
+    .returning('*');
+  return row;
+}
+
 module.exports = {
   getDashboardStats,
+  getRecentActivity,
   listUsers,
   getUserById,
   updateUserStatus,
   cancelActiveSessionsForUser,
   listSessions,
+  deleteSession,
   listClubs,
   getClubById,
   updateClubStatus,
   cancelAvailableSlotsForClub,
+  listBookings,
+  listSanctions,
+  markPenaltyPaid,
+  deletePenalty,
 };

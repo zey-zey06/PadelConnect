@@ -10,6 +10,10 @@ async function getDashboard() {
   return adminRepo.getDashboardStats();
 }
 
+async function getRecentActivity() {
+  return adminRepo.getRecentActivity();
+}
+
 async function listUsers(filters = {}) {
   return adminRepo.listUsers(filters);
 }
@@ -32,6 +36,10 @@ async function listSessions(filters = {}) {
   return adminRepo.listSessions(filters);
 }
 
+async function deleteSession(id) {
+  return adminRepo.deleteSession(id);
+}
+
 async function listClubs() {
   return adminRepo.listClubs();
 }
@@ -50,11 +58,37 @@ async function updateClubStatus(id, status) {
   return updated;
 }
 
+async function listBookings(filters = {}) {
+  return adminRepo.listBookings(filters);
+}
+
+async function listSanctions(filters = {}) {
+  return adminRepo.listSanctions(filters);
+}
+
+async function markSanctionPaid(id) {
+  const updated = await adminRepo.markPenaltyPaid(id);
+  if (!updated) throw makeError(404, 'Sanction introuvable.');
+  return updated;
+}
+
+async function liftBan(id) {
+  const updated = await adminRepo.deletePenalty(id);
+  if (!updated) throw makeError(404, 'Sanction introuvable.');
+  return updated;
+}
+
 module.exports = {
   getDashboard,
+  getRecentActivity,
   listUsers,
   updateUserStatus,
   listSessions,
+  deleteSession,
   listClubs,
   updateClubStatus,
+  listBookings,
+  listSanctions,
+  markSanctionPaid,
+  liftBan,
 };

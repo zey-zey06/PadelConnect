@@ -28,6 +28,15 @@ router.get('/dashboard', async (req, res, next) => {
   }
 });
 
+router.get('/activity', async (req, res, next) => {
+  try {
+    const activity = await adminService.getRecentActivity();
+    res.json(activity);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── Users ─────────────────────────────────────────────────────────────────────
 router.get('/users', async (req, res, next) => {
   try {
@@ -62,6 +71,15 @@ router.get('/sessions', async (req, res, next) => {
   }
 });
 
+router.delete('/sessions/:id', async (req, res, next) => {
+  try {
+    await adminService.deleteSession(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── Clubs ─────────────────────────────────────────────────────────────────────
 router.get('/clubs', async (req, res, next) => {
   try {
@@ -76,6 +94,48 @@ router.patch('/clubs/:id/status', validate(updateClubStatusSchema), async (req, 
   try {
     const club = await adminService.updateClubStatus(req.params.id, req.body.status);
     res.json({ club });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Bookings ──────────────────────────────────────────────────────────────────
+router.get('/bookings', async (req, res, next) => {
+  try {
+    const filters = {};
+    if (req.query.date) filters.date = req.query.date;
+    const bookings = await adminService.listBookings(filters);
+    res.json({ bookings });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Sanctions ─────────────────────────────────────────────────────────────────
+router.get('/sanctions', async (req, res, next) => {
+  try {
+    const filters = {};
+    if (req.query.type) filters.type = req.query.type;
+    const sanctions = await adminService.listSanctions(filters);
+    res.json({ sanctions });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/sanctions/:id/paid', async (req, res, next) => {
+  try {
+    const sanction = await adminService.markSanctionPaid(req.params.id);
+    res.json({ sanction });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/sanctions/:id', async (req, res, next) => {
+  try {
+    await adminService.liftBan(req.params.id);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

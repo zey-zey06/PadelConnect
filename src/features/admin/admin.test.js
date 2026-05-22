@@ -33,6 +33,7 @@ jest.mock('../../db', () => {
     orderBy: jest.fn().mockReturnThis(),
     join: jest.fn().mockReturnThis(),
     leftJoin: jest.fn().mockReturnThis(),
+    groupBy: jest.fn().mockReturnThis(),
     select: jest.fn(),
     first: jest.fn(),
     insert: jest.fn().mockReturnThis(),
@@ -41,6 +42,7 @@ jest.mock('../../db', () => {
   };
   const mockDb = jest.fn(() => qb);
   mockDb.__qb = qb;
+  mockDb.raw = jest.fn().mockReturnValue({});
   return mockDb;
 });
 
@@ -82,6 +84,8 @@ function resetQb() {
   qb.whereIn.mockReturnThis();
   qb.orderBy.mockReturnThis();
   qb.join.mockReturnThis();
+  qb.leftJoin.mockReturnThis();
+  qb.groupBy.mockReturnThis();
   qb.insert.mockReturnThis();
   qb.update.mockReturnThis();
   qb.select.mockReset();
