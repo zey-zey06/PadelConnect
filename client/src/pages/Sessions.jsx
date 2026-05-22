@@ -33,15 +33,130 @@ function parseSessionDate(dateVal) {
   return new Date(str + 'T00:00:00');                  // local midnight
 }
 
-// Preset time slots every 30 min, 07:00 → 22:00  (31 options)
-const TIME_OPTIONS = (() => {
-  const opts = [];
-  for (let h = 7; h <= 22; h++) {
-    opts.push(`${String(h).padStart(2, '0')}:00`);
-    if (h < 22) opts.push(`${String(h).padStart(2, '0')}:30`);
+// French day abbreviations (index = getDay(), 0 = Sunday)
+const DAY_ABBR  = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const MONTH_ABBR = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
+
+// Time sections for the visual chip picker
+function makeRange(startH, endH) {
+  const r = [];
+  for (let h = startH; h < endH; h++) {
+    r.push(`${String(h).padStart(2,'0')}:00`);
+    r.push(`${String(h).padStart(2,'0')}:30`);
   }
-  return opts;
-})();
+  return r;
+}
+const TIME_SECTIONS = [
+  { label: 'Matin',       emoji: '🌅', times: makeRange(7, 12) },
+  { label: 'Après-midi',  emoji: '☀️',  times: makeRange(12, 17) },
+  { label: 'Soir',        emoji: '🌆', times: [...makeRange(17, 22), '22:00'] },
+];
+
+// ── Week date picker ──────────────────────────────────────────────────────────
+function WeekDatePicker({ value, onChange }) {
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // 7 days starting from today + weekOffset*7
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + weekOffset * 7 + i);
+    const dateStr = d.toISOString().slice(0, 10);
+    return { d, dateStr, isPast: dateStr < todayStr };
+  });
+
+  const weekLabel = `${days[0].d.getDate()} ${MONTH_ABBR[days[0].d.getMonth()]} – ${days[6].d.getDate()} ${MONTH_ABBR[days[6].d.getMonth()]} ${days[6].d.getFullYear()}`;
+
+  return (
+    <div className="space-y-2">
+      {/* Week navigation */}
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setWeekOffset((w) => w - 1)}
+          disabled={weekOffset === 0}
+          className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-xs font-medium text-muted-foreground">{weekLabel}</span>
+        <button
+          type="button"
+          onClick={() => setWeekOffset((w) => w + 1)}
+          className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Day chips row */}
+      <div className="grid grid-cols-7 gap-1">
+        {days.map(({ d, dateStr, isPast }) => {
+          const isSelected = value === dateStr;
+          return (
+            <button
+              key={dateStr}
+              type="button"
+              disabled={isPast}
+              onClick={() => onChange(dateStr)}
+              className={cn(
+                'flex flex-col items-center justify-center rounded-xl py-2.5 gap-0.5 transition-all select-none',
+                isSelected
+                  ? 'bg-green-700 text-white shadow-sm'
+                  : isPast
+                  ? 'text-muted-foreground/30 cursor-not-allowed'
+                  : 'bg-slate-100 text-foreground hover:bg-slate-200'
+              )}
+            >
+              <span className="text-[10px] font-semibold leading-none">{DAY_ABBR[d.getDay()]}</span>
+              <span className={cn('text-base font-bold leading-none mt-0.5', isSelected ? 'text-white' : '')}>{d.getDate()}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Selected date label */}
+      {value && (
+        <p className="text-xs text-center text-green-700 font-medium">
+          {new Date(value + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Time chip picker ──────────────────────────────────────────────────────────
+function TimeChipPicker({ value, onChange }) {
+  return (
+    <div className="space-y-3">
+      {TIME_SECTIONS.map(({ label, emoji, times }) => (
+        <div key={label} className="space-y-1.5">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+            <span>{emoji}</span>{label}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {times.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => onChange(t === value ? '' : t)}
+                className={cn(
+                  'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                  value === t
+                    ? 'bg-green-700 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                )}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const PLAYER_CARDS = [
   { n: 2, sub: 'Duo' },
@@ -180,8 +295,6 @@ function SessionCard({ session, onJoin, hasBooking = false, onBooked }) {
 
 // ── Create session modal (redesigned) ─────────────────────────────────────────
 function CreateSessionModal({ onClose, onCreate }) {
-  const today = new Date().toISOString().slice(0, 10);
-
   const [form, setForm] = useState({
     date: '', time: '', max_players: 4, level_min: null, gender: null,
   });
@@ -247,35 +360,21 @@ function CreateSessionModal({ onClose, onCreate }) {
             </div>
           )}
 
-          {/* Date */}
+          {/* Date — visual week calendar */}
           <div className="space-y-2">
-            <Label htmlFor="cs-date">Date</Label>
-            <Input
-              id="cs-date"
-              type="date"
-              min={today}
-              value={form.date}
-              onChange={(e) => set('date', e.target.value)}
-              required
-              className="w-full"
-            />
+            <Label>Date</Label>
+            <WeekDatePicker value={form.date} onChange={(d) => set('date', d)} />
           </div>
 
-          {/* Time — preset dropdown */}
+          {/* Time — visual chip grid */}
           <div className="space-y-2">
-            <Label htmlFor="cs-time">Heure</Label>
-            <select
-              id="cs-time"
-              value={form.time}
-              onChange={(e) => set('time', e.target.value)}
-              required
-              className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            >
-              <option value="">Choisir une heure…</option>
-              {TIME_OPTIONS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+            <Label>
+              Heure
+              {form.time && (
+                <span className="ml-2 text-green-700 font-semibold">{form.time}</span>
+              )}
+            </Label>
+            <TimeChipPicker value={form.time} onChange={(t) => set('time', t)} />
           </div>
 
           {/* Max players — big visual cards */}
