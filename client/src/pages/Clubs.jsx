@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, MapPin, ChevronRight, AlertCircle } from 'lucide-react';
+import { Building2, MapPin, ChevronRight, Eye, AlertCircle } from 'lucide-react';
 import { listClubs } from '@/api/clubs';
+import { useAuth } from '@/App';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 // ── Club card ─────────────────────────────────────────────────────────────────
-function ClubCard({ club }) {
+function ClubCard({ club, isAdmin }) {
   const photo      = club.logo_url || (Array.isArray(club.photos_urls) && club.photos_urls[0]) || null;
   const venueCount = parseInt(club.venue_count ?? 0, 10);
   const minPrice   = club.min_price != null ? Number(club.min_price) : null;
@@ -60,10 +61,17 @@ function ClubCard({ club }) {
         </div>
 
         <Link to={`/clubs/${club.id}`} className="mt-auto">
-          <Button size="sm" className="w-full">
-            Réserver
-            <ChevronRight className="h-3.5 w-3.5 ml-auto" />
-          </Button>
+          {isAdmin ? (
+            <Button size="sm" variant="outline" className="w-full">
+              <Eye className="h-3.5 w-3.5 mr-1.5" />
+              Voir
+            </Button>
+          ) : (
+            <Button size="sm" className="w-full">
+              Réserver
+              <ChevronRight className="h-3.5 w-3.5 ml-auto" />
+            </Button>
+          )}
         </Link>
       </div>
     </div>
@@ -72,6 +80,9 @@ function ClubCard({ club }) {
 
 // ── Clubs page ────────────────────────────────────────────────────────────────
 export default function Clubs() {
+  const { user } = useAuth();
+  const isAdmin  = user?.role === 'super_admin';
+
   const [clubs,   setClubs]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -110,7 +121,7 @@ export default function Clubs() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {clubs.map((c) => <ClubCard key={c.id} club={c} />)}
+          {clubs.map((c) => <ClubCard key={c.id} club={c} isAdmin={isAdmin} />)}
         </div>
       )}
     </div>

@@ -16,7 +16,12 @@ function deserialize(row) {
 }
 
 async function getByUserId(userId) {
-  const row = await db('player_profiles').where({ user_id: userId }).whereNull('deleted_at').first();
+  const row = await db('player_profiles')
+    .leftJoin('users', 'player_profiles.user_id', 'users.id')
+    .where({ 'player_profiles.user_id': userId })
+    .whereNull('player_profiles.deleted_at')
+    .select(['player_profiles.*', 'users.email as user_email'])
+    .first();
   return deserialize(row);
 }
 

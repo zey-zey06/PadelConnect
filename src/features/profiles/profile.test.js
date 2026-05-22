@@ -31,6 +31,8 @@ jest.mock('../../db', () => {
   const qb = {
     where: jest.fn().mockReturnThis(),
     whereNull: jest.fn().mockReturnThis(),
+    leftJoin: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
     first: jest.fn(),
     insert: jest.fn().mockReturnThis(),
     update: jest.fn().mockReturnThis(),
@@ -80,6 +82,8 @@ const AI_RESPONSE = {
 function resetQb() {
   qb.where.mockReturnThis();
   qb.whereNull.mockReturnThis();
+  qb.leftJoin.mockReturnThis();
+  qb.select.mockReturnThis();
   qb.insert.mockReturnThis();
   qb.update.mockReturnThis();
   qb.first.mockReset();

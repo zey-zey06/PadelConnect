@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { signupSchema, loginSchema } = require('./auth.validation');
-const { signup, login, verifyEmail, getUserById } = require('./auth.service');
+const { signup, login, verifyEmail, getUserById, changePassword } = require('./auth.service');
 const { signToken } = require('./jwt');
 const authenticate = require('../middleware/authenticate');
 
@@ -105,11 +105,28 @@ async function meHandler(req, res, next) {
   }
 }
 
+async function changePasswordHandler(req, res, next) {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Champs requis manquants.' });
+    }
+    if (new_password.length < 8) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Le nouveau mot de passe doit faire au moins 8 caractères.' });
+    }
+    await changePassword(req.user.sub, current_password, new_password);
+    return res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 const router = Router();
 router.post('/signup', signupHandler);
 router.post('/login', loginHandler);
 router.get('/verify-email', verifyEmailHandler);
 router.post('/logout', logoutHandler);
 router.get('/me', authenticate, meHandler);
+router.patch('/password', authenticate, changePasswordHandler);
 
 module.exports = router;

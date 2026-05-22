@@ -126,4 +126,21 @@ async function getUserById(id) {
   };
 }
 
-module.exports = { signup, login, verifyEmail, getUserById };
+async function changePassword(userId, currentPassword, newPassword) {
+  const user = await db('users').where({ id: userId }).whereNull('deleted_at').first();
+  if (!user) {
+    const err = new Error('Utilisateur introuvable.');
+    err.status = 404;
+    throw err;
+  }
+  const valid = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!valid) {
+    const err = new Error('Mot de passe actuel incorrect.');
+    err.status = 400;
+    throw err;
+  }
+  const hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+  await db('users').where({ id: userId }).update({ password_hash: hash, updated_at: new Date() });
+}
+
+module.exports = { signup, login, verifyEmail, getUserById, changePassword };

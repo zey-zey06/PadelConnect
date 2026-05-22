@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, ArrowLeft, AlertCircle } from 'lucide-react';
+import { User, ArrowLeft, AlertCircle, Zap, Target } from 'lucide-react';
 import { getUserProfile } from '@/api/profile';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const LEVEL_LABELS = {
@@ -28,10 +27,6 @@ export default function PlayerProfile() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
 
-  // The display name comes from the URL — we don't expose emails here.
-  // If you have the email available (e.g. from a request card), pass it via state.
-  const name = history.state?.usr?.name ?? userId?.slice(0, 8) ?? 'Joueur';
-
   useEffect(() => {
     getUserProfile(userId)
       .then(({ profile: p }) => setProfile(p ?? null))
@@ -39,14 +34,16 @@ export default function PlayerProfile() {
       .finally(() => setLoading(false));
   }, [userId]);
 
-  const level      = profile?.level ?? null;
-  const levelLabel = LEVEL_LABELS[level] ?? '—';
-  const gradient   = LEVEL_COLORS[level] ?? LEVEL_COLORS[6];
-  const strengths  = Array.isArray(profile?.strengths)  ? profile.strengths  : [];
-  const weaknesses = Array.isArray(profile?.weaknesses) ? profile.weaknesses : [];
+  // Use email username from profile (returned via JOIN), fallback to "Joueur"
+  const displayName = profile?.user_email?.split('@')[0] ?? 'Joueur';
+  const level       = profile?.level ?? null;
+  const levelLabel  = LEVEL_LABELS[level] ?? null;
+  const gradient    = LEVEL_COLORS[level] ?? LEVEL_COLORS[6];
+  const strengths   = Array.isArray(profile?.strengths)  ? profile.strengths  : [];
+  const weaknesses  = Array.isArray(profile?.weaknesses) ? profile.weaknesses : [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-sm mx-auto">
       {/* Back */}
       <button
         onClick={() => navigate(-1)}
@@ -57,77 +54,81 @@ export default function PlayerProfile() {
       </button>
 
       {loading ? (
-        <div className="w-full max-w-sm mx-auto h-96 bg-muted animate-pulse rounded-2xl" />
+        <div className="h-96 bg-muted animate-pulse rounded-2xl" />
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />{error}
         </div>
       ) : !profile ? (
-        <div className="w-full max-w-sm mx-auto rounded-2xl border border-dashed border-border bg-card p-12 text-center space-y-3">
+        <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center space-y-3">
           <User className="h-10 w-10 text-muted-foreground mx-auto" />
           <p className="font-medium text-foreground">Profil non configuré</p>
           <p className="text-sm text-muted-foreground">Ce joueur n'a pas encore renseigné son profil.</p>
         </div>
       ) : (
-        <div className="w-full max-w-sm mx-auto">
-          <div className={cn('relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10', `bg-gradient-to-b ${gradient}`)}>
+        <div className={cn('relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10', `bg-gradient-to-b ${gradient}`)}>
 
-            {/* Photo + overlay */}
-            <div className="relative h-72 overflow-hidden">
-              {profile.photo_url ? (
-                <img src={profile.photo_url} alt={name} className="absolute inset-0 h-full w-full object-cover object-top" />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <User className="h-24 w-24 text-white/20" />
-                </div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-
-              {/* Level */}
-              {level && (
-                <div className="absolute top-4 left-4 flex flex-col items-center leading-none">
-                  <span className="text-5xl font-black text-white drop-shadow-lg">{level}</span>
-                  <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest mt-0.5">
-                    {levelLabel}
-                  </span>
-                </div>
-              )}
-
-              {/* Name + style */}
-              <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
-                <p className="text-2xl font-black text-white tracking-tight uppercase drop-shadow-md">{name}</p>
-                {profile.style && (
-                  <p className="text-sm text-white/70 font-medium mt-0.5">{profile.style}</p>
-                )}
+          {/* Photo */}
+          <div className="relative h-64 overflow-hidden">
+            {profile.photo_url ? (
+              <img src={profile.photo_url} alt={displayName} className="absolute inset-0 h-full w-full object-cover object-top" />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <User className="h-20 w-20 text-white/20" />
               </div>
-            </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-            {/* Details */}
-            <div className="px-5 py-4 space-y-3 bg-white/5 backdrop-blur-sm">
-              {strengths.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Points forts</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {strengths.map((s) => (
-                      <span key={s} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30">{s}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {weaknesses.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Points faibles</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {weaknesses.map((w) => (
-                      <span key={w} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">{w}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {!strengths.length && !weaknesses.length && (
-                <p className="text-sm text-white/40 text-center py-2">Aucune information renseignée</p>
+            {/* Level badge */}
+            {level && (
+              <div className="absolute top-4 left-4 flex flex-col items-center leading-none">
+                <span className="text-5xl font-black text-white drop-shadow-lg">{level}</span>
+                <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest mt-0.5">
+                  {levelLabel}
+                </span>
+              </div>
+            )}
+
+            {/* Name + style */}
+            <div className="absolute bottom-0 left-0 right-0 px-5 pb-4">
+              <p className="text-xl font-black text-white tracking-tight uppercase drop-shadow-md">{displayName}</p>
+              {profile.style && (
+                <p className="text-sm text-white/65 font-medium mt-0.5">{profile.style}</p>
               )}
             </div>
+          </div>
+
+          {/* Stats */}
+          <div className="px-5 py-4 space-y-4 bg-black/30 backdrop-blur-sm">
+            {strengths.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Zap className="h-3 w-3 text-green-400" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Points forts</p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {strengths.map((s) => (
+                    <span key={s} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30">{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {weaknesses.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Target className="h-3 w-3 text-orange-400" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">À travailler</p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {weaknesses.map((w) => (
+                    <span key={w} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">{w}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!strengths.length && !weaknesses.length && (
+              <p className="text-sm text-white/40 text-center py-2">Aucune information renseignée</p>
+            )}
           </div>
         </div>
       )}

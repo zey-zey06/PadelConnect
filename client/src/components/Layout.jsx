@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const PLAYER_NAV = [
-  { to: '/sessions',         label: 'Sessions'   },
-  { to: '/calendar',         label: 'Calendrier' },
-  { to: '/clubs',            label: 'Clubs'      },
-  { to: '/profile',          label: 'Mon Profil' },
+  { to: '/sessions',  label: 'Sessions'    },
+  { to: '/calendar',  label: 'Calendrier'  },
+  { to: '/clubs',     label: 'Clubs'       },
+  { to: '/history',   label: 'Historique'  },
+  { to: '/profile',   label: 'Mon Profil'  },
 ];
 
 const MANAGER_NAV = [
@@ -20,9 +21,17 @@ const MANAGER_NAV = [
   { to: '/manager/profile',   label: 'Mon Club'        },
 ];
 
+const ADMIN_NAV = [
+  { to: '/admin/dashboard', label: 'Dashboard' },
+  { to: '/clubs',           label: 'Clubs'     },
+];
+
 export default function Layout({ children }) {
   const { user, setUser, profile } = useAuth();
-  const NAV_LINKS = user?.role === 'venue_admin' ? MANAGER_NAV : PLAYER_NAV;
+  const NAV_LINKS =
+    user?.role === 'venue_admin' ? MANAGER_NAV :
+    user?.role === 'super_admin' ? ADMIN_NAV :
+    PLAYER_NAV;
   const navigate          = useNavigate();
   const location          = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);

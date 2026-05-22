@@ -18,6 +18,8 @@ import ClubSetup        from '@/pages/manager/ClubSetup';
 import ManagerProfile   from '@/pages/manager/ManagerProfile';
 import ClubProfile      from '@/pages/ClubProfile';
 import AdminDashboard   from '@/pages/AdminDashboard';
+import AdminProfile     from '@/pages/AdminProfile';
+import History          from '@/pages/History';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
 import Layout           from '@/components/Layout';
@@ -152,6 +154,10 @@ export default function App() {
             element={<ProtectedRoute><Layout><Calendar /></Layout></ProtectedRoute>}
           />
           <Route
+            path="/history"
+            element={<ProtectedRoute><Layout><History /></Layout></ProtectedRoute>}
+          />
+          <Route
             path="/clubs"
             element={<ProtectedRoute><Layout><Clubs /></Layout></ProtectedRoute>}
           />
@@ -201,6 +207,10 @@ export default function App() {
           <Route
             path="/admin/dashboard"
             element={<ProtectedRoute><Layout><AdminDashboard /></Layout></ProtectedRoute>}
+          />
+          <Route
+            path="/admin/profile"
+            element={<ProtectedRoute><Layout><AdminProfile /></Layout></ProtectedRoute>}
           />
 
           {/* ── Default redirects ────────────────────────────────────── */}

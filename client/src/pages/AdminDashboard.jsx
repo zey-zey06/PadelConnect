@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, Layers, Building2, BookOpen,
   ShieldAlert, AlertCircle, ChevronDown, Trash2, CheckCircle,
   Ban, XCircle, Search, Calendar, Filter, Activity,
-  UserCheck, Clock, LogOut,
+  UserCheck, Clock, LogOut, Settings,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/App';
@@ -824,7 +824,14 @@ export default function AdminDashboard() {
           </button>
         ))}
 
-        <div className="mt-auto pt-4">
+        <div className="mt-auto pt-4 space-y-1">
+          <Link
+            to="/admin/profile"
+            className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors w-full"
+          >
+            <Settings className="h-4 w-4 text-slate-400" />
+            Paramètres
+          </Link>
           <button
             onClick={handleLogout}
             className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100 transition-colors w-full text-left"

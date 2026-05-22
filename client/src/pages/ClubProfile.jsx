@@ -3,11 +3,12 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Building2, MapPin, Phone, Clock,
   AlertCircle, X, CreditCard, Banknote,
-  CheckCircle2, ChevronLeft, ChevronRight, Calendar, ArrowLeft,
+  CheckCircle2, ChevronLeft, ChevronRight, Calendar, ArrowLeft, Eye,
 } from 'lucide-react';
 import { getPublicClub, getClubSlots } from '@/api/clubs';
 import { getMySessions }               from '@/api/sessions';
 import { createBooking }               from '@/api/bookings';
+import { useAuth }                     from '@/App';
 import { Button }  from '@/components/ui/button';
 import { Badge }   from '@/components/ui/badge';
 import { cn }      from '@/lib/utils';
@@ -468,6 +469,8 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
 export default function ClubProfile() {
   const { id }   = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin  = user?.role === 'super_admin';
 
   const [club,         setClub]         = useState(null);
   const [clubLoading,  setClubLoading]  = useState(true);
@@ -702,14 +705,29 @@ export default function ClubProfile() {
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {venue.slots.map((slot) => (
-                          <SlotBtn
-                            key={slot.id}
-                            slot={slot}
-                            venueName={venue.name}
-                            clubName={club.name}
-                            isMyBooking={myBooking?.venue_slot_id === slot.id}
-                            onBook={(s, name) => setBooking({ slot: s, venueName: name })}
-                          />
+                          isAdmin ? (
+                            /* Admin: read-only slot pill */
+                            <div
+                              key={slot.id}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500"
+                            >
+                              <Eye className="h-3 w-3 shrink-0" />
+                              {slot.start_time?.slice(0, 5)}–{slot.end_time?.slice(0, 5)}
+                              {' '}·{' '}
+                              <span className={slot.status === 'available' ? 'text-emerald-600' : 'text-slate-400'}>
+                                {slot.status === 'available' ? 'Libre' : 'Réservé'}
+                              </span>
+                            </div>
+                          ) : (
+                            <SlotBtn
+                              key={slot.id}
+                              slot={slot}
+                              venueName={venue.name}
+                              clubName={club.name}
+                              isMyBooking={myBooking?.venue_slot_id === slot.id}
+                              onBook={(s, name) => setBooking({ slot: s, venueName: name })}
+                            />
+                          )
                         ))}
                       </div>
                     )}
@@ -721,8 +739,8 @@ export default function ClubProfile() {
         )}
       </div>
 
-      {/* ── Booking modal ─────────────────────────────────────────────────── */}
-      {booking && (
+      {/* ── Booking modal — hidden for admin ─────────────────────────────── */}
+      {booking && !isAdmin && (
         <BookingModal
           slot={booking.slot}
           venueName={booking.venueName}
