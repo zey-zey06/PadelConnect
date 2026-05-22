@@ -4,13 +4,30 @@ const Joi = require('joi');
 const authenticate = require('../../middleware/authenticate');
 const requestsService = require('./requests.service');
 
+const createRequestSchema = Joi.object({
+  role: Joi.string().valid('player', 'coach').default('player'),
+  coach_user_id: Joi.string().uuid().when('role', {
+    is:        'coach',
+    then:      Joi.required(),
+    otherwise: Joi.forbidden(),
+  }),
+});
+
 const respondSchema = Joi.object({
   status: Joi.string().valid('accepted', 'refused').required(),
 });
 
 async function createRequestHandler(req, res, next) {
   try {
-    const sessionRequest = await requestsService.createRequest(req.params.id, req.user.sub);
+    const { error, value } = createRequestSchema.validate(req.body ?? {});
+    if (error) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    }
+    const sessionRequest = await requestsService.createRequest(
+      req.params.id,
+      req.user.sub,
+      { role: value.role, coachUserId: value.coach_user_id ?? null },
+    );
     return res.status(201).json({ sessionRequest });
   } catch (err) {
     next(err);

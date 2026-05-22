@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   listSessions, createSession, requestJoin, getMySessions,
-  getSessionRequests, respondToRequest, cancelSession,
+  getSessionRequests, respondToRequest, cancelSession, inviteCoach,
 } from '@/api/sessions';
 import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
-import { listClubs, getClubSlots } from '@/api/clubs';
+import { listClubs, getClubSlots, getClubCoaches } from '@/api/clubs';
+import { listCoaches } from '@/api/coaches';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -184,7 +185,7 @@ function SessionCard({ session, onJoin, hasBooking = false, onBooked }) {
   const [msg,   setMsg]   = useState('');
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
 
-  const isFull  = (session.current_players ?? 0) >= session.max_players;
+  const isFull  = session.status === 'complete' || (session.current_players ?? 0) >= session.max_players;
   const isOwner = user?.id === session.creator_id;
   const d = parseSessionDate(session.date);
 
@@ -551,20 +552,23 @@ function findCoveringChain(slots, sessionStart, sessionEnd) {
 // ── Terrain picker modal ───────────────────────────────────────────────────────
 // 3-step: choose club → choose slot covering session time → confirm + pay
 function TerrainPickerModal({ session, onClose, onBooked }) {
-  const [step,         setStep]         = useState(1);
-  const [clubs,        setClubs]        = useState([]);
-  const [loadingClubs, setLoadingClubs] = useState(true);
-  const [selectedClub, setSelectedClub] = useState(null);
-  const [venueData,    setVenueData]    = useState([]);   // [{ id, name, matchingSlots }]
-  const [loadingSlots, setLoadingSlots] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState(null); // slot + venue_name
-  const [payment,      setPayment]      = useState('on_arrival'); // on_arrival|card|wave|orange_money
-  const [card,         setCard]         = useState({ number: '', expiry: '', cvv: '', holder: '' });
-  const [cardAccepted, setCardAccepted] = useState(false);
-  const [phone,        setPhone]        = useState('');
-  const [confirmedBk,  setConfirmedBk]  = useState(null);
-  const [loading,      setLoading]      = useState(false);
-  const [error,        setError]        = useState(null);
+  const [step,            setStep]            = useState(1);
+  const [clubs,           setClubs]           = useState([]);
+  const [loadingClubs,    setLoadingClubs]    = useState(true);
+  const [selectedClub,    setSelectedClub]    = useState(null);
+  const [venueData,       setVenueData]       = useState([]);
+  const [loadingSlots,    setLoadingSlots]    = useState(false);
+  const [selectedSlot,    setSelectedSlot]    = useState(null);
+  const [availableCoaches,setAvailableCoaches]= useState([]);
+  const [loadingCoaches,  setLoadingCoaches]  = useState(false);
+  const [selectedCoaches, setSelectedCoaches] = useState([]); // [{user_id, user_first_name, …}]
+  const [payment,         setPayment]         = useState('on_arrival');
+  const [card,            setCard]            = useState({ number: '', expiry: '', cvv: '', holder: '' });
+  const [cardAccepted,    setCardAccepted]    = useState(false);
+  const [phone,           setPhone]           = useState('');
+  const [confirmedBk,     setConfirmedBk]     = useState(null);
+  const [loading,         setLoading]         = useState(false);
+  const [error,           setError]           = useState(null);
 
   const sessionTime    = session.time?.slice(0, 5) ?? '';
   const sessionEndTime = session.end_time?.slice(0, 5) ?? null;
@@ -622,7 +626,15 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
       end_time:   chain.end_time,
       totalPrice: chain.totalPrice,
     });
-    setStep(3);
+    setSelectedCoaches([]);
+    setAvailableCoaches([]);
+    // Fetch coaches for this club (non-blocking, shows skeleton in step 3)
+    setLoadingCoaches(true);
+    getClubCoaches(selectedClub.id)
+      .then(({ coaches }) => setAvailableCoaches(coaches ?? []))
+      .catch(() => setAvailableCoaches([]))
+      .finally(() => setLoadingCoaches(false));
+    setStep(3); // Coach selection step
     setError(null);
   }
 
@@ -681,14 +693,21 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
         ? `+225${phoneDigits}`
         : undefined;
 
-      // Book every slot in the chain (consecutive slots covering the session window)
+      // Book every slot in the chain; attach coach addons to the first slot booking
       const results = await Promise.all(
-        (selectedSlot.slots ?? [selectedSlot]).map((slot) =>
+        (selectedSlot.slots ?? [selectedSlot]).map((slot, idx) =>
           createBooking({
             session_id:     session.id,
             venue_slot_id:  slot.id,
             payment_method: payment,
             ...(payment_phone && { payment_phone }),
+            ...(idx === 0 && selectedCoaches.length > 0 && {
+              addons: selectedCoaches.map((c) => ({
+                type:    'coach',
+                user_id: c.user_id,
+                price:   10000,
+              })),
+            }),
           })
         )
       );
@@ -708,7 +727,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
     setStep((s) => s - 1);
   }
 
-  const STEP_LABELS = ['Club', 'Terrain', 'Paiement'];
+  const STEP_LABELS = ['Club', 'Terrain', 'Coach', 'Paiement'];
 
   // ── Success screen ───────────────────────────────────────────────────────────
   if (confirmedBk) {
@@ -752,6 +771,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
             <h2 className="text-base font-semibold text-foreground">
               {step === 1 ? 'Choisir un club'
                 : step === 2 ? selectedClub?.name
+                : step === 3 ? 'Ajouter un coach'
                 : 'Confirmer la réservation'}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5 capitalize">
@@ -784,7 +804,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
               )}>
                 {label}
               </span>
-              {i < 2 && <div className="w-5 h-px bg-border mx-0.5 shrink-0" />}
+              {i < 3 && <div className="w-5 h-px bg-border mx-0.5 shrink-0" />}
             </div>
           ))}
         </div>
@@ -887,8 +907,107 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
             )
           )}
 
-          {/* ── Step 3: Payment ───────────────────────────────────────── */}
-          {step === 3 && selectedSlot && (
+          {/* ── Step 3: Coach selection ──────────────────────────────── */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Optionnel — jusqu'à 2 coachs pour cette session.
+              </p>
+
+              {loadingCoaches ? (
+                <div className="space-y-2">
+                  {[1, 2].map((i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}
+                </div>
+              ) : availableCoaches.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  Aucun coach disponible pour ce club.
+                </p>
+              ) : (
+                availableCoaches.map((coach) => {
+                  const name = [coach.user_first_name, coach.user_last_name].filter(Boolean).join(' ')
+                    || coach.user_email?.split('@')[0]
+                    || 'Coach';
+                  const isSelected = selectedCoaches.some((c) => c.user_id === coach.user_id);
+                  const maxReached = selectedCoaches.length >= 2 && !isSelected;
+                  return (
+                    <button
+                      key={coach.id}
+                      type="button"
+                      disabled={maxReached}
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedCoaches((prev) => prev.filter((c) => c.user_id !== coach.user_id));
+                        } else if (!maxReached) {
+                          setSelectedCoaches((prev) => [...prev, coach]);
+                        }
+                      }}
+                      className={cn(
+                        'w-full flex items-center gap-3 rounded-xl border-2 px-4 py-3 transition-all text-left',
+                        isSelected
+                          ? 'border-green-600 bg-green-50'
+                          : maxReached
+                          ? 'border-border bg-card opacity-40 cursor-not-allowed'
+                          : 'border-border bg-card hover:border-primary/40'
+                      )}
+                    >
+                      {/* Avatar */}
+                      <div className="h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0">
+                        {coach.user_photo_url ? (
+                          <img src={coach.user_photo_url} alt={name} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center bg-green-100">
+                            <span className="text-xs font-bold text-green-700 select-none">
+                              {name.slice(0, 2).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <a
+                          href={`/players/${coach.user_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-semibold text-foreground hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {name}
+                        </a>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {coach.specialty} · 10&nbsp;000 FCFA
+                        </p>
+                      </div>
+                      {isSelected && <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />}
+                    </button>
+                  );
+                })
+              )}
+
+              {/* Footer */}
+              <div className="pt-2 border-t border-border space-y-2">
+                {selectedCoaches.length > 0 && (
+                  <p className="text-xs text-center text-muted-foreground">
+                    {selectedCoaches.length} coach{selectedCoaches.length > 1 ? 's' : ''} sélectionné{selectedCoaches.length > 1 ? 's' : ''}
+                    {' '}· +{(selectedCoaches.length * 10000).toLocaleString('fr-FR')} FCFA
+                  </p>
+                )}
+                <Button
+                  className="w-full bg-green-600 hover:bg-green-700 border-0 text-white"
+                  onClick={() => { setStep(4); setError(null); }}
+                >
+                  {selectedCoaches.length > 0
+                    ? `Continuer avec ${selectedCoaches.length} coach${selectedCoaches.length > 1 ? 's' : ''}`
+                    : 'Continuer sans coach'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 4: Payment ───────────────────────────────────────── */}
+          {step === 4 && selectedSlot && (() => {
+            const coachCost  = selectedCoaches.length * 10000;
+            const grandTotal = (selectedSlot.totalPrice ?? Number(selectedSlot.price ?? 0)) + coachCost;
+            return (
             <div className="space-y-4">
               {/* Summary */}
               <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2.5 text-sm">
@@ -903,12 +1022,27 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                   <span>·</span>
                   <span>{selectedSlot.start_time?.slice(0, 5)} – {selectedSlot.end_time?.slice(0, 5)}</span>
                 </div>
-                <div className="flex items-center justify-between pt-1 border-t border-border">
-                  <span className="text-muted-foreground">
-                    Total{selectedSlot.slots?.length > 1 && ` (${selectedSlot.slots.length} créneaux)`}
+                {/* Terrain line */}
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>
+                    Terrain{selectedSlot.slots?.length > 1 ? ` (${selectedSlot.slots.length} créneaux)` : ''}
                   </span>
+                  <span>{(selectedSlot.totalPrice ?? Number(selectedSlot.price ?? 0)).toLocaleString('fr-FR')} FCFA</span>
+                </div>
+                {/* Coach lines */}
+                {selectedCoaches.map((c) => {
+                  const cName = [c.user_first_name, c.user_last_name].filter(Boolean).join(' ') || 'Coach';
+                  return (
+                    <div key={c.user_id} className="flex items-center justify-between text-muted-foreground">
+                      <span>Coach — {cName}</span>
+                      <span>10&nbsp;000 FCFA</span>
+                    </div>
+                  );
+                })}
+                <div className="flex items-center justify-between pt-1 border-t border-border">
+                  <span className="font-medium text-foreground">Total</span>
                   <span className="font-bold text-foreground">
-                    {(selectedSlot.totalPrice ?? Number(selectedSlot.price ?? 0)).toLocaleString('fr-FR')} FCFA
+                    {grandTotal.toLocaleString('fr-FR')} FCFA
                   </span>
                 </div>
               </div>
@@ -1046,10 +1180,10 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
               >
                 {loading
                   ? 'Réservation en cours…'
-                  : `Réserver — ${(selectedSlot.totalPrice ?? Number(selectedSlot.price ?? 0)).toLocaleString('fr-FR')} FCFA`}
+                  : `Réserver — ${grandTotal.toLocaleString('fr-FR')} FCFA`}
               </Button>
             </div>
-          )}
+          ); })()}
         </div>
       </div>
     </div>
@@ -1256,6 +1390,40 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
   const [cancellingSess,     setCancellingSess]     = useState(false);
   const [actionError,        setActionError]        = useState(null);
 
+  // Coach invite
+  const [showCoachInvite,  setShowCoachInvite]  = useState(false);
+  const [coachList,        setCoachList]        = useState([]);
+  const [loadingCoachList, setLoadingCoachList] = useState(false);
+  const [invitedCoachIds,  setInvitedCoachIds]  = useState(new Set());
+  const [invitingCoachId,  setInvitingCoachId]  = useState(null);
+
+  async function toggleCoachInvite() {
+    if (showCoachInvite) { setShowCoachInvite(false); return; }
+    setShowCoachInvite(true);
+    if (coachList.length > 0) return; // already loaded
+    setLoadingCoachList(true);
+    try {
+      const { coaches } = await listCoaches();
+      setCoachList(coaches ?? []);
+    } catch {
+      setCoachList([]);
+    } finally {
+      setLoadingCoachList(false);
+    }
+  }
+
+  async function handleInviteCoach(coachUserId) {
+    setInvitingCoachId(coachUserId);
+    try {
+      await inviteCoach(session.id, coachUserId);
+      setInvitedCoachIds((prev) => new Set([...prev, coachUserId]));
+    } catch (e) {
+      setActionError(e.message || 'Erreur lors de l\'invitation.');
+    } finally {
+      setInvitingCoachId(null);
+    }
+  }
+
   const d = parseSessionDate(session.date);
   const pending = (requests ?? []).filter((r) => r.status === 'pending').length;
   const isCancelled = session.status === 'cancelled';
@@ -1285,6 +1453,8 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
   async function handleRespond(sessionId, requestId, status) {
     await respondToRequest(sessionId, requestId, status);
     await loadRequests();
+    // Refresh parent so session current_players + status reflect the change immediately
+    onRefresh();
   }
 
   async function handleCancelBooking() {
@@ -1423,6 +1593,66 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
             ))
           )}
 
+          {/* Coach invite panel */}
+          {showCoachInvite && !isCancelled && (
+            <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-2">
+              <p className="text-xs font-semibold text-foreground">Inviter un coach</p>
+              {loadingCoachList ? (
+                <div className="space-y-1.5">
+                  {[1, 2].map((i) => <div key={i} className="h-10 rounded-lg bg-muted animate-pulse" />)}
+                </div>
+              ) : coachList.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Aucun coach indépendant disponible.</p>
+              ) : (
+                coachList.map((coach) => {
+                  const name = [coach.user_first_name, coach.user_last_name].filter(Boolean).join(' ')
+                    || coach.user_email?.split('@')[0] || 'Coach';
+                  const invited = invitedCoachIds.has(coach.user_id);
+                  const busy    = invitingCoachId === coach.user_id;
+                  return (
+                    <div key={coach.id} className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-full overflow-hidden bg-muted shrink-0">
+                        {coach.user_photo_url ? (
+                          <img src={coach.user_photo_url} alt={name} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center bg-green-100">
+                            <span className="text-[10px] font-bold text-green-700">{name.slice(0, 2).toUpperCase()}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <a
+                          href={`/players/${coach.user_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-semibold text-foreground hover:underline truncate block"
+                        >
+                          {name}
+                        </a>
+                        <p className="text-[10px] text-muted-foreground truncate">{coach.specialty}</p>
+                      </div>
+                      {invited ? (
+                        <span className="text-xs text-green-600 font-medium flex items-center gap-0.5 shrink-0">
+                          <CheckCircle2 className="h-3 w-3" /> Invité
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs shrink-0"
+                          disabled={busy}
+                          onClick={() => handleInviteCoach(coach.user_id)}
+                        >
+                          {busy ? '…' : 'Inviter'}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
           {/* Bottom actions */}
           <div className="pt-1 border-t border-border flex flex-wrap gap-2 items-center">
             {/* "Réserver un terrain" — only when no active booking and session not cancelled */}
@@ -1434,6 +1664,18 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
               >
                 <MapPin className="h-3.5 w-3.5" />
                 Réserver un terrain
+              </Button>
+            )}
+            {/* "Inviter un coach" */}
+            {!isCancelled && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleCoachInvite}
+                className={showCoachInvite ? 'bg-green-50 border-green-300 text-green-700' : ''}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {showCoachInvite ? 'Masquer' : 'Inviter un coach'}
               </Button>
             )}
             {!isCancelled && (

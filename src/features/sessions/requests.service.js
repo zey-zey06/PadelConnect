@@ -4,7 +4,16 @@ const requestsRepo = require('./requests.repository');
 const profileRepo = require('../profiles/profile.repository');
 const notificationsService = require('../notifications/notifications.service');
 
-async function createRequest(sessionId, playerId) {
+/**
+ * Create a player join request OR a creator-initiated coach invite.
+ *
+ * @param {string} sessionId
+ * @param {string} userId       - the caller (player joining, or creator inviting a coach)
+ * @param {object} opts
+ * @param {'player'|'coach'} opts.role
+ * @param {string|null}      opts.coachUserId - required when role === 'coach'
+ */
+async function createRequest(sessionId, userId, { role = 'player', coachUserId = null } = {}) {
   const session = await sessionsRepo.getById(sessionId);
   if (!session) {
     const err = new Error('Session introuvable.');
@@ -12,13 +21,47 @@ async function createRequest(sessionId, playerId) {
     throw err;
   }
 
-  if (session.creator_id === playerId) {
+  // ── Coach invite (sent by session creator) ──────────────────────────────────
+  if (role === 'coach') {
+    if (session.creator_id !== userId) {
+      const err = new Error('Seul le créateur peut inviter des coachs.');
+      err.status = 403;
+      throw err;
+    }
+    if (!coachUserId) {
+      const err = new Error('coach_user_id requis pour inviter un coach.');
+      err.status = 422;
+      throw err;
+    }
+    const existing = await requestsRepo.findBySessionAndPlayer(sessionId, coachUserId);
+    if (existing) {
+      const err = new Error('Ce coach a déjà été invité pour cette session.');
+      err.status = 409;
+      throw err;
+    }
+    const sessionRequest = await requestsRepo.create({
+      session_id:     sessionId,
+      player_id:      coachUserId,
+      role:           'coach',
+      ai_score:       null,
+      ai_explanation: null,
+    });
+    await notificationsService.createNotification(
+      coachUserId,
+      'coach_invite',
+      `Vous avez été invité à coacher une session du ${session.date} à ${session.time?.slice(0, 5)}.`
+    );
+    return sessionRequest;
+  }
+
+  // ── Player join request ─────────────────────────────────────────────────────
+  if (session.creator_id === userId) {
     const err = new Error('Vous ne pouvez pas rejoindre votre propre session.');
     err.status = 403;
     throw err;
   }
 
-  const existing = await requestsRepo.findBySessionAndPlayer(sessionId, playerId);
+  const existing = await requestsRepo.findBySessionAndPlayer(sessionId, userId);
   if (existing) {
     const err = new Error('Vous avez déjà envoyé une demande pour cette session.');
     err.status = 409;
@@ -29,7 +72,7 @@ async function createRequest(sessionId, playerId) {
   let candidateProfile = null;
   let acceptedProfiles = [];
   try {
-    candidateProfile = await profileRepo.getByUserId(playerId);
+    candidateProfile = await profileRepo.getByUserId(userId);
     const acceptedRequests = await requestsRepo.getAcceptedBySession(sessionId);
     acceptedProfiles = (
       await Promise.all(acceptedRequests.map((r) => profileRepo.getByUserId(r.player_id)))
@@ -45,9 +88,10 @@ async function createRequest(sessionId, playerId) {
   });
 
   const sessionRequest = await requestsRepo.create({
-    session_id: sessionId,
-    player_id: playerId,
-    ai_score: score,
+    session_id:     sessionId,
+    player_id:      userId,
+    role:           'player',
+    ai_score:       score,
     ai_explanation: explication,
   });
 
@@ -102,7 +146,8 @@ async function respondToRequest(sessionId, requestId, userId, status) {
   if (status === 'accepted') {
     const newCount = session.current_players + 1;
     const updatedSession = await sessionsRepo.updateCurrentPlayers(sessionId, newCount);
-    if (updatedSession.current_players >= 2) {
+    // BUG FIX: complete only when ALL spots are filled, not after just 2 players
+    if (updatedSession.current_players >= session.max_players) {
       await sessionsRepo.updateStatus(sessionId, 'complete');
       sessionBecameComplete = true;
     }
@@ -121,7 +166,7 @@ async function respondToRequest(sessionId, requestId, userId, status) {
     await notificationsService.createNotification(
       session.creator_id,
       'session_complete',
-      'Votre session est complète ! 2 joueurs confirmés.'
+      `Votre session est complète ! ${session.max_players} joueurs confirmés.`
     );
   }
 

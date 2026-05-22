@@ -36,3 +36,10 @@ export const getMySessions = () => client.get('/sessions/my');
 /** PATCH /api/sessions/:id/status { status: 'cancelled' } → { session } */
 export const cancelSession = (sessionId) =>
   client.patch(`/sessions/${sessionId}/status`, { status: 'cancelled' });
+
+/**
+ * POST /api/sessions/:id/requests { role: 'coach', coach_user_id }
+ * Creator invites a coach to the session.
+ */
+export const inviteCoach = (sessionId, coachUserId) =>
+  client.post(`/sessions/${sessionId}/requests`, { role: 'coach', coach_user_id: coachUserId });

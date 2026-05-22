@@ -311,15 +311,16 @@ describe('PATCH /api/sessions/:id/requests/:requestId', () => {
     expect(res.body.sessionRequest.status).toBe('accepted');
   });
 
-  it('CU-06: accept triggers session complete when current_players reaches 2', async () => {
-    const sessionWith1Player = { ...SESSION, current_players: 1 };
+  it('CU-06: accept triggers session complete only when current_players reaches max_players', async () => {
+    // max_players: 2, current_players: 1 — accepting this request fills the session
+    const sessionWith1Player = { ...SESSION, max_players: 2, current_players: 1 };
     qb.first
       .mockResolvedValueOnce(sessionWith1Player)
       .mockResolvedValueOnce(SESSION_REQUEST);
     qb.returning
-      .mockResolvedValueOnce([{ ...SESSION_REQUEST, status: 'accepted' }])  // updateStatus
-      .mockResolvedValueOnce([{ ...SESSION, current_players: 2 }])           // updateCurrentPlayers
-      .mockResolvedValueOnce([{ ...SESSION, current_players: 2, status: 'complete' }]); // updateStatus
+      .mockResolvedValueOnce([{ ...SESSION_REQUEST, status: 'accepted' }])
+      .mockResolvedValueOnce([{ ...SESSION, max_players: 2, current_players: 2 }])
+      .mockResolvedValueOnce([{ ...SESSION, max_players: 2, current_players: 2, status: 'complete' }]);
 
     const res = await request(app)
       .patch(`/api/sessions/${SESSION.id}/requests/${SESSION_REQUEST.id}`)
@@ -328,6 +329,29 @@ describe('PATCH /api/sessions/:id/requests/:requestId', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.sessionRequest.status).toBe('accepted');
+  });
+
+  it('CU-06: accept does NOT trigger complete when current_players < max_players', async () => {
+    // max_players: 4, current_players: 1 — 2 players is NOT complete
+    const sessionWith1Player = { ...SESSION, max_players: 4, current_players: 1 };
+    qb.first
+      .mockResolvedValueOnce(sessionWith1Player)
+      .mockResolvedValueOnce(SESSION_REQUEST);
+    qb.returning
+      .mockResolvedValueOnce([{ ...SESSION_REQUEST, status: 'accepted' }])
+      .mockResolvedValueOnce([{ ...SESSION, max_players: 4, current_players: 2 }]);
+    // No third returning — updateStatus should NOT be called
+
+    const res = await request(app)
+      .patch(`/api/sessions/${SESSION.id}/requests/${SESSION_REQUEST.id}`)
+      .set('Cookie', `token=${CREATOR_TOKEN}`)
+      .send({ status: 'accepted' });
+
+    expect(res.status).toBe(200);
+    // Verify updateStatus (complete) was NOT called: only 3 returning() calls expected
+    // (1: updateStatus request, 2: updateCurrentPlayers, 3: player notification)
+    // A 4th call would mean sessionsRepo.updateStatus('complete') fired — that's the bug
+    expect(qb.returning).toHaveBeenCalledTimes(3);
   });
 
   it('CU-06: creator refuses request — 200', async () => {
@@ -386,5 +410,81 @@ describe('PATCH /api/sessions/:id/requests/:requestId', () => {
       .send({ status: 'accepted' });
 
     expect(res.status).toBe(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/sessions/:id/requests — coach invite (role: 'coach')
+// DB call order (creator invites coach):
+//   first()     → sessionsRepo.getById
+//   first()     → requestsRepo.findBySessionAndPlayer (dup check)
+//   returning() → requestsRepo.create (insert session_request role='coach')
+//   (notification — fire-and-forget)
+// ---------------------------------------------------------------------------
+describe('POST /api/sessions/:id/requests — coach invite', () => {
+  const COACH_ID = 'eeeeeeee-0000-0000-0000-000000000099';
+
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); mockGenerateContent.mockReset(); });
+
+  it('CU-06: creator invites coach — 201', async () => {
+    qb.first
+      .mockResolvedValueOnce(SESSION)   // session exists, creator_id === CREATOR_ID
+      .mockResolvedValueOnce(null);     // no existing invite
+    qb.returning.mockResolvedValueOnce([{
+      ...SESSION_REQUEST, player_id: COACH_ID, role: 'coach', ai_score: null,
+    }]);
+
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/requests`)
+      .set('Cookie', `token=${CREATOR_TOKEN}`)
+      .send({ role: 'coach', coach_user_id: COACH_ID });
+
+    expect(res.status).toBe(201);
+    expect(res.body.sessionRequest).toBeDefined();
+  });
+
+  it('CU-06: non-creator invites coach — 403', async () => {
+    qb.first.mockResolvedValueOnce(SESSION); // creator_id !== PLAYER_ID
+
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/requests`)
+      .set('Cookie', `token=${PLAYER_TOKEN}`)
+      .send({ role: 'coach', coach_user_id: COACH_ID });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('CU-06: duplicate coach invite — 409', async () => {
+    qb.first
+      .mockResolvedValueOnce(SESSION)
+      .mockResolvedValueOnce(SESSION_REQUEST); // existing invite found
+
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/requests`)
+      .set('Cookie', `token=${CREATOR_TOKEN}`)
+      .send({ role: 'coach', coach_user_id: COACH_ID });
+
+    expect(res.status).toBe(409);
+  });
+
+  it('CU-06: invite coach without coach_user_id — 422', async () => {
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/requests`)
+      .set('Cookie', `token=${CREATOR_TOKEN}`)
+      .send({ role: 'coach' }); // missing coach_user_id
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('Validation Error');
+  });
+
+  it('CU-06: player_id in body when role=player — 422', async () => {
+    // coach_user_id is forbidden when role is player
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/requests`)
+      .set('Cookie', `token=${PLAYER_TOKEN}`)
+      .send({ role: 'player', coach_user_id: COACH_ID });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('Validation Error');
   });
 });

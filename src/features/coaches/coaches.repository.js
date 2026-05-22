@@ -1,17 +1,27 @@
 const db = require('../../db');
 
 async function listAvailable(filters = {}) {
-  let query = db('coach_profiles').whereNull('deleted_at');
+  let query = db('coach_profiles')
+    .join('users', 'coach_profiles.user_id', 'users.id')
+    .leftJoin('player_profiles', 'users.id', 'player_profiles.user_id')
+    .whereNull('coach_profiles.deleted_at');
 
   if (filters.clubId) {
     query = query.where(function () {
-      this.where('is_independent', true).orWhere('organization_id', filters.clubId);
+      this.where('coach_profiles.is_independent', true)
+          .orWhere('coach_profiles.organization_id', filters.clubId);
     });
   } else {
-    query = query.where('is_independent', true);
+    query = query.where('coach_profiles.is_independent', true);
   }
 
-  return query.select();
+  return query.select(
+    'coach_profiles.*',
+    'users.first_name as user_first_name',
+    'users.last_name  as user_last_name',
+    'users.email      as user_email',
+    'player_profiles.photo_url as user_photo_url',
+  );
 }
 
 async function getById(id) {
@@ -28,10 +38,18 @@ async function updateAvailability(id, availability) {
 
 async function getByOrg(organizationId) {
   return db('coach_profiles')
-    .where({ organization_id: organizationId })
-    .whereNull('deleted_at')
-    .orderBy('created_at', 'asc')
-    .select();
+    .join('users', 'coach_profiles.user_id', 'users.id')
+    .leftJoin('player_profiles', 'users.id', 'player_profiles.user_id')
+    .where('coach_profiles.organization_id', organizationId)
+    .whereNull('coach_profiles.deleted_at')
+    .orderBy('coach_profiles.created_at', 'asc')
+    .select(
+      'coach_profiles.*',
+      'users.first_name as user_first_name',
+      'users.last_name  as user_last_name',
+      'users.email      as user_email',
+      'player_profiles.photo_url as user_photo_url',
+    );
 }
 
 async function getCoachUser(userId) {

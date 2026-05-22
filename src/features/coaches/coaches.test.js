@@ -19,6 +19,7 @@ jest.mock('../../db', () => {
     whereNull: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     join: jest.fn().mockReturnThis(),
+    leftJoin: jest.fn().mockReturnThis(),
     select: jest.fn(),
     first: jest.fn(),
     insert: jest.fn().mockReturnThis(),
@@ -83,6 +84,7 @@ function resetQb() {
   qb.whereNull.mockReturnThis();
   qb.orderBy.mockReturnThis();
   qb.join.mockReturnThis();
+  qb.leftJoin.mockReturnThis();
   qb.insert.mockReturnThis();
   qb.update.mockReturnThis();
   qb.select.mockReset();
