@@ -289,7 +289,7 @@ export default function VenueManager() {
           <p className="text-sm text-muted-foreground">Votre compte gérant n'est pas encore rattaché à un club.</p>
         </div>
       ) : loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {[1, 2, 3, 4].map((i) => <VenueCardSkeleton key={i} />)}
         </div>
       ) : venues.length === 0 ? (
@@ -305,7 +305,7 @@ export default function VenueManager() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {venues.map((v) => <VenueCard key={v.id} venue={v} />)}
         </div>
       )}
