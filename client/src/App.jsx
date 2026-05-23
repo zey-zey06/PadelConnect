@@ -44,6 +44,16 @@ export function LoadingScreen() {
 }
 
 // ── Route guards ──────────────────────────────────────────────────────────────
+
+// Returns the role-correct home URL for an authenticated user.
+export function homeFor(user) {
+  if (user.role === 'venue_admin') return user.organization_id ? '/manager/dashboard' : '/manager/setup';
+  if (user.role === 'coach')       return '/coach/dashboard';
+  if (user.role === 'super_admin') return '/admin/dashboard';
+  return '/sessions';
+}
+
+// Any authenticated user.
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
@@ -51,14 +61,7 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// Returns the correct home URL for an authenticated user based on their role.
-function homeFor(user) {
-  if (user.role === 'venue_admin') return user.organization_id ? '/manager/dashboard' : '/manager/setup';
-  if (user.role === 'coach')       return '/coach/dashboard';
-  if (user.role === 'super_admin') return '/admin/dashboard';
-  return '/sessions';
-}
-
+// Unauthenticated only — authenticated users go to their role home.
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
@@ -66,23 +69,58 @@ function PublicRoute({ children }) {
   return children;
 }
 
-// Auth required; venue_admin is bounced to their dashboard instead of the player area.
+// player + coach only — venue_admin and super_admin are sent to their home.
 function PlayerRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading)                     return <LoadingScreen />;
-  if (!user)                       return <Navigate to="/login"         replace />;
-  if (user.role === 'venue_admin') return <Navigate to={homeFor(user)} replace />;
+  if (loading) return <LoadingScreen />;
+  if (!user)   return <Navigate to="/login" replace />;
+  if (user.role === 'venue_admin' || user.role === 'super_admin')
+    return <Navigate to={homeFor(user)} replace />;
   return children;
 }
 
-// Requires auth + venue_admin role + existing organization; redirects to setup if org missing.
+// coach only.
+function CoachRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading)                return <LoadingScreen />;
+  if (!user)                  return <Navigate to="/login"        replace />;
+  if (user.role !== 'coach')  return <Navigate to={homeFor(user)} replace />;
+  return children;
+}
+
+// venue_admin only, no org required (for /manager/setup).
+function ManagerSetupRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading)                        return <LoadingScreen />;
+  if (!user)                          return <Navigate to="/login"        replace />;
+  if (user.role !== 'venue_admin')    return <Navigate to={homeFor(user)} replace />;
+  return children;
+}
+
+// venue_admin + org required.
 function ManagerRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading)                        return <LoadingScreen />;
-  if (!user)                          return <Navigate to="/login"           replace />;
-  if (user.role !== 'venue_admin')    return <Navigate to="/sessions"        replace />;
-  if (!user.organization_id)          return <Navigate to="/manager/setup"   replace />;
+  if (!user)                          return <Navigate to="/login"         replace />;
+  if (user.role !== 'venue_admin')    return <Navigate to={homeFor(user)}  replace />;
+  if (!user.organization_id)          return <Navigate to="/manager/setup" replace />;
   return children;
+}
+
+// super_admin only.
+function AdminRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading)                          return <LoadingScreen />;
+  if (!user)                            return <Navigate to="/login"        replace />;
+  if (user.role !== 'super_admin')      return <Navigate to={homeFor(user)} replace />;
+  return children;
+}
+
+// Sends authenticated users to their role home; unauthenticated to /login.
+function DefaultRedirect() {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  return <Navigate to={user ? homeFor(user) : '/login'} replace />;
 }
 
 // ── Root app ──────────────────────────────────────────────────────────────────
@@ -151,84 +189,40 @@ export default function App() {
             }
           />
 
-          {/* ── Main app — auth + layout ────────────────────────────── */}
-          <Route
-            path="/dashboard"
-            element={<Navigate to="/sessions" replace />}
-          />
-          <Route
-            path="/sessions"
-            element={<ProtectedRoute><Layout><Sessions /></Layout></ProtectedRoute>}
-          />
-          <Route
-            path="/calendar"
-            element={<ProtectedRoute><Layout><Calendar /></Layout></ProtectedRoute>}
-          />
-          <Route
-            path="/history"
-            element={<ProtectedRoute><Layout><History /></Layout></ProtectedRoute>}
-          />
-          <Route
-            path="/clubs"
-            element={<ProtectedRoute><Layout><Clubs /></Layout></ProtectedRoute>}
-          />
-          <Route
-            path="/clubs/:id"
-            element={<ProtectedRoute><Layout><ClubProfile /></Layout></ProtectedRoute>}
-          />
-          <Route
-            path="/notifications"
-            element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>}
-          />
-          <Route
-            path="/profile"
-            element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>}
-          />
-          <Route
-            path="/players/:userId"
-            element={<ProtectedRoute><Layout><PlayerProfile /></Layout></ProtectedRoute>}
-          />
-          <Route
-            path="/coach/dashboard"
-            element={<ProtectedRoute><Layout><CoachDashboard /></Layout></ProtectedRoute>}
-          />
-          {/* ── Manager — setup (no org required) ──────────────── */}
-          <Route
-            path="/manager/setup"
-            element={<ProtectedRoute><ClubSetup /></ProtectedRoute>}
-          />
+          {/* ── Player + coach routes ───────────────────────────────── */}
+          <Route path="/dashboard" element={<DefaultRedirect />} />
+          <Route path="/sessions"  element={<PlayerRoute><Layout><Sessions /></Layout></PlayerRoute>} />
+          <Route path="/calendar"  element={<PlayerRoute><Layout><Calendar /></Layout></PlayerRoute>} />
+          <Route path="/history"   element={<PlayerRoute><Layout><History /></Layout></PlayerRoute>} />
+          <Route path="/clubs"     element={<PlayerRoute><Layout><Clubs /></Layout></PlayerRoute>} />
+          <Route path="/clubs/:id" element={<PlayerRoute><Layout><ClubProfile /></Layout></PlayerRoute>} />
+          <Route path="/profile"   element={<PlayerRoute><Layout><Profile /></Layout></PlayerRoute>} />
+          <Route path="/players/:userId" element={<PlayerRoute><Layout><PlayerProfile /></Layout></PlayerRoute>} />
 
-          {/* ── Manager — org required ──────────────────────────── */}
-          <Route
-            path="/manager/dashboard"
-            element={<ManagerRoute><Layout><ManagerDashboard /></Layout></ManagerRoute>}
-          />
-          <Route
-            path="/manager/venues"
-            element={<Navigate to="/manager/dashboard" replace />}
-          />
-          <Route
-            path="/manager/venues/:venueId/slots"
-            element={<ManagerRoute><Layout><SlotManager /></Layout></ManagerRoute>}
-          />
-          <Route
-            path="/manager/profile"
-            element={<ManagerRoute><Layout><ManagerProfile /></Layout></ManagerRoute>}
-          />
-          <Route
-            path="/admin/dashboard"
-            element={<ProtectedRoute><Layout><AdminDashboard /></Layout></ProtectedRoute>}
-          />
-          <Route
-            path="/admin/profile"
-            element={<ProtectedRoute><Layout><AdminProfile /></Layout></ProtectedRoute>}
-          />
+          {/* ── Shared (all authenticated roles) ────────────────────── */}
+          <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
 
-          {/* ── Landing page — public ───────────────────────────────── */}
+          {/* ── Coach ───────────────────────────────────────────────── */}
+          <Route path="/coach/dashboard" element={<CoachRoute><Layout><CoachDashboard /></Layout></CoachRoute>} />
+
+          {/* ── Manager — setup (venue_admin, no org required) ──────── */}
+          <Route path="/manager/setup" element={<ManagerSetupRoute><ClubSetup /></ManagerSetupRoute>} />
+
+          {/* ── Manager — org required ──────────────────────────────── */}
+          <Route path="/manager/dashboard"           element={<ManagerRoute><Layout><ManagerDashboard /></Layout></ManagerRoute>} />
+          <Route path="/manager/venues"              element={<Navigate to="/manager/dashboard" replace />} />
+          <Route path="/manager/venues/:venueId/slots" element={<ManagerRoute><Layout><SlotManager /></Layout></ManagerRoute>} />
+          <Route path="/manager/profile"             element={<ManagerRoute><Layout><ManagerProfile /></Layout></ManagerRoute>} />
+
+          {/* ── Admin — super_admin only ─────────────────────────────── */}
+          <Route path="/admin/dashboard" element={<AdminRoute><Layout><AdminDashboard /></Layout></AdminRoute>} />
+          <Route path="/admin/profile"   element={<AdminRoute><Layout><AdminProfile /></Layout></AdminRoute>} />
+
+          {/* ── Landing — public ────────────────────────────────────── */}
           <Route path="/" element={<Landing />} />
 
-          {/* ── Default redirects ────────────────────────────────────── */}
-          <Route path="*" element={<Navigate to="/sessions" replace />} />
+          {/* ── Catch-all: role-aware redirect ──────────────────────── */}
+          <Route path="*" element={<DefaultRedirect />} />
         </Routes>
       </BrowserRouter>
     </AuthContext.Provider>

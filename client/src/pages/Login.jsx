@@ -1,19 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/App';
+import { useAuth, homeFor } from '@/App';
 import { login }       from '@/api/auth';
 import { getProfile }  from '@/api/profile';
 import { Button }   from '@/components/ui/button';
 import { Input }    from '@/components/ui/input';
 import { Label }    from '@/components/ui/label';
 import { AlertCircle, Mail } from 'lucide-react';
-
-// ── Role → redirect map ───────────────────────────────────────────────────────
-const ROLE_REDIRECTS = {
-  coach:       '/coach/dashboard',
-  venue_admin: '/manager/dashboard',
-  super_admin: '/admin/dashboard',
-};
 
 // ── Banners ───────────────────────────────────────────────────────────────────
 function ErrorBanner({ message }) {
@@ -72,30 +65,21 @@ export default function Login() {
 
       setUser(data.user);
 
-      // venue_admin: go to setup if no club yet, otherwise dashboard
-      if (role === 'venue_admin') {
-        navigate(
-          data.user.organization_id ? '/manager/dashboard' : '/manager/setup',
-          { replace: true }
-        );
+      // Players: check if they have a profile yet
+      if (role === 'player') {
+        try {
+          const { profile } = await getProfile();
+          setProfile(profile);
+          navigate(profile ? '/sessions' : '/profile/setup', { replace: true });
+        } catch {
+          setProfile(null);
+          navigate('/profile/setup', { replace: true });
+        }
         return;
       }
 
-      // Other non-player roles go straight to their dashboard
-      if (ROLE_REDIRECTS[role]) {
-        navigate(ROLE_REDIRECTS[role], { replace: true });
-        return;
-      }
-
-      // Players: check profile first
-      try {
-        const { profile } = await getProfile();
-        setProfile(profile);
-        navigate(profile ? '/dashboard' : '/profile/setup', { replace: true });
-      } catch {
-        setProfile(null);
-        navigate('/profile/setup', { replace: true });
-      }
+      // All other roles — use the canonical home mapping
+      navigate(homeFor(data.user), { replace: true });
     } catch (err) {
       if (err.data?.code === 'EMAIL_NOT_VERIFIED') {
         setUnverified(true);
