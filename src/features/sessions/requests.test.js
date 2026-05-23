@@ -71,6 +71,7 @@ const SESSION_REQUEST = {
   id: 'eeeeeeee-0000-0000-0000-000000000001',
   session_id: SESSION.id,
   player_id: PLAYER_ID,
+  role: 'player',
   status: 'pending',
   ai_score: 75,
   ai_explanation: 'Bonne compatibilité.',
@@ -402,6 +403,27 @@ describe('PATCH /api/sessions/:id/requests/:requestId', () => {
 
     expect(res.status).toBe(422);
     expect(res.body.error).toBe('Validation Error');
+  });
+
+  it('CU-06: accept coach request — does NOT increment current_players, not counted as player', async () => {
+    const COACH_ID = 'cccccccc-0000-0000-0000-000000000003';
+    const COACH_REQUEST = { ...SESSION_REQUEST, player_id: COACH_ID, role: 'coach' };
+    // Session has 1 player, max 2 — accepting a coach must NOT trigger complete
+    const sessionWith1Player = { ...SESSION, current_players: 1, max_players: 2 };
+    qb.first
+      .mockResolvedValueOnce(sessionWith1Player)
+      .mockResolvedValueOnce(COACH_REQUEST);
+    qb.returning
+      .mockResolvedValueOnce([{ ...COACH_REQUEST, status: 'accepted' }]);
+
+    const res = await request(app)
+      .patch(`/api/sessions/${SESSION.id}/requests/${SESSION_REQUEST.id}`)
+      .set('Cookie', `token=${CREATOR_TOKEN}`)
+      .send({ status: 'accepted' });
+
+    expect(res.status).toBe(200);
+    // Only updateStatus(request) + notification — no updateCurrentPlayers, no updateStatus(complete)
+    expect(qb.returning).toHaveBeenCalledTimes(2);
   });
 
   it('CU-06: respond without auth — 401', async () => {
