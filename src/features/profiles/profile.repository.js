@@ -46,4 +46,26 @@ async function upsert(userId, data) {
   return deserialize(row);
 }
 
-module.exports = { getByUserId, upsert };
+/**
+ * Return all player profiles excluding the given user IDs.
+ * Used by the AI find-matches endpoint to get eligible candidates.
+ */
+async function getEligibleForSession(excludeUserIds = []) {
+  let query = db('player_profiles')
+    .join('users', 'player_profiles.user_id', 'users.id')
+    .whereNull('player_profiles.deleted_at');
+
+  if (excludeUserIds.length) {
+    query = query.whereNotIn('player_profiles.user_id', excludeUserIds);
+  }
+
+  const rows = await query.select(
+    'player_profiles.*',
+    'users.email          as user_email',
+    'users.first_name     as user_first_name',
+    'users.last_name      as user_last_name',
+  );
+  return rows.map(deserialize);
+}
+
+module.exports = { getByUserId, upsert, getEligibleForSession };

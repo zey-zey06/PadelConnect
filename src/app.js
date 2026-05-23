@@ -20,6 +20,7 @@ const notificationsRouter = require('./features/notifications/notifications.cont
 const adminDashboardRouter = require('./features/admin/admin.controller');
 const calendarRouter = require('./features/calendar/calendar.controller');
 const managerRouter  = require('./features/manager/manager.controller');
+const aiRouter       = require('./features/ai/ai.controller');
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use('/api/admin', adminDashboardRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/calendar', calendarRouter);
 app.use('/api/manager', managerRouter);
+app.use('/api/ai',      aiRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';

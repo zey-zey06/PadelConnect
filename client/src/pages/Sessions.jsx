@@ -7,6 +7,7 @@ import {
 import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
 import { listClubs, getClubSlots, getClubCoaches, getClubBallPickers } from '@/api/clubs';
 import { listCoaches } from '@/api/coaches';
+import { findMatches as aiFindMatches } from '@/api/ai';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1491,6 +1492,12 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
   const [invitedCoachIds,  setInvitedCoachIds]  = useState(new Set());
   const [invitingCoachId,  setInvitingCoachId]  = useState(null);
 
+  // AI find-matches
+  const [showAiMatches,  setShowAiMatches]  = useState(false);
+  const [aiMatches,      setAiMatches]      = useState(null);
+  const [loadingAi,      setLoadingAi]      = useState(false);
+  const [aiError,        setAiError]        = useState(null);
+
   async function toggleCoachInvite() {
     if (showCoachInvite) { setShowCoachInvite(false); return; }
     setShowCoachInvite(true);
@@ -1503,6 +1510,23 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
       setCoachList([]);
     } finally {
       setLoadingCoachList(false);
+    }
+  }
+
+  async function toggleFindMatches() {
+    if (showAiMatches) { setShowAiMatches(false); return; }
+    setShowAiMatches(true);
+    if (aiMatches !== null) return; // already loaded
+    setLoadingAi(true);
+    setAiError(null);
+    try {
+      const { matches } = await aiFindMatches(session.id);
+      setAiMatches(matches ?? []);
+    } catch (e) {
+      setAiError(e.message || 'Erreur lors de la recherche.');
+      setAiMatches([]);
+    } finally {
+      setLoadingAi(false);
     }
   }
 
@@ -1747,6 +1771,55 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
             </div>
           )}
 
+          {/* AI find-matches panel */}
+          {showAiMatches && !isCancelled && (
+            <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-2">
+              <p className="text-xs font-semibold text-foreground flex items-center gap-1">
+                <Sparkles className="h-3.5 w-3.5 text-primary" /> Joueurs recommandés par l'IA
+              </p>
+              {loadingAi ? (
+                <div className="space-y-1.5">
+                  {[1, 2, 3].map((i) => <div key={i} className="h-10 rounded-lg bg-muted animate-pulse" />)}
+                </div>
+              ) : aiError ? (
+                <p className="text-xs text-red-600">{aiError}</p>
+              ) : aiMatches?.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Aucun joueur disponible pour l'instant.</p>
+              ) : (
+                aiMatches.map((m) => {
+                  const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || 'Joueur';
+                  return (
+                    <div key={m.userId} className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-full overflow-hidden bg-muted shrink-0">
+                        {m.photo ? (
+                          <img src={m.photo} alt={name} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center bg-primary/10">
+                            <span className="text-[10px] font-bold text-primary">{name.slice(0, 2).toUpperCase()}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <a
+                          href={`/players/${m.userId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-semibold text-foreground hover:underline truncate block"
+                        >
+                          {name}
+                        </a>
+                        <p className="text-[10px] text-muted-foreground truncate">{m.explanation}</p>
+                      </div>
+                      <span className="shrink-0 text-xs font-bold text-primary bg-primary/10 rounded-full px-2 py-0.5">
+                        {m.score}%
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
           {/* Bottom actions */}
           <div className="pt-1 border-t border-border flex flex-wrap gap-2 items-center">
             {/* "Réserver un terrain" — only when no active booking and session not cancelled */}
@@ -1770,6 +1843,18 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 {showCoachInvite ? 'Masquer' : 'Inviter un coach'}
+              </Button>
+            )}
+            {/* "Trouver des joueurs IA" — only when session is open and not full */}
+            {!isCancelled && session.status === 'open' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleFindMatches}
+                className={showAiMatches ? 'bg-primary/5 border-primary/40 text-primary' : ''}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {showAiMatches ? 'Masquer les suggestions' : 'Trouver des joueurs'}
               </Button>
             )}
             {!isCancelled && (
