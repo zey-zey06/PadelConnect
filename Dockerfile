@@ -32,6 +32,6 @@ COPY supervisord.conf /etc/supervisord.conf
 # Uploads directory
 RUN mkdir -p /app/uploads
 
-EXPOSE 8080
+EXPOSE 10000
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
