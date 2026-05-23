@@ -5,7 +5,10 @@ import {
   AlertCircle, Clock, ArrowLeft, Trash2, Pencil,
 } from 'lucide-react';
 import { useAuth } from '@/App';
-import { getVenueSlots, addSlot, cancelSlot, updateSlot, bulkUpdateSlotPrice, getMyVenues, fillVenueSlots } from '@/api/manager';
+import {
+  getVenueSlots, addSlot, cancelSlot, updateSlot,
+  bulkUpdateSlotPrice, getMyVenues, fillVenueSlots,
+} from '@/api/manager';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,9 +39,9 @@ function formatDay(d) {
 // ── Status badge ──────────────────────────────────────────────────────────────
 function SlotBadge({ status }) {
   const map = {
-    available: { label: 'Disponible', cls: 'bg-green-50 text-green-700 border-green-200'   },
-    booked:    { label: 'Réservé',    cls: 'bg-blue-50 text-blue-700 border-blue-200'       },
-    cancelled: { label: 'Annulé',     cls: 'bg-muted text-muted-foreground border-border'   },
+    available: { label: 'Disponible', cls: 'bg-green-50 text-green-700 border-green-200' },
+    booked:    { label: 'Réservé',    cls: 'bg-blue-50 text-blue-700 border-blue-200'    },
+    cancelled: { label: 'Annulé',     cls: 'bg-muted text-muted-foreground border-border' },
   };
   const { label, cls } = map[status] ?? map.available;
   return (
@@ -102,58 +105,41 @@ function AddSlotModal({ venueId, onClose, onCreated }) {
               <AlertCircle className="h-4 w-4 shrink-0" />{error}
             </div>
           )}
-
           <div className="space-y-1.5">
             <Label htmlFor="s-date">Date</Label>
             <Input
-              id="s-date"
-              type="date"
-              value={form.date}
+              id="s-date" type="date" value={form.date} autoFocus
               onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-              autoFocus
             />
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="s-start">Heure de début</Label>
               <Input
-                id="s-start"
-                type="time"
-                value={form.start_time}
+                id="s-start" type="time" value={form.start_time}
                 onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="s-end">Heure de fin</Label>
               <Input
-                id="s-end"
-                type="time"
-                value={form.end_time}
+                id="s-end" type="time" value={form.end_time}
                 onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))}
               />
             </div>
           </div>
-
           <div className="space-y-1.5">
             <Label htmlFor="s-price">
               Prix (FCFA){' '}
               <span className="font-normal text-muted-foreground">(optionnel)</span>
             </Label>
             <Input
-              id="s-price"
-              type="number"
-              min="0"
-              placeholder="ex: 5000"
-              value={form.price}
+              id="s-price" type="number" min="0" placeholder="ex: 5000" value={form.price}
               onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
             />
           </div>
-
           <div className="flex gap-3 pt-1">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
-              Annuler
-            </Button>
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1">Annuler</Button>
             <Button type="submit" disabled={loading} className="flex-1">
               {loading ? 'Création…' : 'Créer le créneau'}
             </Button>
@@ -185,14 +171,8 @@ function CancelConfirmDialog({ slot, onConfirm, onClose, loading }) {
           </div>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={onClose} disabled={loading} className="flex-1">
-            Garder
-          </Button>
-          <Button
-            onClick={onConfirm}
-            disabled={loading}
-            className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-          >
+          <Button variant="outline" onClick={onClose} disabled={loading} className="flex-1">Garder</Button>
+          <Button onClick={onConfirm} disabled={loading} className="flex-1 bg-red-600 hover:bg-red-700 text-white">
             {loading ? 'Annulation…' : 'Annuler le créneau'}
           </Button>
         </div>
@@ -203,9 +183,9 @@ function CancelConfirmDialog({ slot, onConfirm, onClose, loading }) {
 
 // ── Slot row ──────────────────────────────────────────────────────────────────
 function SlotRow({ slot, venueId, onCancel, onPriceUpdated }) {
-  const [editing,   setEditing]   = useState(false);
-  const [priceVal,  setPriceVal]  = useState('');
-  const [saving,    setSaving]    = useState(false);
+  const [editing,  setEditing]  = useState(false);
+  const [priceVal, setPriceVal] = useState('');
+  const [saving,   setSaving]   = useState(false);
 
   function startEdit() {
     setPriceVal(String(slot.price ?? 0));
@@ -247,12 +227,9 @@ function SlotRow({ slot, venueId, onCancel, onPriceUpdated }) {
         <div className="flex items-center gap-2 pl-11">
           <div className="relative">
             <Input
-              type="number"
-              min="0"
-              value={priceVal}
-              onChange={(e) => setPriceVal(e.target.value)}
+              type="number" min="0" value={priceVal} autoFocus
               className="w-36 pr-14 h-8 text-sm"
-              autoFocus
+              onChange={(e) => setPriceVal(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter')  save(false);
                 if (e.key === 'Escape') setEditing(false);
@@ -263,16 +240,14 @@ function SlotRow({ slot, venueId, onCancel, onPriceUpdated }) {
             </span>
           </div>
           <button
-            onClick={() => save(false)}
-            disabled={saving}
+            onClick={() => save(false)} disabled={saving}
             className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-50 transition-colors"
             title="Enregistrer"
           >
             <Check className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={() => setEditing(false)}
-            disabled={saving}
+            onClick={() => setEditing(false)} disabled={saving}
             className="h-8 w-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted disabled:opacity-50 transition-colors"
             title="Annuler"
           >
@@ -280,8 +255,7 @@ function SlotRow({ slot, venueId, onCancel, onPriceUpdated }) {
           </button>
         </div>
         <button
-          onClick={() => save(true)}
-          disabled={saving}
+          onClick={() => save(true)} disabled={saving}
           className="pl-11 text-xs text-primary hover:underline disabled:opacity-50 transition-opacity"
         >
           Appliquer à tous les créneaux {slot.start_time?.slice(0, 5)}–{slot.end_time?.slice(0, 5)}
@@ -315,8 +289,7 @@ function SlotRow({ slot, venueId, onCancel, onPriceUpdated }) {
               <>
                 <Link
                   to={`/players/${slot.booked_by_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  target="_blank" rel="noopener noreferrer"
                   className="hover:text-primary hover:underline transition-colors"
                 >
                   {(slot.booked_by_first_name || slot.booked_by_last_name)
@@ -356,10 +329,16 @@ function SlotRow({ slot, venueId, onCancel, onPriceUpdated }) {
 
 // ── SlotManager page ──────────────────────────────────────────────────────────
 export default function SlotManager() {
-  const { venueId } = useParams();
-  const { user }    = useAuth();
+  const { venueId: urlVenueId } = useParams();
+  const { user } = useAuth();
 
-  const [venueName,    setVenueName]    = useState('');
+  // All venues for the tab bar
+  const [venues,        setVenues]        = useState([]);
+  const [venuesLoading, setVenuesLoading] = useState(true);
+
+  // Active venue — starts from URL param, switches via tabs without navigation
+  const [activeVenueId, setActiveVenueId] = useState(urlVenueId);
+
   const [slots,        setSlots]        = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
@@ -367,6 +346,9 @@ export default function SlotManager() {
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelling,   setCancelling]   = useState(false);
   const [weekStart,    setWeekStart]    = useState(() => getWeekStart(new Date()));
+
+  // Derived venue name from the loaded list
+  const activeName = venues.find((v) => String(v.id) === String(activeVenueId))?.name ?? '';
 
   // Build the 7 days of the displayed week
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -381,31 +363,38 @@ export default function SlotManager() {
     return `${s.getDate()} ${MONTH_LABELS[s.getMonth()]} – ${e.getDate()} ${MONTH_LABELS[e.getMonth()]} ${e.getFullYear()}`;
   })();
 
-  // Resolve venue name from the club's venue list
+  // Fetch all venues once for the tab bar
   useEffect(() => {
-    if (!user?.organization_id) return;
+    if (!user?.organization_id) { setVenuesLoading(false); return; }
     getMyVenues(user.organization_id)
-      .then(({ venues }) => {
-        const v = (venues ?? []).find((x) => String(x.id) === String(venueId));
-        if (v) setVenueName(v.name);
+      .then(({ venues: v }) => {
+        const list = v ?? [];
+        setVenues(list);
+        // If URL venue isn't in the list, default to first
+        if (list.length && !list.find((x) => String(x.id) === String(urlVenueId))) {
+          setActiveVenueId(list[0].id);
+        }
       })
-      .catch(() => {});
-  }, [venueId, user?.organization_id]);
+      .catch(() => {})
+      .finally(() => setVenuesLoading(false));
+  }, [user?.organization_id, urlVenueId]);
 
-  // Load all slots — auto-generate defaults if the venue has none
+  // Load slots for the active venue — auto-generate if empty
   const load = useCallback(async () => {
+    if (!activeVenueId) return;
     setLoading(true);
     setError(null);
+    setSlots([]);
     try {
-      const res = await getVenueSlots(venueId);
+      const res = await getVenueSlots(activeVenueId);
       let loaded = res.slots ?? [];
       if (loaded.length === 0) {
         try {
-          await fillVenueSlots(venueId);
-          const res2 = await getVenueSlots(venueId);
+          await fillVenueSlots(activeVenueId);
+          const res2 = await getVenueSlots(activeVenueId);
           loaded = res2.slots ?? [];
         } catch {
-          // Non-fatal — just show empty state
+          // Non-fatal — show empty state
         }
       }
       setSlots(loaded);
@@ -414,13 +403,11 @@ export default function SlotManager() {
     } finally {
       setLoading(false);
     }
-  }, [venueId]);
+  }, [activeVenueId]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Filter + group slots for the current week.
-  // PostgreSQL date columns arrive as full ISO strings ("2026-05-22T00:00:00.000Z"),
-  // so we normalise to "YYYY-MM-DD" before comparing and keying into slotsByDay.
+  // Filter + group slots for the current week
   const weekStartStr = toISODate(weekStart);
   const weekEndStr   = toISODate(weekDays[6]);
 
@@ -443,7 +430,7 @@ export default function SlotManager() {
     if (!cancelTarget) return;
     setCancelling(true);
     try {
-      await cancelSlot(venueId, cancelTarget.id);
+      await cancelSlot(activeVenueId, cancelTarget.id);
       setSlots((prev) =>
         prev.map((s) => (s.id === cancelTarget.id ? { ...s, status: 'cancelled' } : s))
       );
@@ -470,7 +457,7 @@ export default function SlotManager() {
   const today = toISODate(new Date());
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
 
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
@@ -484,7 +471,7 @@ export default function SlotManager() {
           </Link>
           <p className="text-xs font-medium uppercase tracking-widest text-primary mb-1">Espace gérant</p>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            {venueName || 'Créneaux'}
+            {activeName || 'Créneaux'}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Gérez les créneaux de disponibilité.
@@ -494,6 +481,37 @@ export default function SlotManager() {
           <Plus className="h-4 w-4" />
           Ajouter un créneau
         </Button>
+      </div>
+
+      {/* Venue tab bar */}
+      <div
+        className={cn(
+          'flex overflow-x-auto gap-1 rounded-xl border border-border bg-card p-1.5',
+          '[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]',
+        )}
+      >
+        {venuesLoading ? (
+          [1, 2, 3].map((i) => (
+            <div key={i} className="h-8 w-20 rounded-lg bg-muted animate-pulse shrink-0" />
+          ))
+        ) : venues.length === 0 ? (
+          <span className="px-3 py-1.5 text-sm text-muted-foreground">Aucun terrain</span>
+        ) : (
+          venues.map((v) => (
+            <button
+              key={v.id}
+              onClick={() => setActiveVenueId(v.id)}
+              className={cn(
+                'shrink-0 px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap',
+                String(v.id) === String(activeVenueId)
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+              )}
+            >
+              {v.name}
+            </button>
+          ))
+        )}
       </div>
 
       {/* Week navigator */}
@@ -549,15 +567,10 @@ export default function SlotManager() {
                 {/* Day header */}
                 <div className={cn(
                   'px-5 py-2.5 border-b flex items-center justify-between',
-                  isToday
-                    ? 'border-primary/20 bg-primary/5'
-                    : 'border-border bg-muted/20'
+                  isToday ? 'border-primary/20 bg-primary/5' : 'border-border bg-muted/20'
                 )}>
                   <div className="flex items-center gap-2">
-                    <p className={cn(
-                      'text-sm font-semibold',
-                      isToday ? 'text-primary' : 'text-foreground'
-                    )}>
+                    <p className={cn('text-sm font-semibold', isToday ? 'text-primary' : 'text-foreground')}>
                       {formatDay(d)}
                     </p>
                     {isToday && (
@@ -576,15 +589,13 @@ export default function SlotManager() {
                 {/* Slot list */}
                 <div className={cn('p-4 space-y-2', isToday && 'bg-primary/[0.015]')}>
                   {daySlots.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-2">
-                      Aucun créneau
-                    </p>
+                    <p className="text-xs text-muted-foreground text-center py-2">Aucun créneau</p>
                   ) : (
                     daySlots.map((slot) => (
                       <SlotRow
                         key={slot.id}
                         slot={slot}
-                        venueId={venueId}
+                        venueId={activeVenueId}
                         onCancel={setCancelTarget}
                         onPriceUpdated={handlePriceUpdated}
                       />
@@ -600,7 +611,7 @@ export default function SlotManager() {
       {/* Modals */}
       {showAddModal && (
         <AddSlotModal
-          venueId={venueId}
+          venueId={activeVenueId}
           onClose={() => setShowAddModal(false)}
           onCreated={(slot) => {
             setSlots((prev) => [...prev, slot]);
