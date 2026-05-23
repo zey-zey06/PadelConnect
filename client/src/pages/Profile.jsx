@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone } from 'lucide-react';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/App';
 import { getProfile, updateProfile, uploadPhoto } from '@/api/profile';
 import { updateMe } from '@/api/auth';
 import { getMyBookings } from '@/api/bookings';
+import { getMyPenalties, payPenalty } from '@/api/penalties';
 import { Button }   from '@/components/ui/button';
 import { Input }    from '@/components/ui/input';
 import { Label }    from '@/components/ui/label';
@@ -403,15 +404,100 @@ function EditForm({ profile, user, onSave, onCancel, onPhotoUploaded }) {
   );
 }
 
+// ── Penalties section ─────────────────────────────────────────────────────────
+const PENALTY_LABELS = {
+  no_show:    'No-show',
+  late_cancel: 'Annulation tardive',
+  club_ban:   'Ban club',
+  app_ban:    'Ban application',
+};
+
+function PenaltiesSection({ penalties, onPaid }) {
+  const unpaid = penalties.filter((p) => !p.paid);
+  if (unpaid.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+        <ShieldAlert className="h-4 w-4 text-red-600 shrink-0" />
+        <p className="text-sm font-semibold text-red-700">
+          {unpaid.length} pénalité{unpaid.length > 1 ? 's' : ''} en attente — réglez-les pour débloquer votre compte.
+        </p>
+      </div>
+
+      {unpaid.map((p) => (
+        <PenaltyRow key={p.id} penalty={p} onPaid={onPaid} />
+      ))}
+    </div>
+  );
+}
+
+function PenaltyRow({ penalty, onPaid }) {
+  const [paying,  setPaying]  = useState(false);
+  const [payError, setPayError] = useState(null);
+  const [paid,    setPaid]    = useState(false);
+
+  async function handlePay() {
+    setPaying(true);
+    setPayError(null);
+    try {
+      await payPenalty(penalty.id);
+      setPaid(true);
+      onPaid?.();
+    } catch (e) {
+      setPayError(e.message || 'Erreur lors du paiement.');
+    } finally {
+      setPaying(false);
+    }
+  }
+
+  if (paid) {
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+        <Check className="h-4 w-4 text-green-600 shrink-0" />
+        <p className="text-sm text-green-700 font-medium">Pénalité réglée — merci.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-4 rounded-xl border border-red-200 bg-card px-4 py-3.5">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-foreground">
+          {PENALTY_LABELS[penalty.type] ?? penalty.type}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {penalty.amount > 0
+            ? `${Number(penalty.amount).toLocaleString('fr-FR')} FCFA à régler`
+            : 'Sans frais — action requise'}
+          {penalty.created_at && ` · ${new Date(penalty.created_at).toLocaleDateString('fr-FR')}`}
+        </p>
+      </div>
+      <div className="shrink-0 space-y-1">
+        <Button
+          size="sm"
+          disabled={paying}
+          onClick={handlePay}
+          className="h-8 px-3 text-xs bg-red-600 hover:bg-red-700 text-white border-0"
+        >
+          {paying ? 'Paiement…' : penalty.amount > 0 ? `Payer — ${Number(penalty.amount).toLocaleString('fr-FR')} FCFA` : 'Confirmer'}
+        </Button>
+        {payError && <p className="text-[11px] text-red-600">{payError}</p>}
+      </div>
+    </div>
+  );
+}
+
 // ── Profile page ──────────────────────────────────────────────────────────────
 export default function Profile() {
   const { user, setUser, profile: ctxProfile, setProfile } = useAuth();
 
-  const [profile,  setLocal]  = useState(ctxProfile ?? undefined);
-  const [bookings, setBookings] = useState([]);
-  const [loading,  setLoading] = useState(profile === undefined);
-  const [error,    setError]   = useState(null);
-  const [editing,  setEditing] = useState(false);
+  const [profile,   setLocal]    = useState(ctxProfile ?? undefined);
+  const [bookings,  setBookings]  = useState([]);
+  const [penalties, setPenalties] = useState([]);
+  const [loading,   setLoading]   = useState(profile === undefined);
+  const [error,     setError]     = useState(null);
+  const [editing,   setEditing]   = useState(false);
 
   const name =
     (user?.first_name && user?.last_name)
@@ -421,12 +507,14 @@ export default function Profile() {
   useEffect(() => {
     async function load() {
       try {
-        const [{ profile: p }, { bookings: b }] = await Promise.all([
+        const [{ profile: p }, { bookings: b }, penResult] = await Promise.all([
           getProfile(),
           getMyBookings().catch(() => ({ bookings: [] })),
+          getMyPenalties().catch(() => ({ penalties: [] })),
         ]);
         setLocal(p ?? null);
         setBookings(b ?? []);
+        setPenalties(penResult.penalties ?? []);
       } catch (err) {
         setError(err.message || 'Erreur de chargement.');
       } finally {
@@ -437,9 +525,13 @@ export default function Profile() {
     if (profile === undefined) {
       load();
     } else {
-      getMyBookings()
-        .then(({ bookings: b }) => setBookings(b ?? []))
-        .catch(() => {});
+      Promise.allSettled([
+        getMyBookings(),
+        getMyPenalties(),
+      ]).then(([bkRes, penRes]) => {
+        if (bkRes.status  === 'fulfilled') setBookings(bkRes.value.bookings   ?? []);
+        if (penRes.status === 'fulfilled') setPenalties(penRes.value.penalties ?? []);
+      });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -517,6 +609,12 @@ export default function Profile() {
           </div>
         )}
       </div>
+
+      {/* Penalties */}
+      <PenaltiesSection
+        penalties={penalties}
+        onPaid={() => getMyPenalties().then((r) => setPenalties(r.penalties ?? [])).catch(() => {})}
+      />
 
       {/* Empty state prompt */}
       {!profile && !editing && (

@@ -112,4 +112,10 @@ async function getClubSlots(clubId, date) {
   };
 }
 
-module.exports = { createClub, listClubs, getClub, updateClub, updateLogo, updateCover, getPublicClub, addPhoto, removePhoto, getClubSlots };
+async function getBallPickers(clubId) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) { const err = new Error('Club introuvable.'); err.status = 404; throw err; }
+  return clubsRepo.getBallPickersByOrg(club.id);
+}
+
+module.exports = { createClub, listClubs, getClub, updateClub, updateLogo, updateCover, getPublicClub, addPhoto, removePhoto, getClubSlots, getBallPickers };

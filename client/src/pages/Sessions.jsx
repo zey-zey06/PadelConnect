@@ -5,7 +5,7 @@ import {
   getSessionRequests, respondToRequest, cancelSession, inviteCoach,
 } from '@/api/sessions';
 import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
-import { listClubs, getClubSlots, getClubCoaches } from '@/api/clubs';
+import { listClubs, getClubSlots, getClubCoaches, getClubBallPickers } from '@/api/clubs';
 import { listCoaches } from '@/api/coaches';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -338,8 +338,6 @@ function CreateSessionModal({ onClose, onCreate }) {
         max_players: form.max_players,
         ...(Object.keys(preferences).length > 0 && { preferences }),
       };
-      // eslint-disable-next-line no-console
-      console.log('[CreateSession] payload →', payload);
       const result = await onCreate(payload);
       onClose(result.session ?? result);
     } catch (err) {
@@ -507,46 +505,72 @@ function CreateSessionModal({ onClose, onCreate }) {
   );
 }
 
-// ── Smart slot chain matcher ──────────────────────────────────────────────────
+// ── Smart slot covering options ───────────────────────────────────────────────
 /**
- * Given available slots (already filtered to status === 'available') sorted by
- * start_time, find the minimal consecutive chain that exactly covers
- * [sessionStart, sessionEnd].
+ * Find ALL slot combinations (single slots or consecutive chains) that start
+ * at sessionStart and cover at least until sessionEnd.
  *
- * When sessionEnd is null/undefined, falls back to finding a single slot that
- * contains sessionStart (original behaviour).
+ * This includes:
+ *  - Exact match:  one slot 09:00–10:30  → covers 09:00–10:30 ✅
+ *  - Exact chain:  09:00–10:00 + 10:00–10:30 ✅
+ *  - Wider single: 09:00–11:00 → covers more than needed ✅
+ *  - Wider chain:  09:00–10:00 + 10:00–11:00 ✅
  *
- * Returns the chain array, or null when no exact match is possible.
+ * When sessionEnd is falsy, falls back to finding a single slot that contains
+ * sessionStart (legacy behaviour for sessions without end_time).
+ *
+ * Returns an array of option objects: { slots, start_time, end_time, totalPrice }.
  */
-function findCoveringChain(slots, sessionStart, sessionEnd) {
+function findAllCoveringOptions(availSlots, sessionStart, sessionEnd) {
   if (!sessionEnd) {
-    // Legacy: single-slot overlap
-    const single = slots.find((s) => {
+    const single = availSlots.find((s) => {
       const st = (s.start_time ?? '').slice(0, 5);
       const et = (s.end_time   ?? '').slice(0, 5);
       return st <= sessionStart && sessionStart < et;
     });
-    return single ? [single] : null;
+    return single
+      ? [{ slots: [single], start_time: single.start_time, end_time: single.end_time, totalPrice: Number(single.price ?? 0) }]
+      : [];
   }
 
-  // Index available slots by start_time (HH:MM)
+  // Group available slots by their start_time (HH:MM) — multiple slots can share a start
   const byStart = {};
-  for (const sl of slots) {
-    byStart[(sl.start_time ?? '').slice(0, 5)] = sl;
+  for (const sl of availSlots) {
+    const key = (sl.start_time ?? '').slice(0, 5);
+    if (!byStart[key]) byStart[key] = [];
+    byStart[key].push(sl);
   }
 
-  // Walk forward from sessionStart, stitching slots until sessionEnd
-  const chain = [];
-  let cursor = sessionStart;
-  while (cursor < sessionEnd) {
-    const slot = byStart[cursor];
-    if (!slot) return null;          // gap — no contiguous chain
-    chain.push(slot);
-    cursor = (slot.end_time ?? '').slice(0, 5);
-    if (!cursor) return null;
+  const options = [];
+
+  // DFS from sessionStart — explore all consecutive chains
+  function dfs(chain, cursorEnd) {
+    if (chain.length > 0 && cursorEnd >= sessionEnd) {
+      // This chain (or single slot) covers the required window → record it
+      options.push({
+        slots:      [...chain],
+        start_time: chain[0].start_time,
+        end_time:   chain[chain.length - 1].end_time,
+        totalPrice: chain.reduce((sum, s) => sum + Number(s.price ?? 0), 0),
+      });
+      return; // no need to extend further — longer chains just cost more
+    }
+    for (const slot of (byStart[cursorEnd] ?? [])) {
+      const slotEnd = (slot.end_time ?? '').slice(0, 5);
+      if (slotEnd > cursorEnd) dfs([...chain, slot], slotEnd);
+    }
   }
-  if (cursor !== sessionEnd) return null; // chain overshoots
-  return chain.length > 0 ? chain : null;
+
+  dfs([], sessionStart);
+
+  // Deduplicate (same set of slot IDs may be reachable via parallel paths)
+  const seen = new Set();
+  return options.filter((opt) => {
+    const key = opt.slots.map((s) => s.id).join(',');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 // ── Terrain picker modal ───────────────────────────────────────────────────────
@@ -559,9 +583,12 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
   const [venueData,       setVenueData]       = useState([]);
   const [loadingSlots,    setLoadingSlots]    = useState(false);
   const [selectedSlot,    setSelectedSlot]    = useState(null);
-  const [availableCoaches,setAvailableCoaches]= useState([]);
-  const [loadingCoaches,  setLoadingCoaches]  = useState(false);
-  const [selectedCoaches, setSelectedCoaches] = useState([]); // [{user_id, user_first_name, …}]
+  const [availableCoaches,   setAvailableCoaches]   = useState([]);
+  const [loadingCoaches,     setLoadingCoaches]     = useState(false);
+  const [selectedCoaches,    setSelectedCoaches]    = useState([]); // [{user_id, user_first_name, …}]
+  const [availableBallPickers, setAvailableBallPickers] = useState([]);
+  const [loadingBallPickers,   setLoadingBallPickers]   = useState(false);
+  const [selectedBallPicker,   setSelectedBallPicker]   = useState(null); // single object or null
   const [payment,         setPayment]         = useState('on_arrival');
   const [card,            setCard]            = useState({ number: '', expiry: '', cvv: '', holder: '' });
   const [cardAccepted,    setCardAccepted]    = useState(false);
@@ -595,17 +622,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
             .filter((sl) => sl.status === 'available')
             .sort((a, b) => ((a.start_time ?? '') < (b.start_time ?? '') ? -1 : 1));
 
-          // Find the consecutive chain that exactly covers the session window
-          const chain = findCoveringChain(availSlots, sessionTime, sessionEndTime);
-          const matchingChains = chain
-            ? [{
-                slots:      chain,
-                start_time: chain[0].start_time,
-                end_time:   chain[chain.length - 1].end_time,
-                totalPrice: chain.reduce((sum, s) => sum + Number(s.price ?? 0), 0),
-              }]
-            : [];
-
+          const matchingChains = findAllCoveringOptions(availSlots, sessionTime, sessionEndTime);
           return { ...v, matchingChains };
         })
         .filter((v) => v.matchingChains.length > 0);
@@ -627,14 +644,21 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
       totalPrice: chain.totalPrice,
     });
     setSelectedCoaches([]);
+    setSelectedBallPicker(null);
     setAvailableCoaches([]);
-    // Fetch coaches for this club (non-blocking, shows skeleton in step 3)
+    setAvailableBallPickers([]);
+    // Fetch coaches + ball pickers for this club (non-blocking)
     setLoadingCoaches(true);
+    setLoadingBallPickers(true);
     getClubCoaches(selectedClub.id)
       .then(({ coaches }) => setAvailableCoaches(coaches ?? []))
       .catch(() => setAvailableCoaches([]))
       .finally(() => setLoadingCoaches(false));
-    setStep(3); // Coach selection step
+    getClubBallPickers(selectedClub.id)
+      .then(({ ballPickers }) => setAvailableBallPickers(ballPickers ?? []))
+      .catch(() => setAvailableBallPickers([]))
+      .finally(() => setLoadingBallPickers(false));
+    setStep(3);
     setError(null);
   }
 
@@ -693,7 +717,13 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
         ? `+225${phoneDigits}`
         : undefined;
 
-      // Book every slot in the chain; attach coach addons to the first slot booking
+      // Build addons list (coaches + optional ball picker) — attached to the first slot only
+      const addons = [
+        ...selectedCoaches.map((c) => ({ type: 'coach', user_id: c.user_id, price: 10000 })),
+        ...(selectedBallPicker ? [{ type: 'ball_picker', user_id: selectedBallPicker.user_id, price: 5000 }] : []),
+      ];
+
+      // Book every slot in the chain; attach addons to the first slot booking
       const results = await Promise.all(
         (selectedSlot.slots ?? [selectedSlot]).map((slot, idx) =>
           createBooking({
@@ -701,13 +731,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
             venue_slot_id:  slot.id,
             payment_method: payment,
             ...(payment_phone && { payment_phone }),
-            ...(idx === 0 && selectedCoaches.length > 0 && {
-              addons: selectedCoaches.map((c) => ({
-                type:    'coach',
-                user_id: c.user_id,
-                price:   10000,
-              })),
-            }),
+            ...(idx === 0 && addons.length > 0 && { addons }),
           })
         )
       );
@@ -727,7 +751,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
     setStep((s) => s - 1);
   }
 
-  const STEP_LABELS = ['Club', 'Terrain', 'Coach', 'Paiement'];
+  const STEP_LABELS = ['Club', 'Terrain', 'Équipe', 'Paiement'];
 
   // ── Success screen ───────────────────────────────────────────────────────────
   if (confirmedBk) {
@@ -771,7 +795,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
             <h2 className="text-base font-semibold text-foreground">
               {step === 1 ? 'Choisir un club'
                 : step === 2 ? selectedClub?.name
-                : step === 3 ? 'Ajouter un coach'
+                : step === 3 ? 'Votre équipe (optionnel)'
                 : 'Confirmer la réservation'}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5 capitalize">
@@ -880,124 +904,182 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                   <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">
                     {venue.name}
                   </p>
-                  {venue.matchingChains.map((chain, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSelectChain(chain, venue.name)}
-                      className="w-full flex items-center gap-4 rounded-xl border-2 border-primary/30 bg-primary/5 px-4 py-3.5 hover:border-primary hover:bg-primary/10 transition-all text-left"
-                    >
-                      <div className="h-9 w-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                        <Clock className="h-4.5 w-4.5 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-foreground">
-                          {chain.start_time?.slice(0, 5)} – {chain.end_time?.slice(0, 5)}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {chain.totalPrice.toLocaleString('fr-FR')} FCFA
-                          {chain.slots.length > 1 && ` · ${chain.slots.length} créneaux`}
-                          {' · disponible'}
-                        </p>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-primary shrink-0" />
-                    </button>
-                  ))}
+                  {venue.matchingChains.map((chain, idx) => {
+                    const n = chain.slots.length;
+                    const isExact = chain.end_time?.slice(0, 5) === sessionEndTime;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleSelectChain(chain, venue.name)}
+                        className="w-full flex items-center gap-4 rounded-xl border-2 border-primary/30 bg-primary/5 px-4 py-3.5 hover:border-primary hover:bg-primary/10 transition-all text-left"
+                      >
+                        <div className="h-9 w-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                          <Clock className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-foreground">
+                            {chain.start_time?.slice(0, 5)} – {chain.end_time?.slice(0, 5)}
+                            {!isExact && (
+                              <span className="ml-2 text-[10px] font-medium text-primary/60 bg-primary/10 px-1.5 py-0.5 rounded-full">
+                                élargi
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {n} créneau{n > 1 ? 'x' : ''} · {chain.totalPrice.toLocaleString('fr-FR')} FCFA · disponible
+                          </p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-primary shrink-0" />
+                      </button>
+                    );
+                  })}
                 </div>
               ))
             )
           )}
 
-          {/* ── Step 3: Coach selection ──────────────────────────────── */}
+          {/* ── Step 3: Team selection (coaches + ball picker) ────────── */}
           {step === 3 && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Optionnel — jusqu'à 2 coachs pour cette session.
-              </p>
+            <div className="space-y-5">
 
-              {loadingCoaches ? (
-                <div className="space-y-2">
-                  {[1, 2].map((i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}
-                </div>
-              ) : availableCoaches.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">
-                  Aucun coach disponible pour ce club.
+              {/* ── Coaches ── */}
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Coachs <span className="font-normal normal-case tracking-normal ml-1">— jusqu'à 2, optionnel · 10 000 FCFA/coach</span>
                 </p>
-              ) : (
-                availableCoaches.map((coach) => {
-                  const name = [coach.user_first_name, coach.user_last_name].filter(Boolean).join(' ')
-                    || coach.user_email?.split('@')[0]
-                    || 'Coach';
-                  const isSelected = selectedCoaches.some((c) => c.user_id === coach.user_id);
-                  const maxReached = selectedCoaches.length >= 2 && !isSelected;
-                  return (
-                    <button
-                      key={coach.id}
-                      type="button"
-                      disabled={maxReached}
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedCoaches((prev) => prev.filter((c) => c.user_id !== coach.user_id));
-                        } else if (!maxReached) {
-                          setSelectedCoaches((prev) => [...prev, coach]);
-                        }
-                      }}
-                      className={cn(
-                        'w-full flex items-center gap-3 rounded-xl border-2 px-4 py-3 transition-all text-left',
-                        isSelected
-                          ? 'border-green-600 bg-green-50'
-                          : maxReached
-                          ? 'border-border bg-card opacity-40 cursor-not-allowed'
-                          : 'border-border bg-card hover:border-primary/40'
-                      )}
-                    >
-                      {/* Avatar */}
-                      <div className="h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0">
-                        {coach.user_photo_url ? (
-                          <img src={coach.user_photo_url} alt={name} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center bg-green-100">
-                            <span className="text-xs font-bold text-green-700 select-none">
-                              {name.slice(0, 2).toUpperCase()}
-                            </span>
-                          </div>
+                {loadingCoaches ? (
+                  <div className="space-y-2">
+                    {[1, 2].map((i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}
+                  </div>
+                ) : availableCoaches.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4 border border-dashed border-border rounded-xl">
+                    Aucun coach disponible pour ce club.
+                  </p>
+                ) : (
+                  availableCoaches.map((coach) => {
+                    const name = [coach.user_first_name, coach.user_last_name].filter(Boolean).join(' ')
+                      || coach.user_email?.split('@')[0]
+                      || 'Coach';
+                    const isSelected = selectedCoaches.some((c) => c.user_id === coach.user_id);
+                    const maxReached = selectedCoaches.length >= 2 && !isSelected;
+                    return (
+                      <button
+                        key={coach.id}
+                        type="button"
+                        disabled={maxReached}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedCoaches((prev) => prev.filter((c) => c.user_id !== coach.user_id));
+                          } else if (!maxReached) {
+                            setSelectedCoaches((prev) => [...prev, coach]);
+                          }
+                        }}
+                        className={cn(
+                          'w-full flex items-center gap-3 rounded-xl border-2 px-4 py-3 transition-all text-left',
+                          isSelected
+                            ? 'border-green-600 bg-green-50'
+                            : maxReached
+                            ? 'border-border bg-card opacity-40 cursor-not-allowed'
+                            : 'border-border bg-card hover:border-primary/40'
                         )}
-                      </div>
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <a
-                          href={`/players/${coach.user_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-semibold text-foreground hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {name}
-                        </a>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {coach.specialty} · 10&nbsp;000 FCFA
-                        </p>
-                      </div>
-                      {isSelected && <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />}
-                    </button>
-                  );
-                })
-              )}
+                      >
+                        <div className="h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0">
+                          {coach.user_photo_url ? (
+                            <img src={coach.user_photo_url} alt={name} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center bg-green-100">
+                              <span className="text-xs font-bold text-green-700 select-none">
+                                {name.slice(0, 2).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <a
+                            href={`/players/${coach.user_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-semibold text-foreground hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {name}
+                          </a>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {coach.specialty} · 10&nbsp;000 FCFA
+                          </p>
+                        </div>
+                        {isSelected && <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* ── Ball pickers ── */}
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Ramasseur <span className="font-normal normal-case tracking-normal ml-1">— max 1, optionnel · 5 000 FCFA</span>
+                </p>
+                {loadingBallPickers ? (
+                  <div className="space-y-2">
+                    {[1].map((i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}
+                  </div>
+                ) : availableBallPickers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4 border border-dashed border-border rounded-xl">
+                    Aucun ramasseur disponible pour ce club.
+                  </p>
+                ) : (
+                  availableBallPickers.map((bp) => {
+                    const name = [bp.user_first_name, bp.user_last_name].filter(Boolean).join(' ')
+                      || bp.user_email?.split('@')[0]
+                      || 'Ramasseur';
+                    const isSelected = selectedBallPicker?.user_id === bp.user_id;
+                    return (
+                      <button
+                        key={bp.user_id}
+                        type="button"
+                        onClick={() => setSelectedBallPicker(isSelected ? null : bp)}
+                        className={cn(
+                          'w-full flex items-center gap-3 rounded-xl border-2 px-4 py-3 transition-all text-left',
+                          isSelected
+                            ? 'border-green-600 bg-green-50'
+                            : 'border-border bg-card hover:border-primary/40'
+                        )}
+                      >
+                        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                          <span className="text-xs font-bold text-muted-foreground select-none">
+                            {name.slice(0, 2).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground">{name}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Ramasseur · 5&nbsp;000 FCFA</p>
+                        </div>
+                        {isSelected && <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
 
               {/* Footer */}
               <div className="pt-2 border-t border-border space-y-2">
-                {selectedCoaches.length > 0 && (
+                {(selectedCoaches.length > 0 || selectedBallPicker) && (
                   <p className="text-xs text-center text-muted-foreground">
-                    {selectedCoaches.length} coach{selectedCoaches.length > 1 ? 's' : ''} sélectionné{selectedCoaches.length > 1 ? 's' : ''}
-                    {' '}· +{(selectedCoaches.length * 10000).toLocaleString('fr-FR')} FCFA
+                    {[
+                      selectedCoaches.length > 0 && `${selectedCoaches.length} coach${selectedCoaches.length > 1 ? 's' : ''}`,
+                      selectedBallPicker && '1 ramasseur',
+                    ].filter(Boolean).join(' · ')}
+                    {' '}· +{((selectedCoaches.length * 10000) + (selectedBallPicker ? 5000 : 0)).toLocaleString('fr-FR')} FCFA
                   </p>
                 )}
                 <Button
                   className="w-full bg-green-600 hover:bg-green-700 border-0 text-white"
                   onClick={() => { setStep(4); setError(null); }}
                 >
-                  {selectedCoaches.length > 0
-                    ? `Continuer avec ${selectedCoaches.length} coach${selectedCoaches.length > 1 ? 's' : ''}`
-                    : 'Continuer sans coach'}
+                  {(selectedCoaches.length > 0 || selectedBallPicker)
+                    ? 'Continuer avec l\'équipe sélectionnée'
+                    : 'Continuer sans équipe'}
                 </Button>
               </div>
             </div>
@@ -1005,8 +1087,9 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
 
           {/* ── Step 4: Payment ───────────────────────────────────────── */}
           {step === 4 && selectedSlot && (() => {
-            const coachCost  = selectedCoaches.length * 10000;
-            const grandTotal = (selectedSlot.totalPrice ?? Number(selectedSlot.price ?? 0)) + coachCost;
+            const coachCost      = selectedCoaches.length * 10000;
+            const ballPickerCost = selectedBallPicker ? 5000 : 0;
+            const grandTotal     = (selectedSlot.totalPrice ?? Number(selectedSlot.price ?? 0)) + coachCost + ballPickerCost;
             return (
             <div className="space-y-4">
               {/* Summary */}
@@ -1039,6 +1122,16 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                     </div>
                   );
                 })}
+                {/* Ball picker line */}
+                {selectedBallPicker && (() => {
+                  const bpName = [selectedBallPicker.user_first_name, selectedBallPicker.user_last_name].filter(Boolean).join(' ') || 'Ramasseur';
+                  return (
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Ramasseur — {bpName}</span>
+                      <span>5&nbsp;000 FCFA</span>
+                    </div>
+                  );
+                })()}
                 <div className="flex items-center justify-between pt-1 border-t border-border">
                   <span className="font-medium text-foreground">Total</span>
                   <span className="font-bold text-foreground">

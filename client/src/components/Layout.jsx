@@ -15,6 +15,13 @@ const PLAYER_NAV = [
   { to: '/profile',   label: 'Mon Profil'  },
 ];
 
+const COACH_NAV = [
+  { to: '/coach/dashboard', label: 'Mon espace'  },
+  { to: '/sessions',        label: 'Sessions'    },
+  { to: '/clubs',           label: 'Clubs'       },
+  { to: '/profile',         label: 'Mon Profil'  },
+];
+
 const MANAGER_NAV = [
   { to: '/manager/dashboard', label: 'Tableau de bord' },
   { to: '/manager/venues',    label: 'Mes terrains'    },
@@ -31,6 +38,7 @@ export default function Layout({ children }) {
   const NAV_LINKS =
     user?.role === 'venue_admin' ? MANAGER_NAV :
     user?.role === 'super_admin' ? ADMIN_NAV :
+    user?.role === 'coach'       ? COACH_NAV  :
     PLAYER_NAV;
   const navigate          = useNavigate();
   const location          = useLocation();

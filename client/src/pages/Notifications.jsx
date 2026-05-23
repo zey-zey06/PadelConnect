@@ -25,11 +25,9 @@ export default function Notifications() {
     setLoading(true);
     getNotifications()
       .then((data) => {
-        console.log('[Notifications] API response:', data);
         setNotifications(data.notifications ?? []);
       })
       .catch((e) => {
-        console.error('[Notifications] fetch error:', e);
         setError(e.message);
       })
       .finally(() => setLoading(false));

@@ -12,6 +12,9 @@ export const getClubVenues = (id) => client.get(`/clubs/${id}/venues`);
 /** GET /api/clubs/:id/coaches → { coaches: [...] } */
 export const getClubCoaches = (id) => client.get(`/clubs/${id}/coaches`);
 
+/** GET /api/clubs/:id/ball-pickers → { ballPickers: [...] } */
+export const getClubBallPickers = (id) => client.get(`/clubs/${id}/ball-pickers`);
+
 /** GET /api/clubs/:id/public → { club, venues } */
 export const getPublicClub = (id) => client.get(`/clubs/${id}/public`);
 

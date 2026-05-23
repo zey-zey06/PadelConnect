@@ -69,4 +69,17 @@ async function update(id, data) {
   return row;
 }
 
-module.exports = { create, list, listWithStats, getUserById, getAdminByOrg, getById, linkUserToOrg, update };
+async function getBallPickersByOrg(organizationId) {
+  return db('users')
+    .where({ organization_id: organizationId, role: 'ball_picker' })
+    .whereNull('deleted_at')
+    .orderBy('created_at', 'asc')
+    .select(
+      'id        as user_id',
+      'first_name as user_first_name',
+      'last_name  as user_last_name',
+      'email      as user_email',
+    );
+}
+
+module.exports = { create, list, listWithStats, getUserById, getAdminByOrg, getById, linkUserToOrg, update, getBallPickersByOrg };

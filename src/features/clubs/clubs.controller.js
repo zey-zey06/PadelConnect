@@ -190,13 +190,23 @@ async function clubSlotsHandler(req, res, next) {
   }
 }
 
+async function ballPickersHandler(req, res, next) {
+  try {
+    const ballPickers = await clubsService.getBallPickers(req.params.id);
+    return res.json({ ballPickers });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 const router = Router();
 router.post('/',              authenticate, requireRole('venue_admin'), createClubHandler);
 router.get('/',               authenticate, listClubsHandler);
 router.get('/:id/public',     authenticate, validateId, publicClubHandler);
-router.get('/:id/slots',      authenticate, validateId, clubSlotsHandler);
-router.get('/:id',            authenticate, validateId, getClubHandler);
+router.get('/:id/slots',         authenticate, validateId, clubSlotsHandler);
+router.get('/:id/ball-pickers',  authenticate, validateId, ballPickersHandler);
+router.get('/:id',               authenticate, validateId, getClubHandler);
 router.patch('/:id',          authenticate, validateId, requireRole('venue_admin'), updateClubHandler);
 router.post('/:id/logo',      authenticate, validateId, requireRole('venue_admin'), uploadImage.single('logo'),  logoHandler);
 router.post('/:id/cover',     authenticate, validateId, requireRole('venue_admin'), uploadImage.single('cover'), coverHandler);
