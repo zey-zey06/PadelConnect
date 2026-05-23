@@ -12,7 +12,6 @@ import Clubs            from '@/pages/Clubs';
 import Notifications    from '@/pages/Notifications';
 import CoachDashboard   from '@/pages/CoachDashboard';
 import ManagerDashboard from '@/pages/manager/ManagerDashboard';
-import VenueManager     from '@/pages/manager/VenueManager';
 import SlotManager      from '@/pages/manager/SlotManager';
 import ClubSetup        from '@/pages/manager/ClubSetup';
 import ManagerProfile   from '@/pages/manager/ManagerProfile';
@@ -194,7 +193,7 @@ export default function App() {
           />
           <Route
             path="/manager/venues"
-            element={<ManagerRoute><Layout><VenueManager /></Layout></ManagerRoute>}
+            element={<Navigate to="/manager/dashboard" replace />}
           />
           <Route
             path="/manager/venues/:venueId/slots"

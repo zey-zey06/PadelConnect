@@ -24,7 +24,6 @@ const COACH_NAV = [
 
 const MANAGER_NAV = [
   { to: '/manager/dashboard', label: 'Tableau de bord' },
-  { to: '/manager/venues',    label: 'Mes terrains'    },
   { to: '/manager/profile',   label: 'Mon Club'        },
 ];
 
