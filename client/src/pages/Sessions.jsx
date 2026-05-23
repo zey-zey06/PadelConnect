@@ -8,6 +8,8 @@ import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
 import { listClubs, getClubSlots, getClubCoaches, getClubBallPickers } from '@/api/clubs';
 import { listCoaches } from '@/api/coaches';
 import { findMatches as aiFindMatches } from '@/api/ai';
+import DateScrollPicker from '@/components/DateScrollPicker';
+import TimeScrollPicker from '@/components/TimeScrollPicker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -306,9 +308,14 @@ function SessionCard({ session, onJoin, hasBooking = false, onBooked }) {
 
 // ── Create session modal (redesigned) ─────────────────────────────────────────
 function CreateSessionModal({ onClose, onCreate }) {
-  const [form, setForm] = useState({
-    date: '', time: '', end_time: '', max_players: 4, level_min: null, gender: null,
-  });
+  const [form, setForm] = useState(() => ({
+    date:        new Date().toISOString().slice(0, 10),
+    time:        '09:00',
+    end_time:    '10:00',
+    max_players: 4,
+    level_min:   null,
+    gender:      null,
+  }));
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
 
@@ -374,46 +381,33 @@ function CreateSessionModal({ onClose, onCreate }) {
             </div>
           )}
 
-          {/* Date — visual week calendar */}
+          {/* Date */}
           <div className="space-y-2">
             <Label>Date</Label>
-            <WeekDatePicker value={form.date} onChange={(d) => set('date', d)} />
+            <DateScrollPicker value={form.date} onChange={(d) => set('date', d)} />
           </div>
 
-          {/* Start time — visual chip grid */}
-          <div className="space-y-2">
-            <Label>
-              Heure de début
-              {form.time && (
-                <span className="ml-2 text-green-700 font-semibold">{form.time}</span>
-              )}
-            </Label>
-            <TimeChipPicker
-              value={form.time}
-              onChange={(t) => {
-                set('time', t);
-                // Clear end_time if it's now <= new start_time
-                if (form.end_time && form.end_time <= t) set('end_time', '');
-              }}
-            />
-          </div>
-
-          {/* End time — only shown once start time is chosen */}
-          {form.time && (
+          {/* Start + End time side by side */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>
-                Heure de fin
-                {form.end_time && (
-                  <span className="ml-2 text-green-700 font-semibold">{form.end_time}</span>
-                )}
-              </Label>
-              <TimeChipPicker
+              <Label className="text-xs block text-center">Heure de début</Label>
+              <TimeScrollPicker
+                value={form.time}
+                onChange={(t) => {
+                  set('time', t);
+                  if (form.end_time && form.end_time <= t) set('end_time', '');
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs block text-center">Heure de fin</Label>
+              <TimeScrollPicker
                 value={form.end_time}
-                afterTime={form.time}
+                minTime={form.time}
                 onChange={(t) => set('end_time', t)}
               />
             </div>
-          )}
+          </div>
 
           {/* Max players — big visual cards */}
           <div className="space-y-2">

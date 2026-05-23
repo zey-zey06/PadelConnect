@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import DateScrollPicker from '@/components/DateScrollPicker';
+import TimeScrollPicker from '@/components/TimeScrollPicker';
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function toISODate(d) {
@@ -53,7 +55,12 @@ function SlotBadge({ status }) {
 
 // ── Add slot modal ────────────────────────────────────────────────────────────
 function AddSlotModal({ venueId, onClose, onCreated }) {
-  const [form,    setForm]    = useState({ date: '', start_time: '', end_time: '', price: '' });
+  const [form,    setForm]    = useState(() => ({
+    date:       new Date().toISOString().slice(0, 10),
+    start_time: '09:00',
+    end_time:   '10:00',
+    price:      '',
+  }));
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
 
@@ -106,25 +113,30 @@ function AddSlotModal({ venueId, onClose, onCreated }) {
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="s-date">Date</Label>
-            <Input
-              id="s-date" type="date" value={form.date} autoFocus
-              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+            <Label>Date</Label>
+            <DateScrollPicker
+              value={form.date}
+              onChange={(v) => setForm((f) => ({ ...f, date: v }))}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="s-start">Heure de début</Label>
-              <Input
-                id="s-start" type="time" value={form.start_time}
-                onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
+              <Label className="text-xs block text-center">Début</Label>
+              <TimeScrollPicker
+                value={form.start_time}
+                onChange={(v) => setForm((f) => ({
+                  ...f,
+                  start_time: v,
+                  end_time: f.end_time && f.end_time <= v ? '' : f.end_time,
+                }))}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="s-end">Heure de fin</Label>
-              <Input
-                id="s-end" type="time" value={form.end_time}
-                onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))}
+              <Label className="text-xs block text-center">Fin</Label>
+              <TimeScrollPicker
+                value={form.end_time}
+                minTime={form.start_time}
+                onChange={(v) => setForm((f) => ({ ...f, end_time: v }))}
               />
             </div>
           </div>
