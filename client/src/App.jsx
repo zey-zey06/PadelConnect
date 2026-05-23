@@ -19,6 +19,7 @@ import ClubProfile      from '@/pages/ClubProfile';
 import AdminDashboard   from '@/pages/AdminDashboard';
 import AdminProfile     from '@/pages/AdminProfile';
 import History          from '@/pages/History';
+import Landing          from '@/pages/Landing';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
 import Layout           from '@/components/Layout';
@@ -212,8 +213,10 @@ export default function App() {
             element={<ProtectedRoute><Layout><AdminProfile /></Layout></ProtectedRoute>}
           />
 
+          {/* ── Landing page — public ───────────────────────────────── */}
+          <Route path="/" element={<Landing />} />
+
           {/* ── Default redirects ────────────────────────────────────── */}
-          <Route path="/" element={<Navigate to="/sessions" replace />} />
           <Route path="*" element={<Navigate to="/sessions" replace />} />
         </Routes>
       </BrowserRouter>

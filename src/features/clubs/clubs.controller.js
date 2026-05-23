@@ -201,6 +201,7 @@ async function ballPickersHandler(req, res, next) {
 
 // ── Router ────────────────────────────────────────────────────────────────────
 const router = Router();
+router.get('/featured',       listClubsHandler); // public — no auth required
 router.post('/',              authenticate, requireRole('venue_admin'), createClubHandler);
 router.get('/',               authenticate, listClubsHandler);
 router.get('/:id/public',     authenticate, validateId, publicClubHandler);

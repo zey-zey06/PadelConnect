@@ -1,5 +1,8 @@
 import client from './client';
 
+/** GET /api/clubs/featured → { clubs: [...] }  (public — no auth required) */
+export const listFeaturedClubs = () => client.get('/clubs/featured');
+
 /** GET /api/clubs → { clubs: [...] } */
 export const listClubs = () => client.get('/clubs');
 
