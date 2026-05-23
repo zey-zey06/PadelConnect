@@ -8,6 +8,7 @@ import {
   CheckCircle2, XCircle, Clock, Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import PageSkeleton from '@/components/PageSkeleton';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -212,17 +213,7 @@ export default function History() {
       </div>
 
       {loading ? (
-        <div className="space-y-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-muted animate-pulse shrink-0" />
-              <div className="flex-1 space-y-2 py-1">
-                <div className="h-4 bg-muted animate-pulse rounded w-48" />
-                <div className="h-3 bg-muted animate-pulse rounded w-72" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <PageSkeleton icon="📅" message="Chargement de votre historique..." layout="list" />
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />{error}

@@ -5,11 +5,12 @@ import { getProfile, updateProfile, uploadPhoto } from '@/api/profile';
 import { updateMe } from '@/api/auth';
 import { getMyBookings } from '@/api/bookings';
 import { getMyPenalties, payPenalty } from '@/api/penalties';
-import { Button }   from '@/components/ui/button';
-import { Input }    from '@/components/ui/input';
-import { Label }    from '@/components/ui/label';
-import { Badge }    from '@/components/ui/badge';
-import { cn }       from '@/lib/utils';
+import { Button }       from '@/components/ui/button';
+import { Input }        from '@/components/ui/input';
+import { Label }        from '@/components/ui/label';
+import { Badge }        from '@/components/ui/badge';
+import { cn }           from '@/lib/utils';
+import PageSkeleton     from '@/components/PageSkeleton';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const LEVEL_LABELS = {
@@ -543,12 +544,7 @@ export default function Profile() {
   }
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="h-8 w-40 bg-muted animate-pulse rounded-lg" />
-        <div className="w-full max-w-sm mx-auto h-96 bg-muted animate-pulse rounded-2xl" />
-      </div>
-    );
+    return <PageSkeleton icon="👤" message="Préparation de votre carte joueur..." layout="profile" />;
   }
 
   if (error) {

@@ -23,6 +23,7 @@ import Landing          from '@/pages/Landing';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
 import Layout           from '@/components/Layout';
+import SplashScreen     from '@/components/SplashScreen';
 import { me }           from '@/api/auth';
 import { getProfile }   from '@/api/profile';
 
@@ -86,9 +87,12 @@ function ManagerRoute({ children }) {
 
 // ── Root app ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [user,    setUser]    = useState(null);
-  const [profile, setProfile] = useState(undefined); // undefined = not yet loaded
-  const [loading, setLoading] = useState(true);
+  const [user,       setUser]       = useState(null);
+  const [profile,    setProfile]    = useState(undefined); // undefined = not yet loaded
+  const [loading,    setLoading]    = useState(true);
+  const [showSplash, setShowSplash] = useState(
+    () => !sessionStorage.getItem('splash_shown'),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -119,6 +123,13 @@ export default function App() {
     load();
     return () => { cancelled = true; };
   }, []);
+
+  function handleSplashDone() {
+    sessionStorage.setItem('splash_shown', '1');
+    setShowSplash(false);
+  }
+
+  if (showSplash) return <SplashScreen onDone={handleSplashDone} />;
 
   return (
     <AuthContext.Provider value={{ user, setUser, profile, setProfile, loading }}>

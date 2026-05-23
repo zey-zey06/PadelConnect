@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/App';
 import { cn } from '@/lib/utils';
+import PageSkeleton from '@/components/PageSkeleton';
 
 const LEVEL_LABELS = {
   1: 'Débutant', 2: 'Débutant +', 3: 'Intermédiaire',
@@ -1849,9 +1850,7 @@ function MySessions({ autoOpen = false }) {
   }, [refreshKey]);
 
   if (loading) return (
-    <div className="space-y-3">
-      {[1, 2].map((i) => <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />)}
-    </div>
+    <PageSkeleton icon="🎾" message="Chargement de vos sessions..." layout="list" />
   );
 
   if (error) return (
@@ -2029,11 +2028,7 @@ export default function Sessions() {
       {/* Browse tab: session list */}
       {tab === 'browse' && (
         loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-44 rounded-xl bg-muted animate-pulse" />
-            ))}
-          </div>
+          <PageSkeleton icon="🎾" message="Recherche de partenaires..." layout="cards" />
         ) : error ? (
           <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             <AlertCircle className="h-4 w-4 shrink-0" />{error}

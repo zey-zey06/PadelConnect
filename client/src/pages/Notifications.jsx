@@ -4,6 +4,7 @@ import { getNotifications, markAsRead } from '@/api/notifications';
 import { Button } from '@/components/ui/button';
 import { Bell, CheckCircle2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import PageSkeleton from '@/components/PageSkeleton';
 
 const TYPE_LABELS = {
   session_request:  'Demande reçue',
@@ -69,11 +70,7 @@ export default function Notifications() {
 
       {/* Content */}
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />
-          ))}
-        </div>
+        <PageSkeleton icon="🔔" message="Vérification des notifications..." layout="list" />
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />{error}

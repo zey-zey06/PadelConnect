@@ -5,6 +5,7 @@ import { listClubs } from '@/api/clubs';
 import { useAuth } from '@/App';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import PageSkeleton from '@/components/PageSkeleton';
 
 // ── Club card ─────────────────────────────────────────────────────────────────
 function ClubCard({ club, isAdmin }) {
@@ -104,9 +105,7 @@ export default function Clubs() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => <div key={i} className="h-56 rounded-xl bg-muted animate-pulse" />)}
-        </div>
+        <PageSkeleton icon="🏟️" message="Chargement des clubs..." layout="cards" />
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />{error}

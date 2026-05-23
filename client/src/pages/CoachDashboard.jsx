@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dumbbell, CalendarDays, Users, AlertCircle, Clock } from 'lucide-react';
 import { useAuth } from '@/App';
 import { getMyCoachProfile, getCoachSessions } from '@/api/coaches';
+import PageSkeleton from '@/components/PageSkeleton';
 
 const LEVEL_LABELS = {
   1: 'Débutant', 2: 'Débutant +', 3: 'Intermédiaire',
@@ -90,9 +91,7 @@ export default function CoachDashboard() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}
-        </div>
+        <PageSkeleton icon="📊" message="Chargement de votre espace..." layout="list" />
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />

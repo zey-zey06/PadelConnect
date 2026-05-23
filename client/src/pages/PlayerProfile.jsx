@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { User, ArrowLeft, AlertCircle, Zap, Target } from 'lucide-react';
 import { getUserProfile } from '@/api/profile';
 import { cn } from '@/lib/utils';
+import PageSkeleton from '@/components/PageSkeleton';
 
 const LEVEL_LABELS = {
   1: 'Débutant', 2: 'Débutant +', 3: 'Intermédiaire',
@@ -57,7 +58,7 @@ export default function PlayerProfile() {
       </button>
 
       {loading ? (
-        <div className="h-96 bg-muted animate-pulse rounded-2xl" />
+        <PageSkeleton icon="👤" message="Chargement du profil..." layout="profile" />
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />{error}

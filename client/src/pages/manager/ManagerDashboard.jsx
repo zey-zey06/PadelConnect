@@ -10,6 +10,7 @@ import { getManagerDashboard, getMyClub, getMyVenues, addVenue, getVenueSlots } 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import PageSkeleton from '@/components/PageSkeleton';
 import { Badge } from '@/components/ui/badge';
 
 // ── Amenity display map ───────────────────────────────────────────────────────
@@ -278,15 +279,7 @@ export default function ManagerDashboard() {
       </div>
 
       {loading ? (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => <div key={i} className="h-28 rounded-xl bg-muted animate-pulse" />)}
-          </div>
-          <div className="h-16 rounded-xl bg-muted animate-pulse" />
-          <div className="grid grid-cols-1 gap-4">
-            {[1, 2].map((i) => <VenueCardSkeleton key={i} />)}
-          </div>
-        </div>
+        <PageSkeleton icon="📊" message="Chargement de votre espace..." layout="dashboard" />
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />{error}

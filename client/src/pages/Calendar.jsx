@@ -4,6 +4,7 @@ import { getMyBookings, cancelBooking } from '@/api/bookings';
 import { CalendarDays, MapPin, Clock, CreditCard, Banknote, AlertCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import PageSkeleton from '@/components/PageSkeleton';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -184,9 +185,7 @@ export default function Calendar() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}
-        </div>
+        <PageSkeleton icon="📅" message="Chargement de votre agenda..." layout="calendar" />
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />{error}
