@@ -73,9 +73,9 @@ function BookingRow({ booking, isPast, onCancel }) {
 
       {/* Price + payment */}
       <div className="shrink-0 text-right hidden sm:block">
-        {booking.price > 0 && (
+        {(booking.total_price ?? booking.price) > 0 && (
           <p className="text-sm font-semibold text-foreground">
-            {Number(booking.price).toLocaleString('fr-FR')} FCFA
+            {Number(booking.total_price ?? booking.price).toLocaleString('fr-FR')} FCFA
           </p>
         )}
         <p className="text-xs text-muted-foreground flex items-center gap-1 justify-end mt-0.5">

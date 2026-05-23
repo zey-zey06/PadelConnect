@@ -1452,7 +1452,7 @@ function BookingDetailModal({ booking, onClose }) {
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Prix</span>
-              <span className="font-semibold">{Number(booking.price).toLocaleString('fr-FR')} FCFA</span>
+              <span className="font-semibold">{Number(booking.total_price ?? booking.price).toLocaleString('fr-FR')} FCFA</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Paiement</span>
@@ -1649,7 +1649,7 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground">{booking.venue_name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {booking.club_name} · {booking.start_time?.slice(0, 5)}–{booking.end_time?.slice(0, 5)} · {Number(booking.price).toLocaleString('fr-FR')} FCFA
+                    {booking.club_name} · {booking.start_time?.slice(0, 5)}–{booking.end_time?.slice(0, 5)} · {Number(booking.total_price ?? booking.price).toLocaleString('fr-FR')} FCFA
                   </p>
                 </div>
               </div>

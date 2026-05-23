@@ -34,6 +34,12 @@ async function getByUser(userId) {
       'venues.name as venue_name',
       'organizations.name as club_name',
       'organizations.id as club_id',
+      db.raw(
+        `venue_slots.price + COALESCE(
+          (SELECT SUM(ba.price) FROM booking_addons ba WHERE ba.booking_id = bookings.id),
+          0
+        ) AS total_price`
+      ),
     );
 }
 
