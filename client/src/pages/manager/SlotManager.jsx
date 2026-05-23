@@ -5,7 +5,7 @@ import {
   AlertCircle, Clock, ArrowLeft, Trash2, Pencil,
 } from 'lucide-react';
 import { useAuth } from '@/App';
-import { getVenueSlots, addSlot, cancelSlot, updateSlot, bulkUpdateSlotPrice, getMyVenues } from '@/api/manager';
+import { getVenueSlots, addSlot, cancelSlot, updateSlot, bulkUpdateSlotPrice, getMyVenues, fillVenueSlots } from '@/api/manager';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -392,17 +392,24 @@ export default function SlotManager() {
       .catch(() => {});
   }, [venueId, user?.organization_id]);
 
-  // Load all slots (no date filter — grouped client-side by displayed week)
+  // Load all slots — auto-generate defaults if the venue has none
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    console.log('[SlotManager] loading slots for venueId:', venueId);
     try {
       const res = await getVenueSlots(venueId);
-      console.log('[SlotManager] API response: slots count =', res.slots?.length, '| sample date =', res.slots?.[0]?.date, '| sample =', res.slots?.[0]);
-      setSlots(res.slots ?? []);
+      let loaded = res.slots ?? [];
+      if (loaded.length === 0) {
+        try {
+          await fillVenueSlots(venueId);
+          const res2 = await getVenueSlots(venueId);
+          loaded = res2.slots ?? [];
+        } catch {
+          // Non-fatal — just show empty state
+        }
+      }
+      setSlots(loaded);
     } catch (err) {
-      console.error('[SlotManager] load error:', err);
       setError(err.message || 'Erreur de chargement.');
     } finally {
       setLoading(false);
@@ -416,8 +423,6 @@ export default function SlotManager() {
   // so we normalise to "YYYY-MM-DD" before comparing and keying into slotsByDay.
   const weekStartStr = toISODate(weekStart);
   const weekEndStr   = toISODate(weekDays[6]);
-
-  console.log('[SlotManager] weekStartStr:', weekStartStr, '| weekEndStr:', weekEndStr, '| total slots loaded:', slots.length);
 
   const slotsByDay = {};
   weekDays.forEach((d) => { slotsByDay[toISODate(d)] = []; });

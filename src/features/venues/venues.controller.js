@@ -71,9 +71,7 @@ async function addSlotHandler(req, res, next) {
 
 async function listSlotsHandler(req, res, next) {
   try {
-    console.log('[slots] GET venueId:', req.params.id, '| query:', JSON.stringify(req.query));
     const slots = await venuesService.getAvailableSlots(req.params.id, req.query);
-    console.log('[slots] returned', slots.length, 'slots | sample:', JSON.stringify(slots[0]));
     return res.json({ slots });
   } catch (err) {
     next(err);
@@ -117,6 +115,15 @@ async function bulkSlotPriceHandler(req, res, next) {
   }
 }
 
+async function fillVenueSlotsHandler(req, res, next) {
+  try {
+    const count = await venuesService.fillVenueSlots(req.params.id, req.user.organization_id);
+    return res.json({ generated: count });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function deleteSlotHandler(req, res, next) {
   try {
     const slot = await venuesService.deleteSlot(
@@ -135,6 +142,7 @@ clubVenuesRouter.post('/:id/venues', authenticate, requireRole('venue_admin'), a
 clubVenuesRouter.get('/:id/venues', authenticate, listVenuesHandler);
 
 const venueSlotsRouter = Router();
+venueSlotsRouter.post('/:id/slots/generate', authenticate, requireRole('venue_admin'), fillVenueSlotsHandler);
 venueSlotsRouter.post('/:id/slots', authenticate, requireRole('venue_admin'), addSlotHandler);
 venueSlotsRouter.get('/:id/slots', authenticate, listSlotsHandler);
 venueSlotsRouter.patch('/:id/slots/bulk-price', authenticate, requireRole('venue_admin'), bulkSlotPriceHandler);

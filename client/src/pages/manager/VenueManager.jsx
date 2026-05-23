@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Plus, ChevronRight, X, AlertCircle, Calendar } from 'lucide-react';
+import {
+  MapPin, Plus, ChevronRight, ChevronLeft, X, AlertCircle, Calendar,
+} from 'lucide-react';
 import { useAuth } from '@/App';
 import { getMyVenues, addVenue, getVenueSlots } from '@/api/manager';
 import { Button } from '@/components/ui/button';
@@ -39,7 +41,6 @@ function AddVenueModal({ clubId, onClose, onCreated }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-semibold text-foreground">Ajouter un terrain</h2>
           <button
@@ -50,7 +51,6 @@ function AddVenueModal({ clubId, onClose, onCreated }) {
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
             <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -96,12 +96,11 @@ function AddVenueModal({ clubId, onClose, onCreated }) {
   );
 }
 
-// ── Venue card ────────────────────────────────────────────────────────────────
-function VenueCard({ venue }) {
+// ── Venue slide card ──────────────────────────────────────────────────────────
+function VenueSlide({ venue, index, total }) {
   const [weekSlots, setWeekSlots] = useState(null);
 
   useEffect(() => {
-    // Fetch this week's slots (no date filter = all slots; we slice to 7 days client-side)
     getVenueSlots(venue.id)
       .then(({ slots: s }) => {
         const today = new Date();
@@ -123,47 +122,64 @@ function VenueCard({ venue }) {
   const available = weekSlots ? weekSlots.filter((s) => s.status === 'available').length : null;
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden hover:shadow-sm hover:border-primary/20 transition-all group">
+    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden flex flex-col">
+      {/* Position indicator */}
+      {total > 1 && (
+        <div className="px-6 pt-4 pb-0 flex justify-end">
+          <span className="text-xs font-medium text-muted-foreground tabular-nums">
+            {index + 1} / {total}
+          </span>
+        </div>
+      )}
+
       {/* Card header */}
-      <div className="px-5 py-4 border-b border-border">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-            <MapPin className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-foreground">{venue.name}</p>
-            {venue.description && (
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">{venue.description}</p>
-            )}
-          </div>
+      <div className="px-6 py-5 flex items-start gap-4">
+        <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <MapPin className="h-6 w-6 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-lg font-semibold text-foreground leading-tight">{venue.name}</p>
+          {venue.description ? (
+            <p className="text-sm text-muted-foreground mt-1">{venue.description}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground mt-1 italic">Aucune description</p>
+          )}
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="px-5 py-3 flex items-center gap-4 text-xs text-muted-foreground bg-muted/20">
-        <span className="flex items-center gap-1.5">
-          <Calendar className="h-3.5 w-3.5" />
+      {/* Stats */}
+      <div className="mx-6 mb-5 rounded-xl bg-muted/30 border border-border px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Calendar className="h-4 w-4 shrink-0" />
           {weekSlots === null ? (
-            <span className="w-12 h-3 rounded bg-muted animate-pulse inline-block" />
+            <span className="w-28 h-3.5 rounded bg-muted animate-pulse inline-block" />
           ) : (
-            `${weekSlots.length} créneau${weekSlots.length !== 1 ? 'x' : ''} cette semaine`
+            <span>
+              <span className="font-semibold text-foreground">{weekSlots.length}</span>
+              {' '}créneau{weekSlots.length !== 1 ? 'x' : ''} cette semaine
+            </span>
           )}
         </span>
-        {booked !== null && booked > 0 && (
-          <Badge variant="default">{booked} réservé{booked > 1 ? 's' : ''}</Badge>
-        )}
-        {available !== null && available > 0 && (
-          <Badge variant="success">{available} disponible{available > 1 ? 's' : ''}</Badge>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {booked !== null && booked > 0 && (
+            <Badge variant="default">{booked} réservé{booked > 1 ? 's' : ''}</Badge>
+          )}
+          {available !== null && available > 0 && (
+            <Badge variant="success">{available} disponible{available > 1 ? 's' : ''}</Badge>
+          )}
+          {weekSlots !== null && weekSlots.length === 0 && (
+            <span className="text-xs text-muted-foreground">Aucun créneau cette semaine</span>
+          )}
+        </div>
       </div>
 
-      {/* Actions */}
-      <div className="px-5 py-3 border-t border-border">
-        <Link to={`/manager/venues/${venue.id}/slots`}>
-          <Button size="sm" className="w-full">
-            <Calendar className="h-3.5 w-3.5" />
+      {/* Action */}
+      <div className="px-6 pb-6">
+        <Link to={`/manager/venues/${venue.id}/slots`} className="block">
+          <Button className="w-full">
+            <Calendar className="h-4 w-4" />
             Gérer les créneaux
-            <ChevronRight className="h-3.5 w-3.5 ml-auto" />
+            <ChevronRight className="h-4 w-4 ml-auto" />
           </Button>
         </Link>
       </div>
@@ -174,10 +190,34 @@ function VenueCard({ venue }) {
 // ── VenueManager page ─────────────────────────────────────────────────────────
 export default function VenueManager() {
   const { user } = useAuth();
-  const [venues,    setVenues]    = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(null);
-  const [showModal, setShowModal] = useState(false);
+  const [venues,      setVenues]      = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [showModal,   setShowModal]   = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // Touch swipe tracking
+  const touchStartX = useRef(null);
+
+  const total = venues.length;
+
+  function goPrev() {
+    setActiveIndex((i) => (i > 0 ? i - 1 : total - 1));
+  }
+  function goNext() {
+    setActiveIndex((i) => (i < total - 1 ? i + 1 : 0));
+  }
+
+  function handleTouchStart(e) {
+    touchStartX.current = e.touches[0].clientX;
+  }
+  function handleTouchEnd(e) {
+    if (touchStartX.current === null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    if (delta < -50) goNext();
+    else if (delta > 50) goPrev();
+    touchStartX.current = null;
+  }
 
   const load = useCallback(async () => {
     if (!user?.organization_id) { setLoading(false); return; }
@@ -186,6 +226,7 @@ export default function VenueManager() {
     try {
       const { venues: v } = await getMyVenues(user.organization_id);
       setVenues(v ?? []);
+      setActiveIndex(0);
     } catch (err) {
       setError(err.message || 'Erreur de chargement.');
     } finally {
@@ -221,15 +262,14 @@ export default function VenueManager() {
           onClose={() => setShowModal(false)}
           onCreated={(v) => {
             setVenues((prev) => [...prev, v]);
+            setActiveIndex(venues.length); // point to the new venue
             setShowModal(false);
           }}
         />
       )}
 
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[1, 2, 3].map((i) => <div key={i} className="h-48 rounded-xl bg-muted animate-pulse" />)}
-        </div>
+        <div className="h-64 rounded-2xl bg-muted animate-pulse" />
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />{error}
@@ -240,7 +280,7 @@ export default function VenueManager() {
           <p className="font-medium text-foreground">Aucun club associé</p>
           <p className="text-sm text-muted-foreground">Votre compte gérant n'est pas encore rattaché à un club.</p>
         </div>
-      ) : venues.length === 0 ? (
+      ) : total === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-16 text-center space-y-4">
           <MapPin className="h-10 w-10 text-muted-foreground mx-auto" />
           <div>
@@ -253,8 +293,74 @@ export default function VenueManager() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {venues.map((v) => <VenueCard key={v.id} venue={v} />)}
+        <div>
+          {/* Carousel */}
+          <div className="relative">
+            {/* Left arrow */}
+            {total > 1 && (
+              <button
+                onClick={goPrev}
+                className={cn(
+                  'absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10',
+                  'h-9 w-9 rounded-full border border-border bg-card shadow-sm',
+                  'flex items-center justify-center',
+                  'text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all',
+                )}
+                aria-label="Terrain précédent"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            )}
+
+            {/* Slide */}
+            <div
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              className="select-none"
+            >
+              <VenueSlide
+                key={venues[activeIndex].id}
+                venue={venues[activeIndex]}
+                index={activeIndex}
+                total={total}
+              />
+            </div>
+
+            {/* Right arrow */}
+            {total > 1 && (
+              <button
+                onClick={goNext}
+                className={cn(
+                  'absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10',
+                  'h-9 w-9 rounded-full border border-border bg-card shadow-sm',
+                  'flex items-center justify-center',
+                  'text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all',
+                )}
+                aria-label="Terrain suivant"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Dot indicators */}
+          {total > 1 && (
+            <div className="flex justify-center items-center gap-1.5 mt-5">
+              {venues.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveIndex(i)}
+                  className={cn(
+                    'rounded-full transition-all',
+                    i === activeIndex
+                      ? 'w-5 h-1.5 bg-primary'
+                      : 'w-1.5 h-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/60',
+                  )}
+                  aria-label={`Terrain ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

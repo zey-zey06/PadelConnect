@@ -72,3 +72,6 @@ export const cancelSlot = (venueId, slotId) =>
 /** PATCH /api/venues/:id/slots/bulk-price — update price for all slots matching start/end time */
 export const bulkUpdateSlotPrice = (venueId, startTime, endTime, price) =>
   client.patch(`/venues/${venueId}/slots/bulk-price`, { start_time: startTime, end_time: endTime, price });
+
+/** POST /api/venues/:id/slots/generate — auto-fill missing default slots for next 30 days */
+export const fillVenueSlots = (venueId) => client.post(`/venues/${venueId}/slots/generate`);
