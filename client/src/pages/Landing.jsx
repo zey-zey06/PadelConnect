@@ -4,17 +4,8 @@ import {
   Sparkles, CalendarCheck, Users, ArrowRight,
   UserCircle, MapPin, ChevronRight, Building2,
 } from 'lucide-react';
-import { useAuth } from '@/App';
+import { useAuth, homeFor } from '@/App';
 import { listFeaturedClubs } from '@/api/clubs';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function homeFor(user) {
-  if (!user) return '/login';
-  if (user.role === 'venue_admin') return user.organization_id ? '/manager/dashboard' : '/manager/setup';
-  if (user.role === 'coach')       return '/coach/dashboard';
-  if (user.role === 'super_admin') return '/admin/dashboard';
-  return '/sessions';
-}
 
 function priceRange(min, max) {
   if (min == null && max == null) return null;
@@ -115,13 +106,23 @@ function HeroSection({ user }) {
         </p>
 
         <div className="mt-10 flex flex-col sm:flex-row items-center gap-3">
-          <Link
-            to="/signup"
-            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-white text-[#1A3D2B] font-semibold text-base hover:bg-white/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
-          >
-            Commencer gratuitement
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          {user ? (
+            <Link
+              to={homeFor(user)}
+              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-white text-[#1A3D2B] font-semibold text-base hover:bg-white/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+            >
+              Mon espace
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          ) : (
+            <Link
+              to="/signup"
+              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-white text-[#1A3D2B] font-semibold text-base hover:bg-white/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+            >
+              Commencer gratuitement
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          )}
           <Link
             to="/clubs"
             className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-white/10 text-white font-medium text-base hover:bg-white/20 transition-all border border-white/20 backdrop-blur-sm"
@@ -225,6 +226,7 @@ const STEPS = [
 ];
 
 function HowItWorksSection() {
+  const { user } = useAuth();
   return (
     <section className="py-24 bg-[#FAF8F5]">
       <div className="max-w-6xl mx-auto px-6 sm:px-12">
@@ -252,13 +254,23 @@ function HowItWorksSection() {
         </div>
 
         <div className="mt-14 text-center">
-          <Link
-            to="/signup"
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-[#1A3D2B] text-white font-semibold hover:bg-[#1A3D2B]/90 transition-all shadow-sm"
-          >
-            Créer mon compte gratuitement
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          {user ? (
+            <Link
+              to={homeFor(user)}
+              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-[#1A3D2B] text-white font-semibold hover:bg-[#1A3D2B]/90 transition-all shadow-sm"
+            >
+              Mon espace
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          ) : (
+            <Link
+              to="/signup"
+              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-[#1A3D2B] text-white font-semibold hover:bg-[#1A3D2B]/90 transition-all shadow-sm"
+            >
+              Créer mon compte gratuitement
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          )}
         </div>
       </div>
     </section>
@@ -388,6 +400,7 @@ function ClubsSection() {
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 function Footer() {
+  const { user } = useAuth();
   return (
     <footer className="bg-[#0d2818] text-white">
       <div className="max-w-6xl mx-auto px-6 sm:px-12 py-14">
@@ -412,8 +425,18 @@ function Footer() {
             <div className="space-y-3">
               <p className="text-xs font-bold uppercase tracking-widest text-white/40">Compte</p>
               <ul className="space-y-2 text-sm text-white/60">
-                <li><Link to="/signup"   className="hover:text-white transition-colors">Inscription</Link></li>
-                <li><Link to="/login"    className="hover:text-white transition-colors">Connexion</Link></li>
+                {user ? (
+                  <li>
+                    <Link to={homeFor(user)} className="hover:text-white transition-colors">
+                      Mon espace
+                    </Link>
+                  </li>
+                ) : (
+                  <>
+                    <li><Link to="/signup" className="hover:text-white transition-colors">Inscription</Link></li>
+                    <li><Link to="/login"  className="hover:text-white transition-colors">Connexion</Link></li>
+                  </>
+                )}
               </ul>
             </div>
           </div>
