@@ -41,7 +41,7 @@ const QUESTIONS = [
   'Quel est votre style de jeu favori ? (défensif, attaquant, polyvalent)',
   'Quels sont vos points forts ? (smash, volée, service, régularité…)',
   'Quels aspects souhaitez-vous améliorer ?',
-  'Préférez-vous jouer le matin, l'après-midi ou le soir ?',
+  "Préférez-vous jouer le matin, l'après-midi ou le soir ?",
   "Dernière question — qu'est-ce qui vous a amené à rejoindre PadelConnect ? (trouver des partenaires, découvrir des clubs, progresser, autre…)",
 ];
 
