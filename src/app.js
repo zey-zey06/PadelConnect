@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const path = require('path');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -74,9 +75,17 @@ app.get('/healthz', async (req, res) => {
   });
 });
 
-app.use((req, res) => {
-  res.status(404).json({ status: 404, error: 'Not Found', message: 'Route introuvable.' });
-});
+// Production: Express serves the React build and handles SPA routing.
+// This block must come AFTER all /api routes so the API is never shadowed.
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, '../client/dist');
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
+} else {
+  app.use((req, res) => {
+    res.status(404).json({ status: 404, error: 'Not Found', message: 'Route introuvable.' });
+  });
+}
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
@@ -105,9 +114,7 @@ if (process.env.NODE_ENV === 'development') {
     .catch(() => {});
 }
 
-// In production nginx owns the public port (10000); Express always binds
-// to 4000 internally so Render's injected PORT env var is ignored.
-const PORT = process.env.NODE_ENV === 'production' ? 4000 : (process.env.PORT || 4000);
+const PORT = process.env.PORT || 4000;
 
 if (require.main === module) {
   db.migrate.latest()
