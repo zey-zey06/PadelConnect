@@ -36,7 +36,7 @@ async function updateClub(clubId, userOrgId, data) {
   return clubsRepo.update(clubId, data);
 }
 
-async function updateLogo(clubId, userOrgId, filename) {
+async function updateLogo(clubId, userOrgId, logoUrl) {
   const club = await clubsRepo.getById(clubId);
   if (!club) {
     const err = new Error('Club introuvable.');
@@ -48,7 +48,7 @@ async function updateLogo(clubId, userOrgId, filename) {
     err.status = 403;
     throw err;
   }
-  return clubsRepo.update(clubId, { logo_url: `/uploads/clubs/${filename}` });
+  return clubsRepo.update(clubId, { logo_url: logoUrl });
 }
 
 async function getPublicClub(id) {
@@ -62,19 +62,19 @@ async function getPublicClub(id) {
   return { club, venues };
 }
 
-async function updateCover(clubId, userOrgId, filename) {
+async function updateCover(clubId, userOrgId, coverUrl) {
   const club = await clubsRepo.getById(clubId);
   if (!club) { const err = new Error('Club introuvable.'); err.status = 404; throw err; }
   if (club.id !== userOrgId) { const err = new Error('Accès refusé.'); err.status = 403; throw err; }
-  return clubsRepo.update(clubId, { cover_url: `/uploads/clubs/${filename}` });
+  return clubsRepo.update(clubId, { cover_url: coverUrl });
 }
 
-async function addPhoto(clubId, userOrgId, filename) {
+async function addPhoto(clubId, userOrgId, photoUrl) {
   const club = await clubsRepo.getById(clubId);
   if (!club) { const err = new Error('Club introuvable.'); err.status = 404; throw err; }
   if (club.id !== userOrgId) { const err = new Error('Accès refusé.'); err.status = 403; throw err; }
   const current = Array.isArray(club.photos_urls) ? club.photos_urls : [];
-  return clubsRepo.update(clubId, { photos_urls: [...current, `/uploads/clubs/${filename}`] });
+  return clubsRepo.update(clubId, { photos_urls: [...current, photoUrl] });
 }
 
 async function removePhoto(clubId, userOrgId, photoUrl) {

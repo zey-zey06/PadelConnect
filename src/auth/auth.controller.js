@@ -23,11 +23,15 @@ async function signupHandler(req, res, next) {
     }
 
     const user = await signup(value);
-    // No JWT cookie — user must verify email first
-    return res.status(201).json({
-      message: 'Un email de vérification a été envoyé. Vérifiez votre boîte mail.',
-      user: { id: user.id, email: user.email, role: user.role },
+    // Email verification is disabled — accounts are active immediately.
+    // Issue a JWT cookie so the frontend can auto-navigate to profile setup.
+    const token = signToken({
+      sub: user.id,
+      role: user.role,
+      organization_id: user.organization_id,
     });
+    res.cookie('token', token, COOKIE_OPTIONS);
+    return res.status(201).json({ user });
   } catch (err) {
     next(err);
   }

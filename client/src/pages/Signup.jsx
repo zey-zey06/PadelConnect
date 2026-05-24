@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signup } from '@/api/auth';
+import { useAuth, homeFor } from '@/App';
 import { Button }   from '@/components/ui/button';
 import { Input }    from '@/components/ui/input';
 import { Label }    from '@/components/ui/label';
@@ -93,6 +94,7 @@ function BrandingPanel() {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function Signup() {
   const navigate = useNavigate();
+  const { setUser } = useAuth();
 
   const [step, setStep] = useState(0); // 0 = role, 1 = email+password
   const [selectedRole, setSelectedRole] = useState(null);
@@ -127,9 +129,14 @@ export default function Signup() {
     setLoading(true);
     setError(null);
     try {
-      await signup({ email: form.email, password: form.password, role: selectedRole, first_name: form.firstName.trim(), last_name: form.lastName.trim() });
-      // No JWT cookie yet — user must verify email
-      navigate('/verify-email', { state: { email: form.email } });
+      const data = await signup({ email: form.email, password: form.password, role: selectedRole, first_name: form.firstName.trim(), last_name: form.lastName.trim() });
+      // Backend issues a JWT cookie immediately (email verification disabled).
+      // Hydrate auth context and send the user to the right place.
+      setUser(data.user);
+      navigate(
+        data.user.role === 'player' ? '/profile/setup' : homeFor(data.user),
+        { replace: true },
+      );
     } catch (err) {
       setError(err.message || 'Erreur lors de la création du compte.');
     } finally {

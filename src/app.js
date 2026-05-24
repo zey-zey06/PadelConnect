@@ -33,14 +33,19 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(distPath));
 }
 
-app.use(helmet());
+// Helmet — disable CSP so Google Fonts / external assets aren't blocked.
+// The app serves only its own content; a strict CSP buys little here and
+// breaks fonts.googleapis.com in production.
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   credentials: true,
 }));
 app.use(express.json());
 app.use(cookieParser());
-app.use('/uploads', express.static('uploads'));
+// Serve legacy disk-stored uploads (only present in dev; Render filesystem is ephemeral).
+// New uploads are stored as base64 data-URLs in the DB and don't need this route.
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -83,9 +88,15 @@ app.get('/healthz', async (req, res) => {
   });
 });
 
+// Explicit 404 for any /api/* route that wasn't matched above.
+// Must come before the SPA fallback so unrecognised API calls get JSON,
+// not the React index.html with a 200 status.
+app.use('/api', (req, res) => {
+  res.status(404).json({ status: 404, error: 'Not Found', message: 'Route introuvable.' });
+});
+
 // SPA fallback: any non-API request that wasn't matched by express.static
 // (i.e. a client-side route like /sessions or /profile) gets index.html.
-// API routes are already handled above so this never shadows them.
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '../client/dist');
   app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));

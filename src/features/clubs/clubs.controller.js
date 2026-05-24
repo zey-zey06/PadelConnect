@@ -1,6 +1,3 @@
-const fs   = require('fs');
-const path = require('path');
-
 const { Router } = require('express');
 const Joi        = require('joi');
 const multer     = require('multer');
@@ -9,8 +6,6 @@ const authenticate  = require('../../middleware/authenticate');
 const requireRole   = require('../../middleware/requireRole');
 const { signToken } = require('../../auth/jwt');
 const clubsService  = require('./clubs.service');
-
-fs.mkdirSync('uploads/clubs', { recursive: true });
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -54,17 +49,10 @@ const updateClubSchema = Joi.object({
   amenities:   amenitiesSchema,
 }).min(1);
 
-// ── Multer — club images (logo + photos share the same directory) ──────────────
-const clubImageStorage = multer.diskStorage({
-  destination: 'uploads/clubs/',
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `${req.params.id ?? 'new'}-${Date.now()}${ext}`);
-  },
-});
-
+// Memory storage — images are kept as base64 data-URLs in the DB so they
+// survive Render container restarts (ephemeral filesystem).
 const uploadImage = multer({
-  storage: clubImageStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) cb(new Error('Seules les images sont acceptées.'));
@@ -109,7 +97,8 @@ async function logoHandler(req, res, next) {
     if (!req.file) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Fichier image requis.' });
     }
-    const club = await clubsService.updateLogo(req.params.id, req.user.organization_id, req.file.filename);
+    const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const club = await clubsService.updateLogo(req.params.id, req.user.organization_id, dataUrl);
     return res.json({ club });
   } catch (err) {
     next(err);
@@ -121,7 +110,8 @@ async function addPhotoHandler(req, res, next) {
     if (!req.file) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Fichier image requis.' });
     }
-    const club = await clubsService.addPhoto(req.params.id, req.user.organization_id, req.file.filename);
+    const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const club = await clubsService.addPhoto(req.params.id, req.user.organization_id, dataUrl);
     return res.json({ club });
   } catch (err) {
     next(err);
@@ -146,7 +136,8 @@ async function coverHandler(req, res, next) {
     if (!req.file) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Fichier image requis.' });
     }
-    const club = await clubsService.updateCover(req.params.id, req.user.organization_id, req.file.filename);
+    const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const club = await clubsService.updateCover(req.params.id, req.user.organization_id, dataUrl);
     return res.json({ club });
   } catch (err) {
     next(err);

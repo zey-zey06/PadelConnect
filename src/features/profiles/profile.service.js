@@ -25,8 +25,10 @@ async function updateProfile(userId, data) {
   return profileRepo.upsert(userId, profileData);
 }
 
-async function updatePhoto(userId, filename) {
-  return profileRepo.upsert(userId, { photo_url: `/uploads/profiles/${filename}` });
+async function updatePhoto(userId, photoUrl) {
+  // photoUrl is a base64 data-URL (e.g. "data:image/jpeg;base64,...") —
+  // stored directly in the DB so photos survive container restarts.
+  return profileRepo.upsert(userId, { photo_url: photoUrl });
 }
 
 async function getProfile(userId) {

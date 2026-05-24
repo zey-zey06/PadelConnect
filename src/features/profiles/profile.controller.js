@@ -1,21 +1,14 @@
 const { Router } = require('express');
 const multer = require('multer');
-const path = require('path');
 const Joi = require('joi');
 
 const authenticate = require('../../middleware/authenticate');
 const profileService = require('./profile.service');
 
-const storage = multer.diskStorage({
-  destination: 'uploads/profiles/',
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `${req.user.sub}-${Date.now()}${ext}`);
-  },
-});
-
+// Use memory storage so photos are converted to base64 data-URLs and stored
+// in the DB — no disk writes, survives Render redeploys.
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) {
@@ -70,7 +63,9 @@ async function photoHandler(req, res, next) {
     if (!req.file) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Fichier image requis.' });
     }
-    const profile = await profileService.updatePhoto(req.user.sub, req.file.filename);
+    // Convert buffer to base64 data-URL stored directly in the DB.
+    const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const profile = await profileService.updatePhoto(req.user.sub, dataUrl);
     return res.json({ profile });
   } catch (err) {
     next(err);
