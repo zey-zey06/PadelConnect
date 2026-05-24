@@ -75,11 +75,33 @@ async function getBallPickersByOrg(organizationId) {
     .whereNull('deleted_at')
     .orderBy('created_at', 'asc')
     .select(
-      'id        as user_id',
+      'id         as user_id',
       'first_name as user_first_name',
       'last_name  as user_last_name',
       'email      as user_email',
+      'phone      as user_phone',
     );
 }
 
-module.exports = { create, list, listWithStats, getUserById, getAdminByOrg, getById, linkUserToOrg, update, getBallPickersByOrg };
+async function createBallPicker(data) {
+  const [row] = await db('users').insert(data).returning([
+    'id', 'first_name', 'last_name', 'email', 'phone', 'role', 'organization_id',
+  ]);
+  return {
+    user_id:         row.id,
+    user_first_name: row.first_name,
+    user_last_name:  row.last_name,
+    user_email:      row.email,
+    user_phone:      row.phone,
+  };
+}
+
+async function removeBallPicker(userId) {
+  const [row] = await db('users')
+    .where({ id: userId, role: 'ball_picker' })
+    .update({ deleted_at: new Date(), updated_at: new Date() })
+    .returning('id');
+  return row;
+}
+
+module.exports = { create, list, listWithStats, getUserById, getAdminByOrg, getById, linkUserToOrg, update, getBallPickersByOrg, createBallPicker, removeBallPicker };

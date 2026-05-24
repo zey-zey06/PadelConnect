@@ -40,7 +40,7 @@ async function getClubCoaches(clubId) {
   return coachesRepo.getByOrg(club.id);
 }
 
-async function addCoachToClub(clubId, userOrgId, coachUserId) {
+async function addCoachToClub(clubId, userOrgId, coachEmail) {
   const club = await clubsRepo.getById(clubId);
   if (!club) {
     const err = new Error('Club introuvable.');
@@ -52,13 +52,28 @@ async function addCoachToClub(clubId, userOrgId, coachUserId) {
     err.status = 403;
     throw err;
   }
-  const coachUser = await coachesRepo.getCoachUser(coachUserId);
+  const coachUser = await coachesRepo.getCoachUserByEmail(coachEmail);
   if (!coachUser) {
-    const err = new Error('Utilisateur coach introuvable.');
+    const err = new Error('Aucun coach trouvé avec cet email. Vérifiez que l\'utilisateur existe et possède le rôle coach.');
     err.status = 404;
     throw err;
   }
-  return coachesRepo.attachToClub(coachUserId, club.id);
+  return coachesRepo.attachToClub(coachUser.id, club.id);
+}
+
+async function removeCoachFromClub(clubId, userOrgId, coachUserId) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) {
+    const err = new Error('Club introuvable.');
+    err.status = 404;
+    throw err;
+  }
+  if (club.id !== userOrgId) {
+    const err = new Error('Accès refusé.');
+    err.status = 403;
+    throw err;
+  }
+  return coachesRepo.detachFromClub(coachUserId);
 }
 
 async function getMyCoachProfile(userId) {
@@ -86,4 +101,4 @@ async function getCoachSessions(coachProfileId) {
   };
 }
 
-module.exports = { listAvailableCoaches, getCoach, getMyCoachProfile, updateAvailability, getClubCoaches, addCoachToClub, getCoachSessions };
+module.exports = { listAvailableCoaches, getCoach, getMyCoachProfile, updateAvailability, getClubCoaches, addCoachToClub, removeCoachFromClub, getCoachSessions };

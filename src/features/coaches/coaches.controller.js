@@ -16,7 +16,7 @@ const availabilitySchema = Joi.object({
 });
 
 const addCoachSchema = Joi.object({
-  user_id: Joi.string().uuid().required(),
+  email: Joi.string().email({ tlds: { allow: false } }).required(),
 });
 
 // ─── /api/coaches router ─────────────────────────────────────────────────────
@@ -68,8 +68,17 @@ async function addCoachToClubHandler(req, res, next) {
     if (error) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
     }
-    const coach = await coachesService.addCoachToClub(req.params.id, req.user.organization_id, value.user_id);
+    const coach = await coachesService.addCoachToClub(req.params.id, req.user.organization_id, value.email);
     return res.status(201).json({ coach });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function removeCoachFromClubHandler(req, res, next) {
+  try {
+    await coachesService.removeCoachFromClub(req.params.id, req.user.organization_id, req.params.userId);
+    return res.json({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -101,5 +110,6 @@ coachesRouter.put('/:id/availability', authenticate, updateAvailabilityHandler);
 const clubCoachesRouter = Router();
 clubCoachesRouter.get('/:id/coaches', authenticate, listClubCoachesHandler);
 clubCoachesRouter.post('/:id/coaches', authenticate, requireRole('venue_admin'), addCoachToClubHandler);
+clubCoachesRouter.delete('/:id/coaches/:userId', authenticate, requireRole('venue_admin'), removeCoachFromClubHandler);
 
 module.exports = { coachesRouter, clubCoachesRouter };

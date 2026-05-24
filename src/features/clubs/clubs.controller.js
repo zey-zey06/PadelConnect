@@ -190,6 +190,34 @@ async function ballPickersHandler(req, res, next) {
   }
 }
 
+const addBallPickerSchema = Joi.object({
+  first_name: Joi.string().required(),
+  last_name:  Joi.string().optional().allow(null, ''),
+  phone:      Joi.string().optional().allow(null, ''),
+});
+
+async function addBallPickerHandler(req, res, next) {
+  try {
+    const { error, value } = addBallPickerSchema.validate(req.body);
+    if (error) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    }
+    const ballPicker = await clubsService.createBallPicker(req.params.id, req.user.organization_id, value);
+    return res.status(201).json({ ballPicker });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function removeBallPickerHandler(req, res, next) {
+  try {
+    await clubsService.removeBallPicker(req.params.id, req.user.organization_id, req.params.userId);
+    return res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 const router = Router();
 router.get('/featured',       listClubsHandler); // public — no auth required
@@ -197,7 +225,9 @@ router.post('/',              authenticate, requireRole('venue_admin'), createCl
 router.get('/',               authenticate, listClubsHandler);
 router.get('/:id/public',     authenticate, validateId, publicClubHandler);
 router.get('/:id/slots',         authenticate, validateId, clubSlotsHandler);
-router.get('/:id/ball-pickers',  authenticate, validateId, ballPickersHandler);
+router.get('/:id/ball-pickers',             authenticate, validateId, ballPickersHandler);
+router.post('/:id/ball-pickers',            authenticate, validateId, requireRole('venue_admin'), addBallPickerHandler);
+router.delete('/:id/ball-pickers/:userId',  authenticate, validateId, requireRole('venue_admin'), removeBallPickerHandler);
 router.get('/:id',               authenticate, validateId, getClubHandler);
 router.patch('/:id',          authenticate, validateId, requireRole('venue_admin'), updateClubHandler);
 router.post('/:id/logo',      authenticate, validateId, requireRole('venue_admin'), uploadImage.single('logo'),  logoHandler);

@@ -1,12 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Building2, MapPin, CalendarDays, TrendingUp, CalendarCheck,
-  ChevronRight, AlertCircle, Plus, X,
+  ChevronRight, AlertCircle, Plus, X, Users, UserCheck,
   ShowerHead, ParkingSquare, Wifi, Utensils, ShoppingBag, Lightbulb, Shirt,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/App';
-import { getManagerDashboard, getMyClub, getMyVenues, addVenue, getVenueSlots } from '@/api/manager';
+import {
+  getManagerDashboard, getMyClub, getMyVenues, addVenue, getVenueSlots,
+  addCoachToClub, removeCoachFromClub, addBallPickerToClub, removeBallPickerFromClub,
+} from '@/api/manager';
+import { getClubCoaches, getClubBallPickers } from '@/api/clubs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -231,16 +236,253 @@ function VenueCardSkeleton() {
   );
 }
 
+// ── Add coach modal (by email) ────────────────────────────────────────────────
+function AddCoachModal({ clubId, onClose, onAdded }) {
+  const [email,   setEmail]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!email.trim()) { setError('L\'email est obligatoire.'); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const { coach } = await addCoachToClub(clubId, email.trim().toLowerCase());
+      onAdded(coach);
+    } catch (err) {
+      setError(err.message || 'Erreur lors de l\'ajout.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Ajouter un coach</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Le compte coach doit déjà exister.</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />{error}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="coach-email">Email du coach</Label>
+            <Input
+              id="coach-email"
+              type="email"
+              autoFocus
+              placeholder="coach@example.com"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(null); }}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              L'utilisateur doit avoir le rôle "coach" sur PadelConnect.
+            </p>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1">Annuler</Button>
+            <Button type="submit" disabled={loading} className="flex-1">
+              {loading ? 'Ajout…' : 'Ajouter le coach'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Add ball picker modal ─────────────────────────────────────────────────────
+function AddBallPickerModal({ clubId, onClose, onAdded }) {
+  const [form,    setForm]    = useState({ first_name: '', last_name: '', phone: '' });
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  function set(field, val) {
+    setForm((f) => ({ ...f, [field]: val }));
+    setError(null);
+  }
+
+  function formatPhone(v) {
+    const digits = v.replace(/\D/g, '').slice(0, 10);
+    const groups = [];
+    for (let i = 0; i < digits.length; i += 2) groups.push(digits.slice(i, i + 2));
+    return groups.join(' ');
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.first_name.trim()) { setError('Le prénom est obligatoire.'); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const { ballPicker } = await addBallPickerToClub(clubId, {
+        first_name: form.first_name.trim(),
+        last_name:  form.last_name.trim() || null,
+        phone:      form.phone.replace(/\s/g, '') || null,
+      });
+      onAdded(ballPicker);
+    } catch (err) {
+      setError(err.message || 'Erreur lors de l\'ajout.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">Ajouter un ramasseur</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />{error}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="bp-first">Prénom</Label>
+              <Input
+                id="bp-first"
+                autoFocus
+                placeholder="Kofi"
+                value={form.first_name}
+                onChange={(e) => set('first_name', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bp-last">Nom <span className="font-normal text-muted-foreground">(optionnel)</span></Label>
+              <Input
+                id="bp-last"
+                placeholder="Mensah"
+                value={form.last_name}
+                onChange={(e) => set('last_name', e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="bp-phone">Téléphone <span className="font-normal text-muted-foreground">(optionnel)</span></Label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-mono text-muted-foreground shrink-0 select-none">🇨🇮 +225</span>
+              <Input
+                id="bp-phone"
+                placeholder="07 12 34 56 78"
+                value={form.phone}
+                onChange={(e) => set('phone', formatPhone(e.target.value))}
+                inputMode="numeric"
+                maxLength={14}
+                className="font-mono tracking-wider"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1">Annuler</Button>
+            <Button type="submit" disabled={loading} className="flex-1">
+              {loading ? 'Ajout…' : 'Ajouter le ramasseur'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Staff member row ──────────────────────────────────────────────────────────
+function StaffRow({ member, onRemove, removing }) {
+  const name = [member.user_first_name, member.user_last_name].filter(Boolean).join(' ')
+    || member.user_email?.split('@')[0]
+    || '—';
+  const initials = name.slice(0, 2).toUpperCase();
+
+  return (
+    <div className="flex items-center gap-3 py-2.5 px-1">
+      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        {member.user_photo_url ? (
+          <img src={member.user_photo_url} alt={name} className="h-full w-full rounded-full object-cover" />
+        ) : (
+          <span className="text-xs font-bold text-primary select-none">{initials}</span>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-foreground truncate">{name}</p>
+        {member.user_phone ? (
+          <p className="text-xs text-muted-foreground truncate">+225 {member.user_phone}</p>
+        ) : member.specialty ? (
+          <p className="text-xs text-muted-foreground truncate">{member.specialty}</p>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        disabled={removing}
+        onClick={onRemove}
+        className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+        title="Retirer"
+      >
+        {removing ? (
+          <span className="w-3.5 h-3.5 border border-current/40 border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <Trash2 className="h-3.5 w-3.5" />
+        )}
+      </button>
+    </div>
+  );
+}
+
 // ── ManagerDashboard page ─────────────────────────────────────────────────────
 export default function ManagerDashboard() {
   const { user } = useAuth();
 
-  const [stats,     setStats]     = useState(null);
-  const [club,      setClub]      = useState(null);
-  const [venues,    setVenues]    = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(null);
-  const [showModal, setShowModal] = useState(false);
+  const [stats,        setStats]        = useState(null);
+  const [club,         setClub]         = useState(null);
+  const [venues,       setVenues]       = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
+  const [showModal,    setShowModal]    = useState(false);
+
+  // Staff state
+  const [coaches,          setCoaches]          = useState([]);
+  const [ballPickers,      setBallPickers]       = useState([]);
+  const [loadingStaff,     setLoadingStaff]     = useState(false);
+  const [showAddCoach,     setShowAddCoach]     = useState(false);
+  const [showAddBallPicker,setShowAddBallPicker]= useState(false);
+  const [removingId,       setRemovingId]       = useState(null); // userId being removed
+
+  const loadStaff = useCallback(async (clubId) => {
+    if (!clubId) return;
+    setLoadingStaff(true);
+    try {
+      const [{ coaches: c }, { ballPickers: b }] = await Promise.all([
+        getClubCoaches(clubId),
+        getClubBallPickers(clubId),
+      ]);
+      setCoaches(c ?? []);
+      setBallPickers(b ?? []);
+    } catch {
+      // non-fatal
+    } finally {
+      setLoadingStaff(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!user?.organization_id) { setLoading(false); return; }
@@ -255,6 +497,7 @@ export default function ManagerDashboard() {
         setStats(s);
         setClub(c);
         setVenues(v ?? []);
+        await loadStaff(user.organization_id);
       } catch (err) {
         setError(err.message || 'Erreur de chargement.');
       } finally {
@@ -262,7 +505,31 @@ export default function ManagerDashboard() {
       }
     }
     load();
-  }, [user?.organization_id]);
+  }, [user?.organization_id, loadStaff]);
+
+  async function handleRemoveCoach(userId) {
+    setRemovingId(userId);
+    try {
+      await removeCoachFromClub(user.organization_id, userId);
+      setCoaches((prev) => prev.filter((c) => c.user_id !== userId));
+    } catch {
+      // ignore — keep the list as is
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  async function handleRemoveBallPicker(userId) {
+    setRemovingId(userId);
+    try {
+      await removeBallPickerFromClub(user.organization_id, userId);
+      setBallPickers((prev) => prev.filter((b) => b.user_id !== userId));
+    } catch {
+      // ignore
+    } finally {
+      setRemovingId(null);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -372,6 +639,96 @@ export default function ManagerDashboard() {
               </div>
             )}
           </div>
+
+          {/* ── Mon équipe ──────────────────────────────────────────── */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Mon équipe</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {coaches.length + ballPickers.length} membre{coaches.length + ballPickers.length !== 1 ? 's' : ''} au total
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+              {/* ── Coaches ── */}
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold text-foreground">
+                      Coachs <span className="text-muted-foreground font-normal">({coaches.length})</span>
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowAddCoach(true)}>
+                    <Plus className="h-3 w-3" />Ajouter
+                  </Button>
+                </div>
+
+                <div className="px-4 divide-y divide-border/50">
+                  {loadingStaff ? (
+                    <div className="py-4 space-y-3">
+                      {[1, 2].map((i) => <div key={i} className="h-9 rounded-lg bg-muted animate-pulse" />)}
+                    </div>
+                  ) : coaches.length === 0 ? (
+                    <div className="py-6 text-center">
+                      <Users className="h-6 w-6 text-muted-foreground mx-auto mb-1.5" />
+                      <p className="text-xs text-muted-foreground">Aucun coach rattaché.</p>
+                    </div>
+                  ) : (
+                    coaches.map((c) => (
+                      <StaffRow
+                        key={c.user_id}
+                        member={c}
+                        removing={removingId === c.user_id}
+                        onRemove={() => handleRemoveCoach(c.user_id)}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* ── Ball pickers ── */}
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold text-foreground">
+                      Ramasseurs <span className="text-muted-foreground font-normal">({ballPickers.length})</span>
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowAddBallPicker(true)}>
+                    <Plus className="h-3 w-3" />Ajouter
+                  </Button>
+                </div>
+
+                <div className="px-4 divide-y divide-border/50">
+                  {loadingStaff ? (
+                    <div className="py-4 space-y-3">
+                      {[1].map((i) => <div key={i} className="h-9 rounded-lg bg-muted animate-pulse" />)}
+                    </div>
+                  ) : ballPickers.length === 0 ? (
+                    <div className="py-6 text-center">
+                      <Users className="h-6 w-6 text-muted-foreground mx-auto mb-1.5" />
+                      <p className="text-xs text-muted-foreground">Aucun ramasseur rattaché.</p>
+                    </div>
+                  ) : (
+                    ballPickers.map((b) => (
+                      <StaffRow
+                        key={b.user_id}
+                        member={b}
+                        removing={removingId === b.user_id}
+                        onRemove={() => handleRemoveBallPicker(b.user_id)}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+
+            </div>
+          </div>
         </>
       )}
 
@@ -382,6 +739,29 @@ export default function ManagerDashboard() {
           onCreated={(v) => {
             setVenues((prev) => [...prev, v]);
             setShowModal(false);
+          }}
+        />
+      )}
+
+      {showAddCoach && (
+        <AddCoachModal
+          clubId={user.organization_id}
+          onClose={() => setShowAddCoach(false)}
+          onAdded={(coach) => {
+            // Reload full list so we get all joined fields
+            loadStaff(user.organization_id);
+            setShowAddCoach(false);
+          }}
+        />
+      )}
+
+      {showAddBallPicker && (
+        <AddBallPickerModal
+          clubId={user.organization_id}
+          onClose={() => setShowAddBallPicker(false)}
+          onAdded={(bp) => {
+            setBallPickers((prev) => [...prev, bp]);
+            setShowAddBallPicker(false);
           }}
         />
       )}

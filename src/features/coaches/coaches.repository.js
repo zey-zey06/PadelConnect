@@ -56,10 +56,22 @@ async function getCoachUser(userId) {
   return db('users').where({ id: userId, role: 'coach' }).whereNull('deleted_at').first();
 }
 
+async function getCoachUserByEmail(email) {
+  return db('users').where({ email, role: 'coach' }).whereNull('deleted_at').first();
+}
+
 async function attachToClub(userId, organizationId) {
   const [row] = await db('coach_profiles')
     .where({ user_id: userId })
     .update({ organization_id: organizationId, is_independent: false, updated_at: new Date() })
+    .returning('*');
+  return row;
+}
+
+async function detachFromClub(userId) {
+  const [row] = await db('coach_profiles')
+    .where({ user_id: userId })
+    .update({ organization_id: null, is_independent: true, updated_at: new Date() })
     .returning('*');
   return row;
 }
@@ -81,4 +93,4 @@ async function getSessionsByCoach(coachProfileId) {
     .select('sessions.*');
 }
 
-module.exports = { listAvailable, getById, getByUserId, updateAvailability, getByOrg, getCoachUser, attachToClub, getSessionsByCoach };
+module.exports = { listAvailable, getById, getByUserId, updateAvailability, getByOrg, getCoachUser, getCoachUserByEmail, attachToClub, detachFromClub, getSessionsByCoach };

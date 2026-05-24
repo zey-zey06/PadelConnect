@@ -75,3 +75,20 @@ export const bulkUpdateSlotPrice = (venueId, startTime, endTime, price) =>
 
 /** POST /api/venues/:id/slots/generate — auto-fill missing default slots for next 30 days */
 export const fillVenueSlots = (venueId) => client.post(`/venues/${venueId}/slots/generate`);
+
+// ── Staff management ──────────────────────────────────────────────────────────
+/** POST /api/clubs/:id/coaches { email } → { coach } — attach coach by email */
+export const addCoachToClub = (clubId, email) =>
+  client.post(`/clubs/${clubId}/coaches`, { email });
+
+/** DELETE /api/clubs/:id/coaches/:userId → { ok: true } — detach coach */
+export const removeCoachFromClub = (clubId, userId) =>
+  client.delete(`/clubs/${clubId}/coaches/${userId}`);
+
+/** POST /api/clubs/:id/ball-pickers { first_name, last_name, phone } → { ballPicker } */
+export const addBallPickerToClub = (clubId, data) =>
+  client.post(`/clubs/${clubId}/ball-pickers`, data);
+
+/** DELETE /api/clubs/:id/ball-pickers/:userId → { ok: true } */
+export const removeBallPickerFromClub = (clubId, userId) =>
+  client.delete(`/clubs/${clubId}/ball-pickers/${userId}`);

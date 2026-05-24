@@ -143,8 +143,9 @@ async function respondToRequest(sessionId, requestId, userId, status) {
   const updatedRequest = await requestsRepo.updateStatus(requestId, status);
 
   let sessionBecameComplete = false;
-  // Only players count toward the session headcount — coaches/ball-pickers are service providers
-  if (status === 'accepted' && sessionRequest.role === 'player') {
+  // Players AND coaches count toward the session headcount.
+  // Ball-pickers are service providers and do NOT occupy a player slot.
+  if (status === 'accepted' && sessionRequest.role !== 'ball_picker') {
     const newCount = session.current_players + 1;
     const updatedSession = await sessionsRepo.updateCurrentPlayers(sessionId, newCount);
     if (updatedSession.current_players >= session.max_players) {
