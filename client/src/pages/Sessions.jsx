@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
-  Users, Plus, AlertCircle, X, Filter,
+  Users, Plus, AlertCircle, X,
   CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2, Calendar,
   ChevronLeft, ChevronRight, Banknote, CreditCard,
 } from 'lucide-react';
@@ -182,19 +182,30 @@ const GENDER_PREFS = [
   { value: 'men',    label: 'Hommes seulement' },
 ];
 
-// ── Session card (browse tab) ─────────────────────────────────────────────────
-function SessionCard({ session, onJoin, hasBooking = false, onBooked }) {
+// ── Instagram-style session feed card ────────────────────────────────────────
+const GENDER_DISPLAY = { mixed: 'Mixte', women: 'Femmes', men: 'Hommes' };
+const GENDER_ICON    = { mixed: '⚧', women: '♀', men: '♂' };
+
+function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked }) {
   const { user } = useAuth();
   const [state, setState] = useState('idle'); // idle | loading | done | error
   const [msg,   setMsg]   = useState('');
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
 
-  const isFull  = session.status === 'complete' || (session.current_players ?? 0) >= session.max_players;
   const isOwner = user?.id === session.creator_id;
-  const d = parseSessionDate(session.date);
+  const filled  = Math.min(session.current_players ?? 0, session.max_players ?? 4);
+  const total   = session.max_players ?? 4;
+  const isFull  = session.status === 'complete' || filled >= total;
+  const d       = parseSessionDate(session.date);
 
-  const creatorName = session.creator_email?.split('@')[0] ?? 'Joueur';
-  const levelMin    = session.preferences?.level_min;
+  const creatorName =
+    [session.creator_first_name, session.creator_last_name].filter(Boolean).join(' ') ||
+    session.creator_email?.split('@')[0] ||
+    'Joueur';
+  const initials  = creatorName.slice(0, 2).toUpperCase();
+  const levelMin  = session.preferences?.level_min;
+  const gender    = session.preferences?.gender;
+  const spots     = Array.from({ length: total }, (_, i) => i < filled);
 
   async function handleJoin() {
     setState('loading');
@@ -209,90 +220,167 @@ function SessionCard({ session, onJoin, hasBooking = false, onBooked }) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3 hover:shadow-sm transition-shadow">
-      {/* Date row */}
-      <div className="flex items-start justify-between gap-2">
+    <article className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+
+      {/* ── Header: creator avatar + name + status ─────────────────── */}
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        <div className="h-10 w-10 rounded-full overflow-hidden bg-primary/10 shrink-0 ring-2 ring-border">
+          {session.creator_photo_url ? (
+            <img src={session.creator_photo_url} alt={creatorName} className="h-full w-full object-cover" />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+              <span className="text-xs font-bold text-primary select-none">{initials}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate leading-snug">{creatorName}</p>
+          {session.creator_level ? (
+            <p className="text-xs text-muted-foreground leading-snug">
+              {LEVEL_LABELS[session.creator_level]} · Niv.&nbsp;{session.creator_level}/7
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground leading-snug">Organisateur</p>
+          )}
+        </div>
+
+        {isOwner ? (
+          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 shrink-0">
+            Votre session
+          </span>
+        ) : (
+          <span className={cn(
+            'text-[11px] font-semibold px-2.5 py-1 rounded-full border shrink-0',
+            isFull
+              ? 'bg-muted text-muted-foreground border-border'
+              : 'bg-green-50 text-green-700 border-green-200'
+          )}>
+            {isFull ? 'Complet' : 'Ouvert'}
+          </span>
+        )}
+      </div>
+
+      <div className="h-px bg-border/50 mx-4" />
+
+      {/* ── Body ───────────────────────────────────────────────────── */}
+      <div className="px-4 pt-3.5 pb-4 space-y-3.5">
+
+        {/* Date + time row */}
         <div className="flex items-center gap-3">
-          <div className="flex flex-col items-center justify-center w-[48px] h-[48px] rounded-xl bg-accent shrink-0">
-            <span className="text-[9px] font-bold text-primary/60 uppercase leading-none">
+          <div className="flex flex-col items-center justify-center w-10 h-10 rounded-xl bg-primary/8 shrink-0 border border-primary/15">
+            <span className="text-[8px] font-extrabold text-primary/60 uppercase leading-none tracking-wide">
               {d.toLocaleDateString('fr-FR', { month: 'short' })}
             </span>
-            <span className="text-xl font-bold text-primary leading-none">{d.getDate()}</span>
+            <span className="text-[17px] font-extrabold text-primary leading-none mt-0.5">{d.getDate()}</span>
           </div>
-          <div>
-            <p className="font-semibold text-foreground capitalize text-sm leading-snug">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground capitalize leading-snug truncate">
               {d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-              <Clock className="h-3 w-3" />
+              <Clock className="h-3 w-3 shrink-0" />
               {session.time?.slice(0, 5) ?? '—'}
-              {session.end_time && <span>– {session.end_time.slice(0, 5)}</span>}
+              {session.end_time && (
+                <span className="text-muted-foreground/60">– {session.end_time.slice(0, 5)}</span>
+              )}
             </p>
           </div>
         </div>
-        <Badge variant={isFull ? 'secondary' : 'success'} className="shrink-0">
-          {isFull ? 'Complet' : 'Ouvert'}
-        </Badge>
-      </div>
 
-      {/* Players + level + organiser */}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-        <span className="flex items-center gap-1">
-          <Users className="h-3.5 w-3.5" />
-          {session.current_players ?? 0}/{session.max_players} joueurs
-        </span>
-        {levelMin && (
-          <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-            Niveau {levelMin}+
-          </span>
+        {/* Tags: level + gender */}
+        {(levelMin || gender) && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {levelMin && (
+              <span className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/8 text-primary border border-primary/15">
+                Niv.&nbsp;{levelMin}+
+              </span>
+            )}
+            {gender && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-accent text-foreground/70 border border-border">
+                <span aria-hidden>{GENDER_ICON[gender]}</span>
+                {GENDER_DISPLAY[gender]}
+              </span>
+            )}
+          </div>
         )}
-        <span className="capitalize ml-auto truncate max-w-[120px]">{creatorName}</span>
-      </div>
 
-      {/* Action */}
-      <div className="mt-auto pt-1">
-        {isOwner ? (
-          hasBooking ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full text-green-600 border-green-200 bg-green-50 hover:bg-green-50 hover:border-green-200 cursor-default"
-              disabled
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Terrain réservé ✓
-            </Button>
+        {/* Player spots visualisation */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            {spots.map((taken, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all',
+                  taken
+                    ? 'bg-primary border-primary shadow-sm'
+                    : 'border-dashed border-border/70 bg-background'
+                )}
+              >
+                {taken && <Users className="h-3 w-3 text-primary-foreground" />}
+              </div>
+            ))}
+          </div>
+          <span className="text-xs text-muted-foreground leading-snug">
+            <span className="font-semibold text-foreground">{filled}</span>/{total} joueur{total > 1 ? 's' : ''}
+            {!isFull && (
+              <span className="text-green-600 font-medium">
+                {' '}· {total - filled} place{total - filled > 1 ? 's' : ''} libre{total - filled > 1 ? 's' : ''}
+              </span>
+            )}
+          </span>
+        </div>
+
+        {/* CTA */}
+        <div className="pt-0.5">
+          {isOwner ? (
+            hasBooking ? (
+              <Button variant="outline" className="w-full text-green-600 border-green-200 bg-green-50 cursor-default" disabled>
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Terrain réservé ✓
+              </Button>
+            ) : (
+              <Button variant="outline" className="w-full" onClick={() => setShowTerrainPicker(true)}>
+                <Calendar className="h-3.5 w-3.5" />
+                Réserver un terrain
+              </Button>
+            )
+          ) : state === 'done' ? (
+            <p className="text-xs text-green-600 flex items-center justify-center gap-1 py-2 font-medium">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              Demande envoyée — en attente de confirmation.
+            </p>
+          ) : state === 'error' ? (
+            <div className="space-y-2">
+              <p className="text-xs text-red-600 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3 shrink-0" />{msg}
+              </p>
+              <Button size="sm" className="w-full" onClick={handleJoin} disabled={isFull}>
+                Réessayer
+              </Button>
+            </div>
           ) : (
             <Button
-              variant="outline"
-              size="sm"
               className="w-full"
-              onClick={() => setShowTerrainPicker(true)}
+              variant={isFull ? 'outline' : 'default'}
+              onClick={handleJoin}
+              disabled={isFull || state === 'loading'}
             >
-              <Calendar className="h-3.5 w-3.5" />
-              Réserver un terrain
+              {state === 'loading' ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-current/40 border-t-transparent rounded-full animate-spin" />
+                  Envoi…
+                </>
+              ) : isFull ? 'Session complète' : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  Rejoindre la session
+                </>
+              )}
             </Button>
-          )
-        ) : state === 'done' ? (
-          <p className="text-xs font-medium text-green-600 flex items-center gap-1">
-            <CheckCircle2 className="h-3 w-3 shrink-0" />
-            Demande envoyée — en attente de confirmation.
-          </p>
-        ) : state === 'error' ? (
-          <p className="text-xs text-red-600 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3 shrink-0" />{msg}
-          </p>
-        ) : (
-          <Button
-            className="w-full"
-            size="sm"
-            onClick={handleJoin}
-            disabled={isFull || state === 'loading'}
-            variant={isFull ? 'outline' : 'default'}
-          >
-            {state === 'loading' ? 'Envoi…' : isFull ? 'Session complète' : 'Rejoindre'}
-          </Button>
-        )}
+          )}
+        </div>
       </div>
 
       {showTerrainPicker && (
@@ -302,6 +390,109 @@ function SessionCard({ session, onJoin, hasBooking = false, onBooked }) {
           onBooked={() => { setShowTerrainPicker(false); onBooked?.(); }}
         />
       )}
+    </article>
+  );
+}
+
+// ── Sticky filter bar ─────────────────────────────────────────────────────────
+function FilterBar({ dateFilter, setDateFilter, levelFilter, setLevelFilter, genderFilter, setGenderFilter, total, hasFilters, onReset }) {
+  return (
+    <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 sm:-mx-6 sm:px-6 pb-2.5 pt-1">
+      {/* Scrollable chip row */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+
+        {/* Date */}
+        <div className="relative shrink-0">
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className={cn(
+              'h-8 pl-3 pr-8 rounded-full border text-xs font-medium cursor-pointer appearance-none bg-card transition-all min-w-[130px]',
+              dateFilter
+                ? 'border-primary text-primary bg-primary/5'
+                : 'border-border text-muted-foreground hover:border-primary/40'
+            )}
+          />
+          {dateFilter && (
+            <button
+              onClick={() => setDateFilter('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-primary hover:text-primary/70 transition-colors"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        <div className="w-px h-5 bg-border shrink-0" />
+
+        {/* Level chips */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => setLevelFilter('')}
+            className={cn(
+              'h-8 px-3 rounded-full border text-xs font-medium transition-all whitespace-nowrap',
+              !levelFilter
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-card border-border text-muted-foreground hover:border-primary/40'
+            )}
+          >
+            Tous
+          </button>
+          {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+            <button
+              key={n}
+              onClick={() => setLevelFilter(levelFilter === n ? '' : n)}
+              className={cn(
+                'h-8 w-8 rounded-full border text-xs font-bold transition-all shrink-0',
+                levelFilter === n
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card border-border text-muted-foreground hover:border-primary/40'
+              )}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+
+        <div className="w-px h-5 bg-border shrink-0" />
+
+        {/* Gender chips */}
+        {[
+          { val: '',       label: 'Tout' },
+          { val: 'mixed',  label: '⚧ Mixte' },
+          { val: 'women',  label: '♀ Femmes' },
+          { val: 'men',    label: '♂ Hommes' },
+        ].map(({ val, label }) => (
+          <button
+            key={val}
+            onClick={() => setGenderFilter(genderFilter === val ? '' : val)}
+            className={cn(
+              'h-8 px-3 rounded-full border text-xs font-medium whitespace-nowrap shrink-0 transition-all',
+              genderFilter === val
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-card border-border text-muted-foreground hover:border-primary/40'
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Count + reset */}
+      <div className="flex items-center justify-between mt-1">
+        <p className="text-[11px] text-muted-foreground">
+          {total} session{total !== 1 ? 's' : ''} disponible{total !== 1 ? 's' : ''}
+        </p>
+        {hasFilters && (
+          <button
+            onClick={onReset}
+            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-3 w-3" /> Réinitialiser
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -1972,18 +2163,22 @@ export default function Sessions() {
   const [error,       setError]       = useState(null);
   const [showCreate,  setShowCreate]  = useState(false);
 
-  const [dateFilter,  setDateFilter]  = useState('');
-  const [levelFilter, setLevelFilter] = useState('');
+  const [dateFilter,   setDateFilter]   = useState('');
+  const [levelFilter,  setLevelFilter]  = useState('');
+  const [genderFilter, setGenderFilter] = useState('');
+  const [visibleCount, setVisibleCount] = useState(8);
 
-  const hasFilters = dateFilter || levelFilter;
+  const hasFilters = !!(dateFilter || levelFilter || genderFilter);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setVisibleCount(8); // reset pagination on new filter
     try {
       const params = { status: 'open' };
-      if (dateFilter)  params.date      = dateFilter;
-      if (levelFilter) params.level_min = levelFilter;
+      if (dateFilter)   params.date      = dateFilter;
+      if (levelFilter)  params.level_min = levelFilter;
+      if (genderFilter) params.gender    = genderFilter;
       const [{ sessions: s }, { bookings: b }] = await Promise.all([
         listSessions(params),
         getMyBookings(),
@@ -1999,7 +2194,7 @@ export default function Sessions() {
     } finally {
       setLoading(false);
     }
-  }, [dateFilter, levelFilter]);
+  }, [dateFilter, levelFilter, genderFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -2061,88 +2256,69 @@ export default function Sessions() {
       {/* My sessions tab */}
       {tab === 'mine' && <MySessions autoOpen={fromNotification} />}
 
-      {/* Browse tab: filters */}
+      {/* Browse tab: sticky filter bar + feed */}
       {tab === 'browse' && (
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Filter className="h-3.5 w-3.5" />
-            Filtrer
-          </span>
-
-          <Input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="h-8 w-[140px] text-sm"
+        <>
+          <FilterBar
+            dateFilter={dateFilter}    setDateFilter={setDateFilter}
+            levelFilter={levelFilter}  setLevelFilter={setLevelFilter}
+            genderFilter={genderFilter} setGenderFilter={setGenderFilter}
+            total={sessions.length}
+            hasFilters={hasFilters}
+            onReset={() => { setDateFilter(''); setLevelFilter(''); setGenderFilter(''); }}
           />
 
-          <div className="flex gap-1">
-            {[['', 'Tous'], ...Object.entries(LEVEL_LABELS).map(([k]) => [k, k])].map(([val]) => (
-              <button
-                key={val}
-                onClick={() => setLevelFilter(val === '' ? '' : Number(val))}
-                className={cn(
-                  'px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all',
-                  String(levelFilter) === String(val)
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-card text-foreground/60 border-border hover:border-primary/40'
-                )}
-              >
-                {val === '' ? 'Tous' : val}
-              </button>
-            ))}
-          </div>
-
-          {hasFilters && (
-            <button
-              onClick={() => { setDateFilter(''); setLevelFilter(''); }}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X className="h-3 w-3" /> Réinitialiser
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Browse tab: session list */}
-      {tab === 'browse' && (
-        loading ? (
-          <PageSkeleton icon="🎾" message="Recherche de partenaires..." layout="cards" />
-        ) : error ? (
-          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            <AlertCircle className="h-4 w-4 shrink-0" />{error}
-          </div>
-        ) : sessions.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center space-y-4">
-            <Users className="h-8 w-8 text-muted-foreground mx-auto" />
-            <div>
-              <p className="font-medium text-foreground">Aucune session disponible</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {hasFilters
-                  ? 'Aucun résultat pour ces filtres. Essayez d\'en changer.'
-                  : 'Soyez le premier à créer une session !'}
-              </p>
+          {loading ? (
+            <PageSkeleton icon="🎾" message="Recherche de partenaires..." layout="cards" />
+          ) : error ? (
+            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />{error}
             </div>
-            {!hasFilters && (
-              <Button onClick={() => setShowCreate(true)}>
-                <Plus className="h-4 w-4" />
-                Créer une session
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sessions.map((s) => (
-              <SessionCard
-                key={s.id}
-                session={s}
-                onJoin={handleJoin}
-                hasBooking={!!bookingMap[s.id]}
-                onBooked={load}
-              />
-            ))}
-          </div>
-        )
+          ) : sessions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center space-y-4">
+              <Users className="h-8 w-8 text-muted-foreground mx-auto" />
+              <div>
+                <p className="font-medium text-foreground">Aucune session disponible</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {hasFilters
+                    ? "Aucun résultat pour ces filtres. Essayez d'en changer."
+                    : 'Soyez le premier à créer une session !'}
+                </p>
+              </div>
+              {!hasFilters && (
+                <Button onClick={() => setShowCreate(true)}>
+                  <Plus className="h-4 w-4" />
+                  Créer une session
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4 pt-4">
+              {sessions.slice(0, visibleCount).map((s) => (
+                <FeedSessionCard
+                  key={s.id}
+                  session={s}
+                  onJoin={handleJoin}
+                  hasBooking={!!bookingMap[s.id]}
+                  onBooked={load}
+                />
+              ))}
+
+              {/* "Voir plus" */}
+              {visibleCount < sessions.length && (
+                <div className="pt-2 flex justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setVisibleCount((n) => n + 8)}
+                    className="px-8"
+                  >
+                    Voir plus · {sessions.length - visibleCount} session{sessions.length - visibleCount > 1 ? 's' : ''}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

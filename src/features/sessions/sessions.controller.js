@@ -32,10 +32,11 @@ async function createHandler(req, res, next) {
 async function listHandler(req, res, next) {
   try {
     const filters = {};
-    if (req.query.date) filters.date = req.query.date;
-    if (req.query.status) filters.status = req.query.status;
+    if (req.query.date)   filters.date      = req.query.date;
+    if (req.query.status) filters.status    = req.query.status;
     if (req.query.level_min) filters.level_min = parseInt(req.query.level_min, 10);
     if (req.query.level_max) filters.level_max = parseInt(req.query.level_max, 10);
+    if (req.query.gender) filters.gender = req.query.gender;
 
     const sessions = await sessionsService.list(filters);
     return res.json({ sessions });

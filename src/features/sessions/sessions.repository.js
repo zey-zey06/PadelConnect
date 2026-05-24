@@ -20,17 +20,22 @@ async function list(filters = {}) {
     query = query.where('sessions.status', filters.status);
   }
   if (filters.level_min != null) {
-    query = query.whereRaw("(sessions.preferences->>'level')::int >= ?", [filters.level_min]);
+    query = query.whereRaw("(sessions.preferences->>'level_min')::int >= ?", [filters.level_min]);
   }
   if (filters.level_max != null) {
-    query = query.whereRaw("(sessions.preferences->>'level')::int <= ?", [filters.level_max]);
+    query = query.whereRaw("(sessions.preferences->>'level_min')::int <= ?", [filters.level_max]);
+  }
+  if (filters.gender) {
+    query = query.whereRaw("sessions.preferences->>'gender' = ?", [filters.gender]);
   }
 
   return query.select(
     'sessions.*',
-    'users.email as creator_email',
+    'users.email          as creator_email',
+    'users.first_name     as creator_first_name',
+    'users.last_name      as creator_last_name',
     'player_profiles.photo_url as creator_photo_url',
-    'player_profiles.level as creator_level',
+    'player_profiles.level     as creator_level',
   );
 }
 

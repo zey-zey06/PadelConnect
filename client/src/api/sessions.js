@@ -6,10 +6,11 @@ import client from './client';
  */
 export const listSessions = (params = {}) => {
   const qs = new URLSearchParams();
-  if (params.status) qs.set('status', params.status);
-  if (params.date)   qs.set('date',   params.date);
+  if (params.status)   qs.set('status',    params.status);
+  if (params.date)     qs.set('date',      params.date);
   if (params.level_min != null) qs.set('level_min', String(params.level_min));
   if (params.level_max != null) qs.set('level_max', String(params.level_max));
+  if (params.gender)   qs.set('gender',    params.gender);
   const query = qs.toString();
   return client.get(`/sessions${query ? `?${query}` : ''}`);
 };
