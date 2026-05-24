@@ -25,6 +25,14 @@ const aiRouter       = require('./features/ai/ai.controller');
 
 const app = express();
 
+// Static assets served first — no auth, no middleware overhead.
+// Must be registered before helmet/cors so /assets/* files are never
+// intercepted by the authentication middleware.
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, '../client/dist');
+  app.use(express.static(distPath));
+}
+
 app.use(helmet());
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
@@ -75,11 +83,11 @@ app.get('/healthz', async (req, res) => {
   });
 });
 
-// Production: Express serves the React build and handles SPA routing.
-// This block must come AFTER all /api routes so the API is never shadowed.
+// SPA fallback: any non-API request that wasn't matched by express.static
+// (i.e. a client-side route like /sessions or /profile) gets index.html.
+// API routes are already handled above so this never shadows them.
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '../client/dist');
-  app.use(express.static(distPath));
   app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
 } else {
   app.use((req, res) => {
