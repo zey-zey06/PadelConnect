@@ -6,7 +6,7 @@ import { getProfile }  from '@/api/profile';
 import { Button }   from '@/components/ui/button';
 import { Input }    from '@/components/ui/input';
 import { Label }    from '@/components/ui/label';
-import { AlertCircle, Mail } from 'lucide-react';
+import { AlertCircle, Mail, Eye, EyeOff } from 'lucide-react';
 
 // ── Banners ───────────────────────────────────────────────────────────────────
 function ErrorBanner({ message }) {
@@ -41,6 +41,7 @@ export default function Login() {
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState(null);
   const [unverified, setUnverified] = useState(false);
+  const [showPwd, setShowPwd]       = useState(false);
 
   function handleChange(e) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -170,16 +171,28 @@ export default function Login() {
 
             <div className="space-y-1.5">
               <Label htmlFor="password">Mot de passe</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="••••••••"
-                autoComplete="current-password"
-                value={form.password}
-                onChange={handleChange}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPwd ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  value={form.password}
+                  onChange={handleChange}
+                  required
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPwd((v) => !v)}
+                  aria-label={showPwd ? 'Masquer le mot de passe' : 'Voir le mot de passe'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             <Button type="submit" className="w-full mt-2" size="lg" disabled={loading}>

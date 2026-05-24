@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select }   from '@/components/ui/select';
 import { Badge }    from '@/components/ui/badge';
 import { cn }       from '@/lib/utils';
+import DateScrollPicker from '@/components/DateScrollPicker';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const LEVEL_LABELS = {
@@ -245,14 +246,12 @@ export default function ProfileSetup() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="birthDate">Date de naissance <span className="text-red-500">*</span></Label>
-                  <input
-                    id="birthDate"
-                    type="date"
-                    max={new Date().toISOString().split('T')[0]}
+                  <Label>Date de naissance <span className="text-red-500">*</span></Label>
+                  <DateScrollPicker
                     value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    onChange={setBirthDate}
+                    minYear={1940}
+                    maxYear={new Date().getFullYear() - 10}
                   />
                 </div>
 

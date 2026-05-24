@@ -4,7 +4,7 @@ import { signup } from '@/api/auth';
 import { Button }   from '@/components/ui/button';
 import { Input }    from '@/components/ui/input';
 import { Label }    from '@/components/ui/label';
-import { AlertCircle, CheckCircle2, User, Dumbbell, Building2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, User, Dumbbell, Building2, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 function ErrorBanner({ message }) {
@@ -100,6 +100,8 @@ export default function Signup() {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showPwd, setShowPwd]         = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   function handleChange(e) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -299,16 +301,28 @@ export default function Signup() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="password">Mot de passe</Label>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    placeholder="8 caractères minimum"
-                    autoComplete="new-password"
-                    value={form.password}
-                    onChange={handleChange}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPwd ? 'text' : 'password'}
+                      placeholder="8 caractères minimum"
+                      autoComplete="new-password"
+                      value={form.password}
+                      onChange={handleChange}
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowPwd((v) => !v)}
+                      aria-label={showPwd ? 'Masquer' : 'Voir'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                   {form.password && (
                     <ul className="space-y-1 pt-1">
                       {REQUIREMENTS.map(({ label, test }) => {
@@ -326,16 +340,28 @@ export default function Signup() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
-                  <Input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                    value={form.confirmPassword}
-                    onChange={handleChange}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type={showConfirm ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                      value={form.confirmPassword}
+                      onChange={handleChange}
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowConfirm((v) => !v)}
+                      aria-label={showConfirm ? 'Masquer' : 'Voir'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <Button type="submit" className="w-full mt-2" size="lg" disabled={loading || !passwordMeetsAll || !form.firstName.trim() || !form.lastName.trim()}>

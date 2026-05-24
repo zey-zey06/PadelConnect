@@ -29,12 +29,21 @@ function parseVal(val) {
  * DateScrollPicker — three scroll wheels: Jour | Mois | Année.
  *
  * Props:
- *   value    — "YYYY-MM-DD" string (or '' for today)
+ *   value    — "YYYY-MM-DD" string (or '' → falls back to today)
  *   onChange — (newDateString: "YYYY-MM-DD") => void
+ *   minYear  — earliest year shown (default: currentYear)
+ *   maxYear  — latest  year shown (default: currentYear + 1)
  */
-export default function DateScrollPicker({ value, onChange }) {
+export default function DateScrollPicker({ value, onChange, minYear, maxYear }) {
   const currentYear = new Date().getFullYear();
-  const { year, month, day } = parseVal(value);
+  const yearMin = minYear ?? currentYear;
+  const yearMax = maxYear ?? currentYear + 1;
+
+  const raw = parseVal(value);
+  // Clamp parsed year into the allowed range so ScrollPicker always has a match
+  const year  = Math.min(yearMax, Math.max(yearMin, raw.year));
+  const month = raw.month;
+  const day   = raw.day;
 
   // Days list rebuilds when month/year changes (handles Feb 28/29 etc.)
   const dayItems = useMemo(() => {
@@ -50,10 +59,11 @@ export default function DateScrollPicker({ value, onChange }) {
     [],
   );
 
-  const yearItems = useMemo(
-    () => [currentYear, currentYear + 1].map((y) => ({ value: y, label: String(y) })),
-    [currentYear],
-  );
+  const yearItems = useMemo(() => {
+    const items = [];
+    for (let y = yearMin; y <= yearMax; y++) items.push({ value: y, label: String(y) });
+    return items;
+  }, [yearMin, yearMax]);
 
   /** Emit a new date, auto-clamping the day if it exceeds the month's max. */
   function emit(y, m, d) {
