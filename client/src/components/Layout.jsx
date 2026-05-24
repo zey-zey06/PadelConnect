@@ -6,6 +6,8 @@ import { logout } from '@/api/auth';
 import { getUnreadCount } from '@/api/notifications';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import PIAButton from '@/components/PIA/PIAButton';
+import PIAPanel from '@/components/PIA/PIAPanel';
 
 const PLAYER_NAV = [
   { to: '/sessions',  label: 'Sessions'    },
@@ -43,6 +45,7 @@ export default function Layout({ children }) {
   const location          = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [piaOpen, setPiaOpen]         = useState(false);
 
   useEffect(() => {
     getUnreadCount()
@@ -190,6 +193,10 @@ export default function Layout({ children }) {
       <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
         {children}
       </main>
+
+      {/* ── PIA floating assistant ──────────────────────────────────────── */}
+      <PIAButton onClick={() => setPiaOpen((o) => !o)} isOpen={piaOpen} />
+      {piaOpen && <PIAPanel onClose={() => setPiaOpen(false)} />}
     </div>
   );
 }
