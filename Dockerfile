@@ -18,6 +18,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 # Backend source
+COPY knexfile.js ./
 COPY src/ ./src/
 COPY migrations/ ./migrations/
 COPY seeds/ ./seeds/
