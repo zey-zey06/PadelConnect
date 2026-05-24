@@ -10,6 +10,7 @@ jest.mock('@anthropic-ai/sdk', () =>
 jest.mock('multer', () => {
   const m = () => ({ single: () => (req, res, next) => next() });
   m.diskStorage = () => ({});
+  m.memoryStorage = () => ({});
   return m;
 });
 
@@ -243,7 +244,7 @@ describe('POST /api/clubs/:id/coaches', () => {
     const res = await request(app)
       .post(`/api/clubs/${ORG_ID}/coaches`)
       .set('Cookie', `token=${ADMIN_TOKEN}`)
-      .send({ user_id: COACH_ID });
+      .send({ email: COACH_USER.email });
 
     expect(res.status).toBe(201);
     expect(res.body.coach).toBeDefined();
@@ -253,7 +254,7 @@ describe('POST /api/clubs/:id/coaches', () => {
     const res = await request(app)
       .post(`/api/clubs/${ORG_ID}/coaches`)
       .set('Cookie', `token=${PLAYER_TOKEN}`)
-      .send({ user_id: COACH_ID });
+      .send({ email: COACH_USER.email });
 
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('Forbidden');
@@ -265,7 +266,7 @@ describe('POST /api/clubs/:id/coaches', () => {
     const res = await request(app)
       .post(`/api/clubs/${ORG_ID}/coaches`)
       .set('Cookie', `token=${OTHER_ADMIN_TOKEN}`)
-      .send({ user_id: COACH_ID });
+      .send({ email: COACH_USER.email });
 
     expect(res.status).toBe(403);
   });
@@ -276,7 +277,7 @@ describe('POST /api/clubs/:id/coaches', () => {
     const res = await request(app)
       .post(`/api/clubs/${ORG_ID}/coaches`)
       .set('Cookie', `token=${ADMIN_TOKEN}`)
-      .send({ user_id: COACH_ID });
+      .send({ email: COACH_USER.email });
 
     expect(res.status).toBe(404);
   });
@@ -289,12 +290,12 @@ describe('POST /api/clubs/:id/coaches', () => {
     const res = await request(app)
       .post(`/api/clubs/${ORG_ID}/coaches`)
       .set('Cookie', `token=${ADMIN_TOKEN}`)
-      .send({ user_id: '00000000-0000-0000-0000-000000000099' });
+      .send({ email: 'unknown@test.com' });
 
     expect(res.status).toBe(404);
   });
 
-  it('CU-08: add coach missing user_id — 422', async () => {
+  it('CU-08: add coach missing email — 422', async () => {
     const res = await request(app)
       .post(`/api/clubs/${ORG_ID}/coaches`)
       .set('Cookie', `token=${ADMIN_TOKEN}`)
@@ -307,7 +308,7 @@ describe('POST /api/clubs/:id/coaches', () => {
   it('CU-08: add coach without auth — 401', async () => {
     const res = await request(app)
       .post(`/api/clubs/${ORG_ID}/coaches`)
-      .send({ user_id: COACH_ID });
+      .send({ email: COACH_USER.email });
     expect(res.status).toBe(401);
   });
 });

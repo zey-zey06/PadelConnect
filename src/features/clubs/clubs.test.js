@@ -10,6 +10,7 @@ jest.mock('@anthropic-ai/sdk', () =>
 jest.mock('multer', () => {
   const m = () => ({ single: () => (req, res, next) => next() });
   m.diskStorage = () => ({});
+  m.memoryStorage = () => ({});
   return m;
 });
 

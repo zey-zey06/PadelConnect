@@ -17,6 +17,7 @@ jest.mock('@google/generative-ai', () => {
 jest.mock('multer', () => {
   const m = () => ({ single: () => (req, res, next) => next() });
   m.diskStorage = () => ({});
+  m.memoryStorage = () => ({});
   return m;
 });
 
@@ -33,7 +34,7 @@ jest.mock('../../db', () => {
     first: jest.fn(),
     insert: jest.fn().mockReturnThis(),
     update: jest.fn().mockReturnThis(),
-    returning: jest.fn(),
+    returning: jest.fn().mockResolvedValue([]),
   };
   const mockDb = jest.fn(() => qb);
   mockDb.__qb = qb;

@@ -23,6 +23,7 @@ jest.mock('multer', () => {
     },
   });
   m.diskStorage = () => ({});
+  m.memoryStorage = () => ({});
   return m;
 });
 
@@ -236,6 +237,7 @@ describe('POST /api/profile/photo', () => {
       path: `uploads/profiles/${USER_ID}-1234567890.jpg`,
       mimetype: 'image/jpeg',
       size: 1024,
+      buffer: Buffer.from('fake-image-data'),
     };
   });
 

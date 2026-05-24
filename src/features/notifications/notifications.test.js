@@ -12,6 +12,7 @@ jest.mock('@google/generative-ai', () => ({
 jest.mock('multer', () => {
   const m = () => ({ single: () => (req, res, next) => next() });
   m.diskStorage = () => ({});
+  m.memoryStorage = () => ({});
   return m;
 });
 jest.mock('../../emails/confirmation', () => ({
