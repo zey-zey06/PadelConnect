@@ -105,7 +105,9 @@ if (process.env.NODE_ENV === 'development') {
     .catch(() => {});
 }
 
-const PORT = process.env.PORT || 4000;
+// In production nginx owns the public port (10000); Express always binds
+// to 4000 internally so Render's injected PORT env var is ignored.
+const PORT = process.env.NODE_ENV === 'production' ? 4000 : (process.env.PORT || 4000);
 
 if (require.main === module) {
   db.migrate.latest()
