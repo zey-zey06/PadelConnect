@@ -108,9 +108,18 @@ if (process.env.NODE_ENV === 'development') {
 const PORT = process.env.PORT || 4000;
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(JSON.stringify({ level: 'info', msg: `PadelConnect listening on port ${PORT}`, env: process.env.NODE_ENV }));
-  });
+  db.migrate.latest()
+    .then(() => {
+      console.log(JSON.stringify({ level: 'info', msg: 'Migrations applied successfully' }));
+    })
+    .catch((err) => {
+      console.error(JSON.stringify({ level: 'error', msg: 'Migration failed', error: err.message }));
+    })
+    .finally(() => {
+      app.listen(PORT, () => {
+        console.log(JSON.stringify({ level: 'info', msg: `PadelConnect listening on port ${PORT}`, env: process.env.NODE_ENV }));
+      });
+    });
 }
 
 module.exports = app;
