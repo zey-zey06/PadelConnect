@@ -44,3 +44,10 @@ export const cancelSession = (sessionId) =>
  */
 export const inviteCoach = (sessionId, coachUserId) =>
   client.post(`/sessions/${sessionId}/requests`, { role: 'coach', coach_user_id: coachUserId });
+
+/**
+ * POST /api/sessions/:id/invite-player { player_user_id }
+ * Creator invites an AI-suggested player — sends them a notification.
+ */
+export const invitePlayer = (sessionId, playerUserId) =>
+  client.post(`/sessions/${sessionId}/invite-player`, { player_user_id: playerUserId });

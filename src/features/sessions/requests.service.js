@@ -173,4 +173,40 @@ async function respondToRequest(sessionId, requestId, userId, status) {
   return updatedRequest;
 }
 
-module.exports = { createRequest, getRequests, respondToRequest };
+/**
+ * Creator invites a specific player from AI suggestions.
+ * Does NOT create a session_request (the player must still join voluntarily).
+ * Simply sends a notification so the player knows they are wanted.
+ */
+async function invitePlayer(sessionId, creatorId, playerUserId) {
+  const session = await sessionsRepo.getById(sessionId);
+  if (!session) {
+    const err = new Error('Session introuvable.');
+    err.status = 404;
+    throw err;
+  }
+  if (session.creator_id !== creatorId) {
+    const err = new Error('Seul le créateur peut inviter des joueurs.');
+    err.status = 403;
+    throw err;
+  }
+
+  // Get creator name for the notification message
+  const creator = await sessionsRepo.getUserById(creatorId);
+  const creatorName = creator
+    ? ([creator.first_name, creator.last_name].filter(Boolean).join(' ') || creator.email?.split('@')[0])
+    : 'Un joueur';
+
+  const dateStr = (session.date ?? '').toString().slice(0, 10);
+  const timeStr = session.time?.slice(0, 5) ?? '';
+
+  await notificationsService.createNotification(
+    playerUserId,
+    'session_invite',
+    `${creatorName} vous invite à rejoindre sa session du ${dateStr} à ${timeStr}.`
+  );
+
+  return { invited: true };
+}
+
+module.exports = { createRequest, getRequests, respondToRequest, invitePlayer };

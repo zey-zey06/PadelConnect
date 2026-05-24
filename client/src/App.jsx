@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import Login            from '@/pages/Login';
 import Signup           from '@/pages/Signup';
 import AdminLogin       from '@/pages/AdminLogin';
@@ -22,14 +22,19 @@ import History          from '@/pages/History';
 import Landing          from '@/pages/Landing';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
-import Layout           from '@/components/Layout';
-import SplashScreen     from '@/components/SplashScreen';
+import Layout              from '@/components/Layout';
+import SplashScreen        from '@/components/SplashScreen';
+import PlayerProfilePanel  from '@/components/PlayerProfilePanel';
 import { me }           from '@/api/auth';
 import { getProfile }   from '@/api/profile';
 
 // ── Auth + profile context ────────────────────────────────────────────────────
 export const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
+
+// ── Player profile panel context ──────────────────────────────────────────────
+export const PlayerPanelContext = createContext(null);
+export const usePlayerPanel = () => useContext(PlayerPanelContext);
 
 // ── Loading screen ────────────────────────────────────────────────────────────
 export function LoadingScreen() {
@@ -125,12 +130,17 @@ function DefaultRedirect() {
 
 // ── Root app ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [user,       setUser]       = useState(null);
-  const [profile,    setProfile]    = useState(undefined); // undefined = not yet loaded
-  const [loading,    setLoading]    = useState(true);
-  const [showSplash, setShowSplash] = useState(
+  const [user,        setUser]       = useState(null);
+  const [profile,     setProfile]    = useState(undefined); // undefined = not yet loaded
+  const [loading,     setLoading]    = useState(true);
+  const [showSplash,  setShowSplash] = useState(
     () => !sessionStorage.getItem('splash_shown'),
   );
+
+  // ── Player panel state ─────────────────────────────────────────────────────
+  const [panelUserId, setPanelUserId] = useState(null);
+  const openPlayerPanel  = useCallback((id) => setPanelUserId(id), []);
+  const closePlayerPanel = useCallback(() => setPanelUserId(null), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,6 +181,7 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ user, setUser, profile, setProfile, loading }}>
+      <PlayerPanelContext.Provider value={{ openPlayerPanel, closePlayerPanel, panelUserId }}>
       <BrowserRouter>
         <Routes>
           {/* ── Public routes ──────────────────────────────────────── */}
@@ -225,6 +236,11 @@ export default function App() {
           <Route path="*" element={<DefaultRedirect />} />
         </Routes>
       </BrowserRouter>
+
+      {/* ── Global player profile slide panel ─────────────────────────── */}
+      <PlayerProfilePanel userId={panelUserId} onClose={closePlayerPanel} />
+
+      </PlayerPanelContext.Provider>
     </AuthContext.Provider>
   );
 }

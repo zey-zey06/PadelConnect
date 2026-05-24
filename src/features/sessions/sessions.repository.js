@@ -86,4 +86,8 @@ async function getSessionPlayers(sessionId) {
   return players;
 }
 
-module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers, getSessionPlayers };
+async function getUserById(userId) {
+  return db('users').where({ id: userId }).first();
+}
+
+module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers, getSessionPlayers, getUserById };

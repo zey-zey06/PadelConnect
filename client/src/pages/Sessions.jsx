@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   listSessions, createSession, requestJoin, getMySessions,
-  getSessionRequests, respondToRequest, cancelSession, inviteCoach,
+  getSessionRequests, respondToRequest, cancelSession, inviteCoach, invitePlayer,
 } from '@/api/sessions';
 import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
 import { listClubs, getClubSlots, getClubCoaches, getClubBallPickers } from '@/api/clubs';
@@ -19,7 +19,7 @@ import {
   CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2, Calendar,
   ChevronLeft, ChevronRight, Banknote, CreditCard,
 } from 'lucide-react';
-import { useAuth } from '@/App';
+import { useAuth, usePlayerPanel } from '@/App';
 import { cn } from '@/lib/utils';
 import PageSkeleton from '@/components/PageSkeleton';
 
@@ -188,6 +188,7 @@ const GENDER_ICON    = { mixed: '⚧', women: '♀', men: '♂' };
 
 function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked }) {
   const { user } = useAuth();
+  const { openPlayerPanel } = usePlayerPanel();
   const [state, setState] = useState('idle'); // idle | loading | done | error
   const [msg,   setMsg]   = useState('');
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
@@ -224,7 +225,11 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked }) {
 
       {/* ── Header: creator avatar + name + status ─────────────────── */}
       <div className="flex items-center gap-3 px-4 py-3.5">
-        <div className="h-10 w-10 rounded-full overflow-hidden bg-primary/10 shrink-0 ring-2 ring-border">
+        <button
+          type="button"
+          onClick={() => openPlayerPanel(session.creator_id)}
+          className="h-10 w-10 rounded-full overflow-hidden bg-primary/10 shrink-0 ring-2 ring-border hover:opacity-80 transition-opacity"
+        >
           {session.creator_photo_url ? (
             <img src={session.creator_photo_url} alt={creatorName} className="h-full w-full object-cover" />
           ) : (
@@ -232,10 +237,16 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked }) {
               <span className="text-xs font-bold text-primary select-none">{initials}</span>
             </div>
           )}
-        </div>
+        </button>
 
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate leading-snug">{creatorName}</p>
+          <button
+            type="button"
+            onClick={() => openPlayerPanel(session.creator_id)}
+            className="text-sm font-semibold text-foreground truncate leading-snug hover:underline text-left w-full"
+          >
+            {creatorName}
+          </button>
           {session.creator_level ? (
             <p className="text-xs text-muted-foreground leading-snug">
               {LEVEL_LABELS[session.creator_level]} · Niv.&nbsp;{session.creator_level}/7
@@ -763,6 +774,7 @@ function findAllCoveringOptions(availSlots, sessionStart, sessionEnd) {
 // ── Terrain picker modal ───────────────────────────────────────────────────────
 // 3-step: choose club → choose slot covering session time → confirm + pay
 function TerrainPickerModal({ session, onClose, onBooked }) {
+  const { openPlayerPanel } = usePlayerPanel();
   const [step,            setStep]            = useState(1);
   const [clubs,           setClubs]           = useState([]);
   const [loadingClubs,    setLoadingClubs]    = useState(true);
@@ -1182,15 +1194,13 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <a
-                            href={`/players/${coach.user_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-semibold text-foreground hover:underline"
-                            onClick={(e) => e.stopPropagation()}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); openPlayerPanel(coach.user_id); }}
+                            className="text-sm font-semibold text-foreground hover:underline text-left"
                           >
                             {name}
-                          </a>
+                          </button>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {coach.specialty} · 10&nbsp;000 FCFA
                           </p>
@@ -1472,6 +1482,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
 
 // ── Request row (inside a session managed by current user) ────────────────────
 function RequestRow({ request, sessionId, onRespond }) {
+  const { openPlayerPanel } = usePlayerPanel();
   const [state, setState] = useState('idle'); // idle | loading | done | error
   const [errMsg, setErrMsg] = useState('');
   const name = request.player_email?.split('@')[0] ?? 'Joueur';
@@ -1499,11 +1510,10 @@ function RequestRow({ request, sessionId, onRespond }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3">
       {/* Avatar */}
-      <a
-        href={`/players/${request.player_id}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="shrink-0"
+      <button
+        type="button"
+        onClick={() => openPlayerPanel(request.player_id)}
+        className="shrink-0 hover:opacity-80 transition-opacity"
       >
         <div className="h-10 w-10 rounded-full overflow-hidden bg-muted ring-2 ring-border">
           {request.player_photo_url ? (
@@ -1516,19 +1526,18 @@ function RequestRow({ request, sessionId, onRespond }) {
             </div>
           )}
         </div>
-      </a>
+      </button>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <a
-            href={`/players/${request.player_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-semibold text-foreground hover:underline truncate capitalize"
+          <button
+            type="button"
+            onClick={() => openPlayerPanel(request.player_id)}
+            className="text-sm font-semibold text-foreground hover:underline truncate capitalize text-left"
           >
             {name}
-          </a>
+          </button>
           {request.player_level && (
             <span className="shrink-0 text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-md">
               {request.player_level}/7
@@ -1678,10 +1687,14 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
   const [invitingCoachId,  setInvitingCoachId]  = useState(null);
 
   // AI find-matches
-  const [showAiMatches,  setShowAiMatches]  = useState(false);
-  const [aiMatches,      setAiMatches]      = useState(null);
-  const [loadingAi,      setLoadingAi]      = useState(false);
-  const [aiError,        setAiError]        = useState(null);
+  const [showAiMatches,    setShowAiMatches]    = useState(false);
+  const [aiMatches,        setAiMatches]        = useState(null);
+  const [loadingAi,        setLoadingAi]        = useState(false);
+  const [aiError,          setAiError]          = useState(null);
+  const [invitedPlayerIds, setInvitedPlayerIds] = useState(new Set());
+  const [invitingPlayerId, setInvitingPlayerId] = useState(null);
+
+  const { openPlayerPanel } = usePlayerPanel();
 
   async function toggleCoachInvite() {
     if (showCoachInvite) { setShowCoachInvite(false); return; }
@@ -1712,6 +1725,18 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
       setAiMatches([]);
     } finally {
       setLoadingAi(false);
+    }
+  }
+
+  async function handleInvitePlayer(playerUserId) {
+    setInvitingPlayerId(playerUserId);
+    try {
+      await invitePlayer(session.id, playerUserId);
+      setInvitedPlayerIds((prev) => new Set([...prev, playerUserId]));
+    } catch (e) {
+      setActionError(e.message || 'Erreur lors de l\'invitation.');
+    } finally {
+      setInvitingPlayerId(null);
     }
   }
 
@@ -1924,14 +1949,13 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <a
-                          href={`/players/${coach.user_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-semibold text-foreground hover:underline truncate block"
+                        <button
+                          type="button"
+                          onClick={() => openPlayerPanel(coach.user_id)}
+                          className="text-xs font-semibold text-foreground hover:underline truncate block text-left w-full"
                         >
                           {name}
-                        </a>
+                        </button>
                         <p className="text-[10px] text-muted-foreground truncate">{coach.specialty}</p>
                       </div>
                       {invited ? (
@@ -1972,10 +1996,17 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
                 <p className="text-xs text-muted-foreground">Aucun joueur disponible pour l'instant.</p>
               ) : (
                 aiMatches.map((m) => {
-                  const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || 'Joueur';
+                  const name    = [m.firstName, m.lastName].filter(Boolean).join(' ') || 'Joueur';
+                  const invited = invitedPlayerIds.has(m.userId);
+                  const busy    = invitingPlayerId === m.userId;
                   return (
-                    <div key={m.userId} className="flex items-center gap-2.5">
-                      <div className="h-8 w-8 rounded-full overflow-hidden bg-muted shrink-0">
+                    <div key={m.userId} className="flex items-start gap-2.5 rounded-xl border border-border bg-background p-3">
+                      {/* Avatar — opens panel */}
+                      <button
+                        type="button"
+                        onClick={() => openPlayerPanel(m.userId)}
+                        className="h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0 ring-2 ring-border hover:opacity-80 transition-opacity"
+                      >
                         {m.photo ? (
                           <img src={m.photo} alt={name} className="h-full w-full object-cover" />
                         ) : (
@@ -1983,21 +2014,43 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
                             <span className="text-[10px] font-bold text-primary">{name.slice(0, 2).toUpperCase()}</span>
                           </div>
                         )}
-                      </div>
+                      </button>
+
                       <div className="flex-1 min-w-0">
-                        <a
-                          href={`/players/${m.userId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-semibold text-foreground hover:underline truncate block"
-                        >
-                          {name}
-                        </a>
-                        <p className="text-[10px] text-muted-foreground truncate">{m.explanation}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* Name — opens panel */}
+                          <button
+                            type="button"
+                            onClick={() => openPlayerPanel(m.userId)}
+                            className="text-xs font-semibold text-foreground hover:underline truncate text-left"
+                          >
+                            {name}
+                          </button>
+                          <span className="shrink-0 text-xs font-bold text-primary bg-primary/10 rounded-full px-2 py-0.5 flex items-center gap-0.5">
+                            <Sparkles className="h-2.5 w-2.5" />{m.score}%
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{m.explanation}</p>
                       </div>
-                      <span className="shrink-0 text-xs font-bold text-primary bg-primary/10 rounded-full px-2 py-0.5">
-                        {m.score}%
-                      </span>
+
+                      {/* Invite button */}
+                      {invited ? (
+                        <span className="text-xs text-green-600 font-medium flex items-center gap-0.5 shrink-0 mt-1 whitespace-nowrap">
+                          <CheckCircle2 className="h-3 w-3" /> Invité ✓
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs shrink-0 mt-0.5 whitespace-nowrap"
+                          disabled={busy}
+                          onClick={() => handleInvitePlayer(m.userId)}
+                        >
+                          {busy ? (
+                            <span className="w-3 h-3 border border-current/40 border-t-transparent rounded-full animate-spin" />
+                          ) : 'Inviter'}
+                        </Button>
+                      )}
                     </div>
                   );
                 })

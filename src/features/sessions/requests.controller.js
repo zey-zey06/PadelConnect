@@ -17,6 +17,10 @@ const respondSchema = Joi.object({
   status: Joi.string().valid('accepted', 'refused').required(),
 });
 
+const invitePlayerSchema = Joi.object({
+  player_user_id: Joi.string().uuid().required(),
+});
+
 async function createRequestHandler(req, res, next) {
   try {
     const { error, value } = createRequestSchema.validate(req.body ?? {});
@@ -61,9 +65,23 @@ async function respondHandler(req, res, next) {
   }
 }
 
+async function invitePlayerHandler(req, res, next) {
+  try {
+    const { error, value } = invitePlayerSchema.validate(req.body ?? {});
+    if (error) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    }
+    const result = await requestsService.invitePlayer(req.params.id, req.user.sub, value.player_user_id);
+    return res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 const router = Router();
 router.post('/:id/requests', authenticate, createRequestHandler);
 router.get('/:id/requests', authenticate, getRequestsHandler);
 router.patch('/:id/requests/:requestId', authenticate, respondHandler);
+router.post('/:id/invite-player', authenticate, invitePlayerHandler);
 
 module.exports = router;
