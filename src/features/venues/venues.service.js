@@ -27,7 +27,7 @@ async function generateDefaultSlots(venueId) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const rows = [];
-  for (let d = 0; d < 30; d++) {
+  for (let d = 0; d < 60; d++) {
     const date = new Date(today);
     date.setDate(today.getDate() + d);
     const dateStr = date.toISOString().slice(0, 10);
@@ -187,7 +187,7 @@ async function fillVenueSlots(venueId, userOrgId) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dates = [];
-  for (let d = 0; d < 30; d++) {
+  for (let d = 0; d < 60; d++) {
     const dt = new Date(today);
     dt.setDate(today.getDate() + d);
     dates.push(dt.toISOString().slice(0, 10));
@@ -215,7 +215,7 @@ async function fillMissingSlots() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dates = [];
-  for (let d = 0; d < 30; d++) {
+  for (let d = 0; d < 60; d++) {
     const dt = new Date(today);
     dt.setDate(today.getDate() + d);
     dates.push(dt.toISOString().slice(0, 10));

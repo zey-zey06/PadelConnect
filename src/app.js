@@ -123,8 +123,8 @@ if (process.env.NODE_ENV !== 'test') {
   require('./jobs/reminder');
 }
 
-// Back-fill missing slots for existing venues on dev startup (non-fatal)
-if (process.env.NODE_ENV === 'development') {
+// Back-fill missing slots for all venues on startup (non-fatal, skipped in tests)
+if (process.env.NODE_ENV !== 'test') {
   const { fillMissingSlots } = require('./features/venues/venues.service');
   fillMissingSlots()
     .then((n) => {

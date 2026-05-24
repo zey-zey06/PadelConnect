@@ -397,6 +397,7 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked }) {
       {showTerrainPicker && (
         <TerrainPickerModal
           session={session}
+          bookingMode="free"
           onClose={() => setShowTerrainPicker(false)}
           onBooked={() => { setShowTerrainPicker(false); onBooked?.(); }}
         />
@@ -773,7 +774,7 @@ function findAllCoveringOptions(availSlots, sessionStart, sessionEnd) {
 
 // ── Terrain picker modal ───────────────────────────────────────────────────────
 // 3-step: choose club → choose slot covering session time → confirm + pay
-function TerrainPickerModal({ session, onClose, onBooked }) {
+function TerrainPickerModal({ session, onClose, onBooked, bookingMode = 'session' }) {
   const { openPlayerPanel } = usePlayerPanel();
   const [step,            setStep]            = useState(1);
   const [clubs,           setClubs]           = useState([]);
@@ -782,6 +783,7 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
   const [venueData,       setVenueData]       = useState([]);
   const [loadingSlots,    setLoadingSlots]    = useState(false);
   const [selectedSlot,    setSelectedSlot]    = useState(null);
+  const [selectedDate,    setSelectedDate]    = useState(() => new Date().toISOString().slice(0, 10));
   const [availableCoaches,   setAvailableCoaches]   = useState([]);
   const [loadingCoaches,     setLoadingCoaches]     = useState(false);
   const [selectedCoaches,    setSelectedCoaches]    = useState([]); // [{user_id, user_first_name, …}]
@@ -809,10 +811,41 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
       .finally(() => setLoadingClubs(false));
   }, []);
 
+  // ── Shared helper: load free slots for a date ────────────────────────────
+  async function loadFreeSlotsForDate(club, date) {
+    setLoadingSlots(true);
+    setVenueData([]);
+    setError(null);
+    try {
+      const { venues } = await getClubSlots(club.id, date);
+      const filtered = (venues ?? [])
+        .map((v) => ({
+          ...v,
+          availSlots: (v.slots ?? [])
+            .filter((sl) => sl.status === 'available')
+            .sort((a, b) => ((a.start_time ?? '') < (b.start_time ?? '') ? -1 : 1)),
+        }))
+        .filter((v) => v.availSlots.length > 0);
+      setVenueData(filtered);
+    } catch (e) {
+      setError(e.message || 'Erreur lors du chargement des créneaux.');
+    } finally {
+      setLoadingSlots(false);
+    }
+  }
+
   async function handleSelectClub(club) {
     setSelectedClub(club);
-    setLoadingSlots(true);
     setError(null);
+
+    if (bookingMode === 'free') {
+      setStep(2);
+      await loadFreeSlotsForDate(club, selectedDate);
+      return;
+    }
+
+    // session mode — filter by session date + time
+    setLoadingSlots(true);
     try {
       const { venues } = await getClubSlots(club.id, session.date);
       const filtered = (venues ?? [])
@@ -820,7 +853,6 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
           const availSlots = (v.slots ?? [])
             .filter((sl) => sl.status === 'available')
             .sort((a, b) => ((a.start_time ?? '') < (b.start_time ?? '') ? -1 : 1));
-
           const matchingChains = findAllCoveringOptions(availSlots, sessionTime, sessionEndTime);
           return { ...v, matchingChains };
         })
@@ -832,6 +864,38 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
     } finally {
       setLoadingSlots(false);
     }
+  }
+
+  async function handleDateChange(date) {
+    setSelectedDate(date);
+    if (!selectedClub || !date) return;
+    await loadFreeSlotsForDate(selectedClub, date);
+  }
+
+  function handleSelectFreeSlot(slot, venueName) {
+    setSelectedSlot({
+      slots:      [slot],
+      venue_name: venueName,
+      start_time: slot.start_time,
+      end_time:   slot.end_time,
+      totalPrice: Number(slot.price ?? 0),
+    });
+    setSelectedCoaches([]);
+    setSelectedBallPicker(null);
+    setAvailableCoaches([]);
+    setAvailableBallPickers([]);
+    setLoadingCoaches(true);
+    setLoadingBallPickers(true);
+    getClubCoaches(selectedClub.id)
+      .then(({ coaches }) => setAvailableCoaches(coaches ?? []))
+      .catch(() => setAvailableCoaches([]))
+      .finally(() => setLoadingCoaches(false));
+    getClubBallPickers(selectedClub.id)
+      .then(({ ballPickers }) => setAvailableBallPickers(ballPickers ?? []))
+      .catch(() => setAvailableBallPickers([]))
+      .finally(() => setLoadingBallPickers(false));
+    setStep(3);
+    setError(null);
   }
 
   function handleSelectChain(chain, venueName) {
@@ -965,7 +1029,11 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
             <p className="text-sm text-muted-foreground mt-1">
               {selectedSlot?.venue_name} · {selectedSlot?.start_time?.slice(0, 5)}–{selectedSlot?.end_time?.slice(0, 5)}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5 capitalize">{sessionDate}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 capitalize">
+              {bookingMode === 'free'
+                ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+                : sessionDate}
+            </p>
           </div>
           <Button className="w-full" onClick={() => onClose(confirmedBk)}>Fermer</Button>
         </div>
@@ -997,9 +1065,11 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
                 : step === 3 ? 'Votre équipe (optionnel)'
                 : 'Confirmer la réservation'}
             </h2>
-            <p className="text-xs text-muted-foreground mt-0.5 capitalize">
-              {sessionDate} à {sessionTime}
-            </p>
+            {bookingMode === 'session' && (
+              <p className="text-xs text-muted-foreground mt-0.5 capitalize">
+                {sessionDate} à {sessionTime}
+              </p>
+            )}
           </div>
           <button
             onClick={() => onClose(null)}
@@ -1076,7 +1146,63 @@ function TerrainPickerModal({ session, onClose, onBooked }) {
           )}
 
           {/* ── Step 2: Available slots ───────────────────────────────── */}
-          {step === 2 && (
+          {step === 2 && bookingMode === 'free' && (
+            <div className="space-y-4">
+              {/* Date picker */}
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                  className="flex-1 h-9 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              {loadingSlots ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => <div key={i} className="h-14 rounded-xl bg-muted animate-pulse" />)}
+                </div>
+              ) : venueData.length === 0 ? (
+                <div className="text-center py-10 space-y-2">
+                  <MapPin className="h-7 w-7 text-muted-foreground mx-auto" />
+                  <p className="text-sm font-medium text-foreground">Aucun créneau disponible</p>
+                  <p className="text-xs text-muted-foreground">Essayez une autre date.</p>
+                </div>
+              ) : (
+                venueData.map((venue) => (
+                  <div key={venue.id} className="space-y-2">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">
+                      {venue.name}
+                    </p>
+                    {venue.availSlots.map((slot) => (
+                      <button
+                        key={slot.id}
+                        onClick={() => handleSelectFreeSlot(slot, venue.name)}
+                        className="w-full flex items-center gap-4 rounded-xl border-2 border-primary/30 bg-primary/5 px-4 py-3.5 hover:border-primary hover:bg-primary/10 transition-all text-left"
+                      >
+                        <div className="h-9 w-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                          <Clock className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-foreground">
+                            {slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {slot.price ? `${Number(slot.price).toLocaleString('fr-FR')} FCFA` : 'Gratuit'} · disponible
+                          </p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-primary shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {step === 2 && bookingMode === 'session' && (
             loadingSlots ? (
               <div className="space-y-2">
                 {[1, 2].map((i) => <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />)}
@@ -2138,6 +2264,7 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
       {showTerrainPicker && (
         <TerrainPickerModal
           session={session}
+          bookingMode="session"
           onClose={() => setShowTerrainPicker(false)}
           onBooked={() => { setShowTerrainPicker(false); onRefresh(); }}
         />
