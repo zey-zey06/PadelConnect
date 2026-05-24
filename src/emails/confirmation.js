@@ -70,4 +70,29 @@ async function sendManagerBookingNotification({ booking, session, slot, venue, b
   });
 }
 
-module.exports = { sendBookingConfirmation, sendManagerBookingNotification };
+/**
+ * Notify a super_admin by email whenever a new player registers.
+ * Non-blocking — caller should .catch(() => {}) this.
+ */
+async function sendNewUserAdminNotification({ displayName, email, motivation, adminEmail, date }) {
+  await resend.emails.send({
+    from:    FROM,
+    to:      devTo([adminEmail]),
+    subject: `Nouvel inscrit PadelConnect — ${displayName}`,
+    html: `
+      <h1 style="color:#7c3aed">Nouvel inscrit sur PadelConnect 🎾</h1>
+      <table style="font-size:14px;line-height:1.6;border-collapse:collapse">
+        <tr><td style="padding:4px 12px 4px 0;color:#888;font-weight:600">Nom</td>      <td>${displayName}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#888;font-weight:600">Email</td>    <td>${email}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#888;font-weight:600">Date</td>     <td>${date}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#888;font-weight:600;vertical-align:top">Motivation</td>
+            <td style="max-width:380px">${motivation}</td></tr>
+      </table>
+      <p style="margin-top:24px;color:#999;font-size:12px">
+        PadelConnect — notification automatique. Ne pas répondre.
+      </p>
+    `,
+  });
+}
+
+module.exports = { sendBookingConfirmation, sendManagerBookingNotification, sendNewUserAdminNotification };

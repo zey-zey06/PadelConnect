@@ -56,7 +56,14 @@ async function listUsers(filters = {}) {
     .orderBy('users.created_at', 'desc');
   if (filters.status) query = query.where('users.status', filters.status);
   if (filters.role)   query = query.where('users.role', filters.role);
-  return query.select(['users.*', 'player_profiles.phone_number']);
+  return query.select(['users.*', 'player_profiles.phone_number', 'player_profiles.motivation_answer']);
+}
+
+async function getSuperAdmins() {
+  return db('users')
+    .where({ role: 'super_admin' })
+    .whereNull('deleted_at')
+    .select('id', 'email', 'first_name', 'last_name');
 }
 
 async function getUserById(id) {
@@ -218,6 +225,7 @@ module.exports = {
   getRecentActivity,
   listUsers,
   getUserById,
+  getSuperAdmins,
   updateUserStatus,
   cancelActiveSessionsForUser,
   listSessions,

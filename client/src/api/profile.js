@@ -14,6 +14,17 @@ export const generateProfile = (description) =>
   client.post('/profile/generate', { description });
 
 /**
+ * POST /api/profile/generate
+ * { qa_answers: [{question, answer}], motivation_answer? } → { profile }
+ * Used by the PIA interview flow in ProfileSetup.
+ */
+export const generateProfileFromQA = (qaAnswers, motivationAnswer = null) =>
+  client.post('/profile/generate', {
+    qa_answers: qaAnswers,
+    ...(motivationAnswer ? { motivation_answer: motivationAnswer } : {}),
+  });
+
+/**
  * PUT /api/profile
  * { level?, style?, strengths?, weaknesses?, description? } → { profile }
  */

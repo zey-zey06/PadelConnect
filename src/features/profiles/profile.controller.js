@@ -20,8 +20,15 @@ const upload = multer({
 });
 
 const generateSchema = Joi.object({
-  description: Joi.string().min(10).max(2000).required(),
-});
+  description:       Joi.string().min(10).max(2000).optional(),
+  qa_answers:        Joi.array().items(
+    Joi.object({
+      question: Joi.string().required(),
+      answer:   Joi.string().required(),
+    })
+  ).min(1).optional(),
+  motivation_answer: Joi.string().max(500).optional().allow(null, ''),
+}).or('description', 'qa_answers');
 
 const updateProfileSchema = Joi.object({
   level: Joi.number().integer().min(1).max(7),
@@ -38,7 +45,12 @@ async function generateHandler(req, res, next) {
     if (error) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
     }
-    const profile = await profileService.generateProfile(req.user.sub, value.description);
+    const profile = await profileService.generateProfile(
+      req.user.sub,
+      value.description    ?? null,
+      value.qa_answers     ?? null,
+      value.motivation_answer ?? null,
+    );
     return res.json({ profile });
   } catch (err) {
     next(err);

@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Sparkles, Upload, CheckCircle2, ChevronRight, ChevronLeft, AlertCircle, X, Phone } from 'lucide-react';
+import {
+  Sparkles, Upload, CheckCircle2, ChevronRight, ChevronLeft,
+  AlertCircle, X, Phone, Send,
+} from 'lucide-react';
 import { useAuth } from '@/App';
-import { generateProfile, updateProfile, uploadPhoto, getProfile } from '@/api/profile';
+import { generateProfileFromQA, updateProfile, uploadPhoto, getProfile } from '@/api/profile';
 import { updateMe } from '@/api/auth';
 import { Button }   from '@/components/ui/button';
 import { Label }    from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select }   from '@/components/ui/select';
 import { Badge }    from '@/components/ui/badge';
 import { cn }       from '@/lib/utils';
@@ -24,22 +26,44 @@ const LEVEL_LABELS = {
 };
 
 const YEARS_OPTIONS = [
-  { value: '<1',  label: 'Moins d\'un an' },
-  { value: '1-2', label: '1 à 2 ans' },
-  { value: '3-5', label: '3 à 5 ans' },
+  { value: '<1',  label: "Moins d'un an" },
+  { value: '1-2', label: '1 à 2 ans'     },
+  { value: '3-5', label: '3 à 5 ans'     },
   { value: '5+',  label: 'Plus de 5 ans' },
 ];
 
-const STEP_LABELS = ['Informations', 'Profil IA', 'Photo & fin'];
+const STEP_LABELS = ['Informations', 'Entretien IA', 'Votre profil', 'Photo & fin'];
 
-// ── Step progress indicator ──────────────────────────────────────────────────
+// PIA interview questions (Q1–Q7)
+const QUESTIONS = [
+  'Depuis combien de temps jouez-vous au padel ?',
+  'Comment décririez-vous votre niveau ? (débutant, intermédiaire, avancé)',
+  'Quel est votre style de jeu favori ? (défensif, attaquant, polyvalent)',
+  'Quels sont vos points forts ? (smash, volée, service, régularité…)',
+  'Quels aspects souhaitez-vous améliorer ?',
+  'Préférez-vous jouer le matin, l'après-midi ou le soir ?',
+  "Dernière question — qu'est-ce qui vous a amené à rejoindre PadelConnect ? (trouver des partenaires, découvrir des clubs, progresser, autre…)",
+];
+
+// PIA's response after each answer (index matches the question index answered)
+const ENCOURAGEMENTS = [
+  'Super, merci ! 🎾',
+  'Parfait !',
+  'Excellent ! 🙌',
+  "C'est noté !",
+  'Très bien !',
+  'Noté ! 👍',
+  'Merci ! Bienvenue sur PadelConnect 🎾',
+];
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 function StepIndicator({ current, total }) {
   return (
     <div className="flex items-center gap-2">
       {Array.from({ length: total }, (_, i) => {
-        const n = i + 1;
-        const done    = n < current;
-        const active  = n === current;
+        const n      = i + 1;
+        const done   = n < current;
+        const active = n === current;
         return (
           <div key={n} className="flex items-center gap-2">
             <div className={cn(
@@ -51,22 +75,16 @@ function StepIndicator({ current, total }) {
               {done ? <CheckCircle2 className="w-4 h-4" /> : n}
             </div>
             {n < total && (
-              <div className={cn(
-                'h-px w-8 transition-colors',
-                n < current ? 'bg-primary' : 'bg-border'
-              )} />
+              <div className={cn('h-px w-8 transition-colors', n < current ? 'bg-primary' : 'bg-border')} />
             )}
           </div>
         );
       })}
-      <span className="ml-2 text-sm text-muted-foreground">
-        {STEP_LABELS[current - 1]}
-      </span>
+      <span className="ml-2 text-sm text-muted-foreground">{STEP_LABELS[current - 1]}</span>
     </div>
   );
 }
 
-// ── Error banner ─────────────────────────────────────────────────────────────
 function ErrorBanner({ message, onClose }) {
   return (
     <div className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -81,70 +99,167 @@ function ErrorBanner({ message, onClose }) {
   );
 }
 
+/** Chat bubble used inside the PIA interview. */
+function ChatBubble({ role, text }) {
+  return (
+    <div className={`flex ${role === 'user' ? 'justify-end' : 'justify-start'}`}>
+      {role === 'model' && (
+        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-primary flex items-center justify-center mr-2 mt-0.5 shrink-0">
+          <Sparkles className="h-3 w-3 text-white" />
+        </div>
+      )}
+      <div
+        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap
+          ${role === 'user'
+            ? 'bg-primary text-white rounded-br-sm'
+            : 'bg-muted text-foreground rounded-bl-sm'
+          }`}
+      >
+        {text}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ProfileSetup() {
   const { user, setProfile } = useAuth();
   const navigate = useNavigate();
 
-  // ── shared error
   const [error, setError] = useState(null);
 
-  // ── Step 1: basic info
-  const [firstName,    setFirstName]    = useState(user?.first_name ?? '');
-  const [lastName,     setLastName]     = useState(user?.last_name  ?? '');
-  const [birthDate,    setBirthDate]    = useState('');
-  const [yearsPlaying, setYearsPlaying] = useState('');
-  const [selfLevel,    setSelfLevel]    = useState(null);
-  const [phoneNumber,  setPhoneNumber]  = useState('');
+  // ── Step 1: basic info ────────────────────────────────────────────────────
+  const [firstName,   setFirstName]   = useState(user?.first_name ?? '');
+  const [lastName,    setLastName]    = useState(user?.last_name  ?? '');
+  const [birthDate,   setBirthDate]   = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
 
-  // ── Step 2: description + AI result
-  const [description,      setDescription]      = useState('');
+  // ── Step 2: PIA interview ─────────────────────────────────────────────────
+  const [chatMsgs,    setChatMsgs]    = useState([]);
+  const [chatInput,   setChatInput]   = useState('');
+  const [chatBusy,    setChatBusy]    = useState(false); // PIA "thinking"
+  const [qIndex,      setQIndex]      = useState(0);
+  const [qaAnswers,   setQaAnswers]   = useState([]);    // collected Q&A
+  const [motivation,  setMotivation]  = useState('');
+  const [generating,  setGenerating]  = useState(false);
+
+  // ── Step 3: profile review ────────────────────────────────────────────────
   const [generatedProfile, setGeneratedProfile] = useState(null);
-  const [generating,       setGenerating]       = useState(false);
+  const [adjustedLevel,    setAdjustedLevel]    = useState(null);
 
-  // ── Step 3: photo
+  // ── Step 4: photo upload ──────────────────────────────────────────────────
   const [photo,        setPhoto]        = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [saving,       setSaving]       = useState(false);
 
   const [step, setStep] = useState(1);
 
-  // ── Step 1 → 2 ──────────────────────────────────────────────────────────
+  const chatBottomRef = useRef(null);
+  const chatInputRef  = useRef(null);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMsgs, chatBusy]);
+
+  // Initialise PIA interview when entering step 2
+  useEffect(() => {
+    if (step === 2) {
+      const greeting = firstName
+        ? `Bonjour ${firstName} ! Je suis PIA. Je vais vous poser quelques questions pour créer votre profil de joueur. 🎾\n\n${QUESTIONS[0]}`
+        : `Bonjour ! Je suis PIA. Je vais vous poser quelques questions pour créer votre profil de joueur. 🎾\n\n${QUESTIONS[0]}`;
+      setChatMsgs([{ role: 'model', text: greeting }]);
+      setQIndex(0);
+      setQaAnswers([]);
+      setTimeout(() => chatInputRef.current?.focus(), 50);
+    }
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Step 1 → 2 ────────────────────────────────────────────────────────────
   function handleStep1Next() {
-    if (!firstName.trim() || !lastName.trim() || !birthDate || !yearsPlaying || !selfLevel) {
-      setError('Veuillez renseigner tous les champs obligatoires.');
+    if (!firstName.trim() || !lastName.trim() || !birthDate) {
+      setError('Veuillez renseigner votre prénom, nom et date de naissance.');
       return;
     }
     setError(null);
-    const age       = Math.floor((Date.now() - new Date(birthDate)) / (365.25 * 24 * 3600 * 1000));
-    const yearsText = YEARS_OPTIONS.find((o) => o.value === yearsPlaying)?.label?.toLowerCase() ?? yearsPlaying;
-    const levelText = LEVEL_LABELS[selfLevel]?.toLowerCase() ?? String(selfLevel);
-    setDescription(
-      `J'ai ${age} ans. Je joue au padel depuis ${yearsText}. Mon niveau de forme physique et de jeu est ${levelText} (${selfLevel}/7). ` +
-      `Décrivez ici votre style de jeu, vos points forts, ce que vous aimez et souhaitez améliorer.`
-    );
     setStep(2);
   }
 
-  // ── AI generation ────────────────────────────────────────────────────────
-  async function handleGenerate() {
-    if (description.trim().length < 10) {
-      setError('Décrivez votre jeu en au moins 10 caractères.');
-      return;
+  // ── Interview: submit answer ──────────────────────────────────────────────
+  function handleChatSubmit() {
+    const answer = chatInput.trim();
+    if (!answer || chatBusy || generating) return;
+
+    setChatInput('');
+    setChatBusy(true);
+
+    const newAnswers = [...qaAnswers, { question: QUESTIONS[qIndex], answer }];
+    setQaAnswers(newAnswers);
+    setChatMsgs((prev) => [...prev, { role: 'user', text: answer }]);
+
+    if (qIndex === 6) {
+      // Q7 answered → motivation captured, then generate profile
+      setMotivation(answer);
+      setTimeout(() => {
+        setChatMsgs((prev) => [
+          ...prev,
+          { role: 'model', text: ENCOURAGEMENTS[6] },
+        ]);
+        setTimeout(() => {
+          setChatMsgs((prev) => [
+            ...prev,
+            { role: 'model', text: 'Je génère votre profil maintenant… ✨' },
+          ]);
+          // Trigger async generation without blocking the setState chain
+          runGeneration(newAnswers, answer);
+        }, 700);
+      }, 600);
+    } else {
+      const nextIndex     = qIndex + 1;
+      const encouragement = ENCOURAGEMENTS[qIndex] ?? 'Noté !';
+      setTimeout(() => {
+        setChatMsgs((prev) => [
+          ...prev,
+          { role: 'model', text: `${encouragement}\n\n${QUESTIONS[nextIndex]}` },
+        ]);
+        setQIndex(nextIndex);
+        setChatBusy(false);
+        setTimeout(() => chatInputRef.current?.focus(), 50);
+      }, 600);
     }
-    setError(null);
+  }
+
+  async function runGeneration(answers, motivationAnswer) {
     setGenerating(true);
     try {
-      const { profile } = await generateProfile(description.trim());
+      const { profile } = await generateProfileFromQA(answers, motivationAnswer);
       setGeneratedProfile(profile);
+      setAdjustedLevel(profile.level);
+      setStep(3);
     } catch (err) {
       setError(err.message || 'Erreur lors de la génération du profil.');
+      setChatBusy(false);
     } finally {
       setGenerating(false);
     }
   }
 
-  // ── Photo selection ──────────────────────────────────────────────────────
+  function handleChatKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); }
+  }
+
+  // ── Step 3 → 4 ────────────────────────────────────────────────────────────
+  async function handleStep3Next() {
+    // If the player adjusted the level, persist the change
+    if (adjustedLevel && generatedProfile && adjustedLevel !== generatedProfile.level) {
+      try {
+        await updateProfile({ level: adjustedLevel });
+      } catch { /* non-fatal */ }
+    }
+    setStep(4);
+  }
+
+  // ── Photo ──────────────────────────────────────────────────────────────────
   function handlePhotoChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -157,18 +272,16 @@ export default function ProfileSetup() {
     setPhotoPreview(URL.createObjectURL(file));
   }
 
-  // ── Final save ───────────────────────────────────────────────────────────
+  // ── Final save ─────────────────────────────────────────────────────────────
   async function handleComplete() {
     setSaving(true);
     setError(null);
     try {
       const saves = [];
-      if (photo) saves.push(uploadPhoto(photo));
+      if (photo)              saves.push(uploadPhoto(photo));
       if (phoneNumber.trim()) saves.push(updateProfile({ phone_number: phoneNumber.trim() }));
-      // Always save first_name/last_name if provided
       saves.push(updateMe({ first_name: firstName.trim() || null, last_name: lastName.trim() || null }));
       await Promise.all(saves);
-      // Re-fetch from server so photo_url (and any server-side updates) are reflected in context
       const { profile: saved } = await getProfile();
       setProfile(saved);
       navigate('/sessions', { replace: true });
@@ -179,7 +292,7 @@ export default function ProfileSetup() {
     }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
@@ -193,7 +306,7 @@ export default function ProfileSetup() {
               Padel<span className="text-primary">Connect</span>
             </span>
           </Link>
-          <StepIndicator current={step} total={3} />
+          <StepIndicator current={step} total={4} />
         </div>
       </header>
 
@@ -201,11 +314,9 @@ export default function ProfileSetup() {
       <div className="flex-1 flex items-start justify-center px-4 py-10 sm:px-6">
         <div className="w-full max-w-lg space-y-8">
 
-          {error && (
-            <ErrorBanner message={error} onClose={() => setError(null)} />
-          )}
+          {error && <ErrorBanner message={error} onClose={() => setError(null)} />}
 
-          {/* ── STEP 1 ──────────────────────────────────────────────── */}
+          {/* ── STEP 1 — Basic info ───────────────────────────────────── */}
           {step === 1 && (
             <div className="space-y-8">
               <div>
@@ -213,7 +324,7 @@ export default function ProfileSetup() {
                   Parlez-nous de vous
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Ces informations aident notre IA à créer un profil précis.
+                  Notre IA va créer votre profil joueur étape par étape.
                 </p>
               </div>
 
@@ -256,51 +367,6 @@ export default function ProfileSetup() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="years">Depuis combien de temps jouez-vous au padel ?</Label>
-                  <Select
-                    id="years"
-                    value={yearsPlaying}
-                    onChange={(e) => setYearsPlaying(e.target.value)}
-                  >
-                    <option value="" disabled>Choisir…</option>
-                    {YEARS_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>
-                    Niveau de jeu / forme physique{' '}
-                    {selfLevel && (
-                      <span className="text-primary font-medium">
-                        — {LEVEL_LABELS[selfLevel]}
-                      </span>
-                    )}
-                  </Label>
-                  <div className="flex gap-2 flex-wrap">
-                    {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setSelfLevel(n)}
-                        className={cn(
-                          'w-10 h-10 rounded-lg text-sm font-semibold border transition-all',
-                          selfLevel === n
-                            ? 'bg-primary text-white border-primary shadow-sm'
-                            : 'bg-card text-foreground/70 border-border hover:border-primary/40 hover:text-foreground'
-                        )}
-                      >
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    1 = Débutant complet &nbsp;·&nbsp; 7 = Expert
-                  </p>
-                </div>
-
-                <div className="space-y-2">
                   <Label htmlFor="phone">
                     Numéro de téléphone{' '}
                     <span className="font-normal text-muted-foreground">(optionnel)</span>
@@ -320,54 +386,125 @@ export default function ProfileSetup() {
               </div>
 
               <Button className="w-full" size="lg" onClick={handleStep1Next}>
-                Continuer
-                <ChevronRight className="h-4 w-4" />
+                Continuer <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           )}
 
-          {/* ── STEP 2 ──────────────────────────────────────────────── */}
+          {/* ── STEP 2 — PIA interview ────────────────────────────────── */}
           {step === 2 && (
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-2xl font-semibold text-foreground tracking-tight flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  Entretien avec PIA
+                </h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Répondez aux questions — PIA génère votre profil à partir de vos réponses.
+                </p>
+              </div>
+
+              {/* Chat area */}
+              <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+                {/* Messages */}
+                <div className="h-80 overflow-y-auto p-4 space-y-3 no-scrollbar">
+                  {chatMsgs.map((msg, i) => (
+                    <ChatBubble key={i} role={msg.role} text={msg.text} />
+                  ))}
+
+                  {/* Typing indicator while chatBusy or generating */}
+                  {(chatBusy || generating) && (
+                    <div className="flex justify-start items-center">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-primary flex items-center justify-center mr-2 shrink-0">
+                        <Sparkles className="h-3 w-3 text-white" />
+                      </div>
+                      <div className="bg-muted rounded-2xl rounded-bl-sm px-3.5 py-2.5 flex items-center gap-2">
+                        <div className="flex gap-1">
+                          {[0, 150, 300].map((d) => (
+                            <span
+                              key={d}
+                              className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce"
+                              style={{ animationDelay: `${d}ms` }}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {generating ? 'Génération du profil…' : 'PIA réfléchit…'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatBottomRef} />
+                </div>
+
+                {/* Input */}
+                <div className="border-t border-border px-3 py-3 bg-background/50">
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      ref={chatInputRef}
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={handleChatKeyDown}
+                      placeholder="Votre réponse…"
+                      rows={1}
+                      disabled={chatBusy || generating}
+                      className="flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm
+                        placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20
+                        disabled:opacity-50 overflow-y-auto no-scrollbar"
+                      style={{ minHeight: '38px', maxHeight: '80px' }}
+                    />
+                    <button
+                      onClick={handleChatSubmit}
+                      disabled={!chatInput.trim() || chatBusy || generating}
+                      className="shrink-0 w-9 h-9 rounded-xl bg-primary hover:bg-primary/90
+                        disabled:opacity-40 disabled:cursor-not-allowed
+                        text-white flex items-center justify-center transition-colors"
+                      aria-label="Envoyer"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground text-center mt-1.5">
+                    Question {Math.min(qIndex + 1, 7)} / {QUESTIONS.length}
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={() => { setStep(1); setError(null); }}
+                className="gap-1"
+              >
+                <ChevronLeft className="h-4 w-4" /> Retour
+              </Button>
+            </div>
+          )}
+
+          {/* ── STEP 3 — Profile review ───────────────────────────────── */}
+          {step === 3 && (
             <div className="space-y-6">
               <div>
                 <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-                  Décrivez votre jeu
+                  Votre profil ✨
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  L'IA va analyser votre texte pour générer votre profil joueur.
+                  Vérifiez votre profil généré. Vous pouvez ajuster votre niveau si besoin.
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="desc">Description libre</Label>
-                <Textarea
-                  id="desc"
-                  rows={6}
-                  value={description}
-                  onChange={(e) => {
-                    setDescription(e.target.value);
-                    if (generatedProfile) setGeneratedProfile(null);
-                  }}
-                  placeholder="Je joue au padel depuis…"
-                />
-                <p className="text-right text-xs text-muted-foreground">
-                  {description.length} / 2000
-                </p>
-              </div>
-
-              {/* AI result card */}
+              {/* Generated profile card */}
               {generatedProfile && (
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-5 space-y-4">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-semibold text-primary">Profil généré ✨</p>
+                    <p className="text-sm font-semibold text-primary">Profil généré par PIA</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="space-y-0.5">
                       <p className="text-xs text-muted-foreground uppercase tracking-wide">Niveau</p>
                       <p className="font-semibold text-foreground">
-                        {generatedProfile.level}/7 — {LEVEL_LABELS[generatedProfile.level] ?? ''}
+                        {adjustedLevel}/7 — {LEVEL_LABELS[adjustedLevel] ?? ''}
                       </p>
                     </div>
                     <div className="space-y-0.5">
@@ -405,51 +542,51 @@ export default function ProfileSetup() {
                 </div>
               )}
 
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => { setStep(1); setError(null); }}
-                  className="gap-1"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Retour
-                </Button>
+              {/* Level adjustment */}
+              <div className="space-y-2">
+                <Label>
+                  Ajuster le niveau
+                  {adjustedLevel && (
+                    <span className="text-primary font-medium">
+                      {' '}— {LEVEL_LABELS[adjustedLevel]}
+                    </span>
+                  )}
+                </Label>
+                <div className="flex gap-2 flex-wrap">
+                  {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setAdjustedLevel(n)}
+                      className={cn(
+                        'w-10 h-10 rounded-lg text-sm font-semibold border transition-all',
+                        adjustedLevel === n
+                          ? 'bg-primary text-white border-primary shadow-sm'
+                          : 'bg-card text-foreground/70 border-border hover:border-primary/40 hover:text-foreground'
+                      )}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  1 = Débutant complet &nbsp;·&nbsp; 7 = Expert
+                </p>
+              </div>
 
-                {!generatedProfile ? (
-                  <Button
-                    className="flex-1"
-                    size="lg"
-                    onClick={handleGenerate}
-                    disabled={generating || description.trim().length < 10}
-                  >
-                    {generating ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />
-                        Génération en cours…
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4" />
-                        Générer avec l'IA
-                      </>
-                    )}
-                  </Button>
-                ) : (
-                  <Button
-                    className="flex-1"
-                    size="lg"
-                    onClick={() => { setError(null); setStep(3); }}
-                  >
-                    Continuer
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                )}
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setStep(2)} className="gap-1">
+                  <ChevronLeft className="h-4 w-4" /> Retour
+                </Button>
+                <Button className="flex-1" size="lg" onClick={handleStep3Next}>
+                  Continuer <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 3 ──────────────────────────────────────────────── */}
-          {step === 3 && (
+          {/* ── STEP 4 — Photo upload ─────────────────────────────────── */}
+          {step === 4 && (
             <div className="space-y-6">
               <div>
                 <h1 className="text-2xl font-semibold text-foreground tracking-tight">
@@ -507,14 +644,14 @@ export default function ProfileSetup() {
                 )}
               </div>
 
-              {/* Generated profile summary */}
+              {/* Profile summary */}
               {generatedProfile && (
-                <div className="rounded-xl border border-border bg-card p-4 shadow-card space-y-3">
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
                   <p className="text-sm font-semibold text-foreground">Votre profil</p>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="text-muted-foreground">Niveau : </span>
-                      <span className="font-medium">{generatedProfile.level}/7</span>
+                      <span className="font-medium">{adjustedLevel}/7</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Style : </span>
@@ -533,15 +670,9 @@ export default function ProfileSetup() {
               )}
 
               <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => { setStep(2); setError(null); }}
-                  className="gap-1"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Retour
+                <Button variant="outline" onClick={() => setStep(3)} className="gap-1">
+                  <ChevronLeft className="h-4 w-4" /> Retour
                 </Button>
-
                 <Button
                   className="flex-1"
                   size="lg"
@@ -563,6 +694,7 @@ export default function ProfileSetup() {
               </div>
             </div>
           )}
+
         </div>
       </div>
     </div>

@@ -264,13 +264,14 @@ function UsersTab() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Rôle</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Téléphone</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Inscrit le</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden xl:table-cell">Motivation</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Statut</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm">Aucun utilisateur trouvé.</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-sm">Aucun utilisateur trouvé.</td></tr>
                 ) : filtered.map((u) => (
                   <UserRow key={u.id} user={u} onStatusChange={handleStatus} />
                 ))}
@@ -310,6 +311,20 @@ function UserRow({ user: u, onStatusChange }) {
       <td className="px-4 py-3 text-slate-500">{ROLE_LABEL[u.role] ?? u.role}</td>
       <td className="px-4 py-3 text-slate-400 hidden sm:table-cell">{u.phone_number || '—'}</td>
       <td className="px-4 py-3 text-slate-400 hidden md:table-cell">{fmt(u.created_at)}</td>
+      <td className="px-4 py-3 hidden xl:table-cell max-w-[200px]">
+        {u.motivation_answer ? (
+          <span
+            title={u.motivation_answer}
+            className="text-slate-500 text-xs truncate block cursor-help"
+          >
+            {u.motivation_answer.length > 55
+              ? `${u.motivation_answer.slice(0, 55)}…`
+              : u.motivation_answer}
+          </span>
+        ) : (
+          <span className="text-slate-300 text-xs">—</span>
+        )}
+      </td>
       <td className="px-4 py-3">
         <Badge label={STATUS_LABEL[u.status] ?? u.status} color={STATUS_COLOR[u.status]} />
       </td>
