@@ -30,8 +30,8 @@ COPY --from=frontend-builder /app/client/dist /var/www/html
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY supervisord.conf /etc/supervisord.conf
 
-# Uploads directory
-RUN mkdir -p /app/uploads
+# Runtime directories
+RUN mkdir -p /app/uploads /run/nginx
 
 EXPOSE 10000
 
