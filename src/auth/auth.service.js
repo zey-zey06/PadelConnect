@@ -7,6 +7,28 @@ const { sendVerificationEmail } = require('../emails/verification');
 const BCRYPT_ROUNDS = 12;
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+/**
+ * Generate a unique username from first/last name.
+ * Format: {base}_{4-digit-number}, retried up to 5 times on collision.
+ */
+async function generateUniqueUsername(firstName, lastName) {
+  const base = [firstName, lastName]
+    .filter(Boolean)
+    .join('_')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 20) || 'joueur';
+
+  for (let i = 0; i < 5; i++) {
+    const num = Math.floor(1000 + Math.random() * 9000);
+    const username = `${base}_${num}`;
+    const exists = await db('users').where({ username }).first();
+    if (!exists) return username;
+  }
+  // Fallback: use timestamp suffix — guaranteed unique
+  return `${base}_${Date.now() % 100000}`;
+}
+
 async function signup({ email, password, role = 'player', organization_id = null, first_name = null, last_name = null, is_ball_picker = false }) {
   const existing = await db('users').where({ email }).whereNull('deleted_at').first();
   if (existing) {
@@ -20,9 +42,11 @@ async function signup({ email, password, role = 'player', organization_id = null
   // const verification_token = crypto.randomBytes(32).toString('hex');
   // const verification_expires = new Date(Date.now() + VERIFICATION_TTL_MS);
 
+  const username = await generateUniqueUsername(first_name, last_name);
+
   const [row] = await db('users')
-    .insert({ email, password_hash, role, organization_id, email_verified: true, first_name: first_name || null, last_name: last_name || null })
-    .returning(['id', 'email', 'role', 'organization_id', 'status', 'first_name', 'last_name', 'created_at']);
+    .insert({ email, password_hash, role, organization_id, email_verified: true, first_name: first_name || null, last_name: last_name || null, username })
+    .returning(['id', 'email', 'role', 'organization_id', 'status', 'first_name', 'last_name', 'username', 'created_at']);
 
   // [DEV] Skip token storage and verification email
   // await db('users').where({ id: row.id }).update({
@@ -54,6 +78,7 @@ async function signup({ email, password, role = 'player', organization_id = null
     status: row.status,
     first_name: row.first_name ?? null,
     last_name: row.last_name ?? null,
+    username: row.username ?? null,
     created_at: row.created_at,
   };
 }
@@ -138,6 +163,7 @@ async function getUserById(id) {
     status: user.status,
     first_name: user.first_name ?? null,
     last_name: user.last_name ?? null,
+    username: user.username ?? null,
     balance: Number(user.balance ?? 0),
   };
 }
@@ -152,6 +178,19 @@ async function updateName(userId, first_name, last_name) {
     last_name:  last_name  || null,
     updated_at: new Date(),
   });
+}
+
+async function updateUsername(userId, username) {
+  try {
+    await db('users').where({ id: userId }).update({ username, updated_at: new Date() });
+  } catch (err) {
+    if (err.code === '23505') {
+      const e = new Error('Ce nom d\'utilisateur est déjà pris. Essayez-en un autre.');
+      e.status = 409;
+      throw e;
+    }
+    throw err;
+  }
 }
 
 async function changePassword(userId, currentPassword, newPassword) {
@@ -171,4 +210,4 @@ async function changePassword(userId, currentPassword, newPassword) {
   await db('users').where({ id: userId }).update({ password_hash: hash, updated_at: new Date() });
 }
 
-module.exports = { signup, login, verifyEmail, getUserById, updateName, changePassword, softDeleteAccount };
+module.exports = { signup, login, verifyEmail, getUserById, updateName, updateUsername, changePassword, softDeleteAccount };

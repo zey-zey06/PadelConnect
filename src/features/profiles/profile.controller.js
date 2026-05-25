@@ -2,8 +2,10 @@ const { Router } = require('express');
 const multer = require('multer');
 const Joi = require('joi');
 
-const authenticate = require('../../middleware/authenticate');
+const authenticate  = require('../../middleware/authenticate');
+const validate      = require('../../middleware/validate');
 const profileService = require('./profile.service');
+const { updateUsername } = require('../../auth/auth.service');
 
 // Use memory storage so photos are converted to base64 data-URLs and stored
 // in the DB — no disk writes, survives Render redeploys.
@@ -31,13 +33,25 @@ const generateSchema = Joi.object({
 }).or('description', 'qa_answers');
 
 const updateProfileSchema = Joi.object({
-  level: Joi.number().integer().min(1).max(7),
-  style: Joi.string().max(100),
-  strengths: Joi.array().items(Joi.string()),
-  weaknesses: Joi.array().items(Joi.string()),
-  description: Joi.string().max(1000),
+  level:        Joi.number().integer().min(1).max(7),
+  style:        Joi.string().max(100),
+  strengths:    Joi.array().items(Joi.string()),
+  weaknesses:   Joi.array().items(Joi.string()),
+  description:  Joi.string().max(1000),
   phone_number: Joi.string().max(20).optional().allow(null, ''),
+  bio:          Joi.string().max(150).optional().allow(null, ''),
 }).min(1);
+
+const usernameSchema = Joi.object({
+  username: Joi.string()
+    .min(3)
+    .max(30)
+    .pattern(/^[a-z0-9_]+$/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Le nom d\'utilisateur ne peut contenir que des lettres minuscules, chiffres et underscores.',
+    }),
+});
 
 async function generateHandler(req, res, next) {
   try {
@@ -47,8 +61,8 @@ async function generateHandler(req, res, next) {
     }
     const profile = await profileService.generateProfile(
       req.user.sub,
-      value.description    ?? null,
-      value.qa_answers     ?? null,
+      value.description       ?? null,
+      value.qa_answers        ?? null,
       value.motivation_answer ?? null,
     );
     return res.json({ profile });
@@ -75,10 +89,35 @@ async function photoHandler(req, res, next) {
     if (!req.file) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Fichier image requis.' });
     }
-    // Convert buffer to base64 data-URL stored directly in the DB.
     const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
     const profile = await profileService.updatePhoto(req.user.sub, dataUrl);
     return res.json({ profile });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function coverHandler(req, res, next) {
+  try {
+    if (!req.file) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Fichier image requis.' });
+    }
+    const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const profile = await profileService.updateCoverPhoto(req.user.sub, dataUrl);
+    return res.json({ profile });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function usernameHandler(req, res, next) {
+  try {
+    const { error, value } = usernameSchema.validate(req.body);
+    if (error) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    }
+    await updateUsername(req.user.sub, value.username);
+    return res.json({ ok: true, username: value.username });
   } catch (err) {
     next(err);
   }
@@ -95,7 +134,7 @@ async function getMeHandler(req, res, next) {
 
 async function getUserProfileHandler(req, res, next) {
   try {
-    const profile = await profileService.getProfile(req.params.userId);
+    const profile = await profileService.getPublicProfile(req.params.userId);
     if (!profile) return res.json({ profile: null });
 
     // phone_number is sensitive — only expose to venue_admin and super_admin
@@ -110,11 +149,23 @@ async function getUserProfileHandler(req, res, next) {
   }
 }
 
+async function getUserSessionsHandler(req, res, next) {
+  try {
+    const sessions = await profileService.getSessionsByUser(req.params.userId);
+    return res.json({ sessions });
+  } catch (err) {
+    next(err);
+  }
+}
+
 const router = Router();
 router.get('/me', authenticate, getMeHandler);
 router.get('/user/:userId', authenticate, getUserProfileHandler);
+router.get('/user/:userId/sessions', authenticate, getUserSessionsHandler);
 router.post('/generate', authenticate, generateHandler);
 router.put('/', authenticate, updateHandler);
 router.post('/photo', authenticate, upload.single('photo'), photoHandler);
+router.post('/cover', authenticate, upload.single('cover'), coverHandler);
+router.patch('/username', authenticate, usernameHandler);
 
 module.exports = router;

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet } from 'lucide-react';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image } from 'lucide-react';
 import { useAuth } from '@/App';
-import { getProfile, updateProfile, uploadPhoto } from '@/api/profile';
+import { getProfile, updateProfile, uploadPhoto, uploadCoverPhoto, updateUsername } from '@/api/profile';
 import { updateMe, logout, changePassword, deleteAccount } from '@/api/auth';
 import { getMyBookings } from '@/api/bookings';
 import { getMyPenalties, payPenalty } from '@/api/penalties';
@@ -251,10 +251,64 @@ function PhotoUpload({ currentUrl, onUploaded }) {
 }
 
 // ── Edit form ─────────────────────────────────────────────────────────────────
+function CoverUpload({ currentUrl, onUploaded }) {
+  const inputRef = useRef(null);
+  const [preview, setPreview] = useState(currentUrl ?? null);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  async function handleChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPreview(URL.createObjectURL(file));
+    setLoading(true);
+    setError(null);
+    try {
+      const { profile } = await uploadCoverPhoto(file);
+      onUploaded(profile);
+    } catch (err) {
+      setError(err.message || 'Erreur lors de l\'upload.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm font-medium">Photo de couverture</Label>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={loading}
+        className="relative w-full h-24 rounded-xl overflow-hidden border-2 border-dashed border-border hover:border-primary/50 transition-colors group bg-muted"
+      >
+        {preview ? (
+          <img src={preview} alt="Cover" className="h-full w-full object-cover" />
+        ) : (
+          <div className="h-full w-full flex flex-col items-center justify-center gap-1.5">
+            <Image className="h-6 w-6 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Ajouter une bannière</span>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          {loading
+            ? <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            : <Upload className="h-5 w-5 text-white" />
+          }
+        </div>
+      </button>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 function EditForm({ profile, user, onSave, onCancel, onPhotoUploaded }) {
   const [form, setForm] = useState({
     first_name:   user?.first_name   ?? '',
     last_name:    user?.last_name    ?? '',
+    username:     user?.username     ?? '',
+    bio:          profile?.bio       ?? '',
     style:        profile?.style        ?? '',
     strengths:    Array.isArray(profile?.strengths)  ? [...profile.strengths]  : [],
     weaknesses:   Array.isArray(profile?.weaknesses) ? [...profile.weaknesses] : [],
@@ -269,19 +323,26 @@ function EditForm({ profile, user, onSave, onCancel, onPhotoUploaded }) {
     setSaving(true);
     setError(null);
     try {
-      const [{ profile: updated }, { user: updatedUser }] = await Promise.all([
+      const calls = [
         updateProfile({
           style:        form.style        || undefined,
           strengths:    form.strengths,
           weaknesses:   form.weaknesses,
           phone_number: form.phone_number || null,
+          bio:          form.bio.trim()   || null,
         }),
         updateMe({
           first_name: form.first_name.trim() || null,
           last_name:  form.last_name.trim()  || null,
         }),
-      ]);
-      onSave(updated, updatedUser);
+      ];
+      // Only update username if it changed
+      const trimmedUsername = form.username.trim().toLowerCase();
+      if (trimmedUsername && trimmedUsername !== (user?.username ?? '')) {
+        calls.push(updateUsername(trimmedUsername));
+      }
+      const [{ profile: updated }, { user: updatedUser }] = await Promise.all(calls);
+      onSave(updated, { ...updatedUser, username: trimmedUsername || updatedUser.username });
     } catch (err) {
       setError(err.message || 'Erreur lors de la sauvegarde.');
       setSaving(false);
@@ -296,6 +357,15 @@ function EditForm({ profile, user, onSave, onCancel, onPhotoUploaded }) {
           <X className="h-4 w-4" />
         </button>
       </div>
+
+      {/* Cover photo */}
+      <CoverUpload
+        currentUrl={localProfile?.cover_photo_url}
+        onUploaded={(updated) => {
+          setLocalProfile(updated);
+          onPhotoUploaded?.(updated);
+        }}
+      />
 
       {/* Nom */}
       <div className="grid grid-cols-2 gap-3">
@@ -317,6 +387,43 @@ function EditForm({ profile, user, onSave, onCancel, onPhotoUploaded }) {
             placeholder="Mensah"
           />
         </div>
+      </div>
+
+      {/* Username */}
+      <div className="space-y-1.5">
+        <Label htmlFor="username" className="text-sm font-medium">
+          Nom d'utilisateur
+          <span className="ml-1 text-xs font-normal text-muted-foreground">(minuscules, chiffres, underscore)</span>
+        </Label>
+        <div className="relative">
+          <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            id="username"
+            value={form.username}
+            onChange={(e) => setForm((f) => ({ ...f, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+            placeholder="kofi_mensah"
+            className="pl-9"
+            maxLength={30}
+          />
+        </div>
+      </div>
+
+      {/* Bio */}
+      <div className="space-y-1.5">
+        <Label htmlFor="bio" className="text-sm font-medium">
+          Bio
+          <span className="ml-1 text-xs font-normal text-muted-foreground">(max 150 caractères)</span>
+        </Label>
+        <textarea
+          id="bio"
+          value={form.bio}
+          onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value.slice(0, 150) }))}
+          placeholder="Passionné de padel depuis 3 ans…"
+          rows={2}
+          maxLength={150}
+          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+        />
+        <p className="text-xs text-muted-foreground text-right">{form.bio.length}/150</p>
       </div>
 
       {/* Photo */}

@@ -1,140 +1,499 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { User, ArrowLeft, AlertCircle, Zap, Target } from 'lucide-react';
-import { getUserProfile } from '@/api/profile';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import {
+  User, ArrowLeft, AlertCircle, MessageSquare,
+  UserPlus, UserCheck, UserX, Clock, X, Pencil,
+  Calendar, Users, ChevronRight,
+} from 'lucide-react';
+import { useAuth } from '@/App';
+import { getUserProfile, getUserSessions } from '@/api/profile';
+import {
+  getFriendStatus,
+  sendFriendRequest,
+  unfriend,
+  acceptFriendRequest,
+  refuseFriendRequest,
+  getUserFriends,
+} from '@/api/friends';
 import { cn } from '@/lib/utils';
-import PageSkeleton from '@/components/PageSkeleton';
+import { Button } from '@/components/ui/button';
 
+// ── Constants ─────────────────────────────────────────────────────────────────
 const LEVEL_LABELS = {
   1: 'Débutant', 2: 'Débutant +', 3: 'Intermédiaire',
   4: 'Intermédiaire +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
 };
 
-const LEVEL_COLORS = {
-  1: 'from-slate-600  to-slate-800',
-  2: 'from-stone-600  to-stone-800',
-  3: 'from-emerald-700 to-emerald-900',
-  4: 'from-teal-700   to-teal-900',
-  5: 'from-green-700  to-green-900',
-  6: 'from-[#1A3D2B]  to-[#0f2318]',
-  7: 'from-[#1A3D2B]  to-black',
-};
+const COVER_GRADIENTS = [
+  'from-emerald-800 to-teal-900',
+  'from-slate-700   to-slate-900',
+  'from-green-800   to-emerald-950',
+  'from-teal-700    to-cyan-900',
+];
 
-export default function PlayerProfile() {
-  const { userId } = useParams();
-  const navigate   = useNavigate();
+// Pick a deterministic gradient from the user's ID to avoid flicker
+function coverGradient(userId) {
+  if (!userId) return COVER_GRADIENTS[0];
+  const idx = userId.charCodeAt(0) % COVER_GRADIENTS.length;
+  return COVER_GRADIENTS[idx];
+}
 
-  const [profile, setProfile] = useState(undefined);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
-
-  useEffect(() => {
-    getUserProfile(userId)
-      .then(({ profile: p }) => setProfile(p ?? null))
-      .catch((e) => setError(e.message || 'Profil introuvable.'))
-      .finally(() => setLoading(false));
-  }, [userId]);
-
-  // Use full name if available, fallback to email username, then "Joueur"
-  const displayName =
-    (profile?.user_first_name && profile?.user_last_name)
-      ? `${profile.user_first_name} ${profile.user_last_name}`
-      : profile?.user_email?.split('@')[0] ?? 'Joueur';
-  const level       = profile?.level ?? null;
-  const levelLabel  = LEVEL_LABELS[level] ?? null;
-  const gradient    = LEVEL_COLORS[level] ?? LEVEL_COLORS[6];
-  const strengths   = Array.isArray(profile?.strengths)  ? profile.strengths  : [];
-  const weaknesses  = Array.isArray(profile?.weaknesses) ? profile.weaknesses : [];
+// ── Session detail modal ───────────────────────────────────────────────────────
+function SessionModal({ session, onClose }) {
+  if (!session) return null;
+  const prefs    = session.preferences ?? {};
+  const levelMin = prefs.level_min ?? null;
+  const levelMax = prefs.level_max ?? null;
+  const levelStr = levelMin && levelMax && levelMin !== levelMax
+    ? `${levelMin} – ${levelMax}`
+    : (levelMin ?? levelMax ?? '—');
+  const dateStr  = session.date
+    ? new Date(session.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+    : '—';
+  const genderMap = { male: 'Hommes', female: 'Femmes', mixed: 'Mixte', any: 'Tous' };
 
   return (
-    <div className="space-y-6 max-w-sm mx-auto">
-      {/* Back */}
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Retour
-      </button>
-
-      {loading ? (
-        <PageSkeleton icon="👤" message="Chargement du profil..." layout="profile" />
-      ) : error ? (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4 shrink-0" />{error}
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/30 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+        {/* Handle bar (mobile) */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
         </div>
-      ) : !profile ? (
-        <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center space-y-3">
-          <User className="h-10 w-10 text-muted-foreground mx-auto" />
-          <p className="font-medium text-foreground">Profil non configuré</p>
-          <p className="text-sm text-muted-foreground">Ce joueur n'a pas encore renseigné son profil.</p>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-base font-semibold text-foreground">Détails de la session</h3>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
-      ) : (
-        <div className={cn('relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10', `bg-gradient-to-b ${gradient}`)}>
 
-          {/* Photo */}
-          <div className="relative h-64 overflow-hidden">
-            {profile.photo_url ? (
-              <img src={profile.photo_url} alt={displayName} className="absolute inset-0 h-full w-full object-cover object-top" />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <User className="h-20 w-20 text-white/20" />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        {/* Content */}
+        <div className="px-5 py-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Calendar className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground capitalize">{dateStr}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {session.time?.slice(0, 5) ?? '—'}
+                {session.end_time ? ` – ${session.end_time.slice(0, 5)}` : ''}
+              </p>
+            </div>
+          </div>
 
-            {/* Level badge */}
-            {level && (
-              <div className="absolute top-4 left-4 flex flex-col items-center leading-none">
-                <span className="text-5xl font-black text-white drop-shadow-lg">{level}</span>
-                <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest mt-0.5">
-                  {levelLabel}
-                </span>
-              </div>
-            )}
-
-            {/* Name + style */}
-            <div className="absolute bottom-0 left-0 right-0 px-5 pb-4">
-              <p className="text-xl font-black text-white tracking-tight uppercase drop-shadow-md">{displayName}</p>
-              {profile.style && (
-                <p className="text-sm text-white/65 font-medium mt-0.5">{profile.style}</p>
+          <div className="flex items-start gap-3">
+            <div className="h-9 w-9 rounded-full bg-green-50 flex items-center justify-center shrink-0">
+              <Users className="h-4 w-4 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                {session.current_players ?? 0}/{session.max_players ?? 4} joueurs
+              </p>
+              {levelMin && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Niveau {levelStr} · {genderMap[prefs.gender] ?? 'Tous'}
+                </p>
               )}
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="px-5 py-4 space-y-4 bg-black/30 backdrop-blur-sm">
-            {strengths.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Zap className="h-3 w-3 text-green-400" />
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Points forts</p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {strengths.map((s) => (
-                    <span key={s} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30">{s}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {weaknesses.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Target className="h-3 w-3 text-orange-400" />
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">À travailler</p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {weaknesses.map((w) => (
-                    <span key={w} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">{w}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {!strengths.length && !weaknesses.length && (
-              <p className="text-sm text-white/40 text-center py-2">Aucune information renseignée</p>
-            )}
+          <div className={cn(
+            'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold',
+            session.status === 'open'      ? 'bg-green-50 text-green-700 border border-green-200' :
+            session.status === 'full'      ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                             'bg-muted    text-muted-foreground border border-border',
+          )}>
+            {session.status === 'open' ? 'Ouverte' : session.status === 'full' ? 'Complète' : session.status}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Session grid card ──────────────────────────────────────────────────────────
+function SessionCard({ session, onClick }) {
+  const prefs    = session.preferences ?? {};
+  const level    = prefs.level_min ?? null;
+  const dateStr  = session.date
+    ? new Date(session.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }).toUpperCase()
+    : '—';
+  const players  = `${session.current_players ?? 0}/${session.max_players ?? 4}`;
+
+  return (
+    <button
+      onClick={onClick}
+      className="aspect-square rounded-xl border border-border bg-card hover:bg-muted/60 transition-colors overflow-hidden flex flex-col justify-between p-3 text-left"
+    >
+      {/* Level badge */}
+      {level && (
+        <span className="self-start text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+          Nv.{level}
+        </span>
+      )}
+
+      {/* Date */}
+      <div>
+        <p className="text-sm font-black text-foreground leading-none">{dateStr}</p>
+        {session.time && (
+          <p className="text-[11px] text-muted-foreground mt-0.5">{session.time.slice(0, 5)}</p>
+        )}
+      </div>
+
+      {/* Players */}
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <Users className="h-3 w-3 shrink-0" />
+        {players}
+      </div>
+    </button>
+  );
+}
+
+// ── Friends list modal ─────────────────────────────────────────────────────────
+function FriendsModal({ userId, onClose }) {
+  const navigate = useNavigate();
+  const [friends, setFriends] = useState(null);
+
+  useEffect(() => {
+    getUserFriends(userId).then((r) => setFriends(r.friends ?? [])).catch(() => setFriends([]));
+  }, [userId]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/30 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+        </div>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-base font-semibold text-foreground">Amis</h3>
+          <button onClick={onClose} className="h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="max-h-80 overflow-y-auto divide-y divide-border">
+          {friends === null ? (
+            <div className="p-5 flex justify-center">
+              <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : friends.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Aucun ami pour l'instant.</p>
+          ) : (
+            friends.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => { navigate(`/players/${f.id}`); onClose(); }}
+                className="flex items-center gap-3 w-full px-5 py-3 hover:bg-muted/50 transition-colors text-left"
+              >
+                <div className="h-10 w-10 rounded-full overflow-hidden border border-border bg-muted shrink-0 flex items-center justify-center">
+                  {f.photo_url
+                    ? <img src={f.photo_url} alt="" className="h-full w-full object-cover" />
+                    : <User className="h-5 w-5 text-muted-foreground" />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    {[f.first_name, f.last_name].filter(Boolean).join(' ') || f.username || 'Joueur'}
+                  </p>
+                  {f.username && <p className="text-xs text-muted-foreground">@{f.username}</p>}
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Friend action button ───────────────────────────────────────────────────────
+function FriendButton({ friendStatus, targetUserId, onStatusChange }) {
+  const [loading, setLoading] = useState(false);
+
+  async function handle() {
+    setLoading(true);
+    try {
+      if (friendStatus === 'none') {
+        await sendFriendRequest(targetUserId);
+        onStatusChange('pending_sent');
+      } else if (friendStatus === 'pending_sent') {
+        // Cancel by unfriending (removes the pending request)
+        await unfriend(targetUserId);
+        onStatusChange('none');
+      } else if (friendStatus === 'pending_received') {
+        await acceptFriendRequest(targetUserId);
+        onStatusChange('accepted');
+      } else if (friendStatus === 'accepted') {
+        await unfriend(targetUserId);
+        onStatusChange('none');
+      }
+    } catch { /* silently ignore */ }
+    finally { setLoading(false); }
+  }
+
+  const map = {
+    none:             { label: 'Ajouter en ami', icon: UserPlus,  variant: 'default' },
+    pending_sent:     { label: 'Demande envoyée', icon: Clock,    variant: 'outline' },
+    pending_received: { label: 'Accepter',        icon: UserCheck, variant: 'default' },
+    accepted:         { label: 'Amis',            icon: UserX,    variant: 'outline' },
+  };
+  const cfg = map[friendStatus] ?? map.none;
+  const Icon = cfg.icon;
+
+  return (
+    <Button
+      size="sm"
+      variant={cfg.variant}
+      onClick={handle}
+      disabled={loading}
+      className="h-8 px-3 text-xs gap-1.5"
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {loading ? '…' : cfg.label}
+    </Button>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────────
+export default function PlayerProfile() {
+  const { userId }  = useParams();
+  const navigate    = useNavigate();
+  const { user: me } = useAuth();
+
+  const [profile,      setProfile]      = useState(undefined); // undefined = loading
+  const [sessions,     setSessions]     = useState([]);
+  const [friendStatus, setFriendStatus] = useState('none');
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
+  const [activeSession, setActiveSession] = useState(null);
+  const [showFriends, setShowFriends]   = useState(false);
+
+  const isOwnProfile = me?.id === userId;
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    setProfile(undefined);
+    setSessions([]);
+    setFriendStatus('none');
+
+    const fetches = [
+      getUserProfile(userId),
+      getUserSessions(userId),
+    ];
+    if (!isOwnProfile) fetches.push(getFriendStatus(userId));
+
+    Promise.all(fetches.map((p) => p.catch(() => null)))
+      .then(([profileRes, sessionsRes, statusRes]) => {
+        setProfile(profileRes?.profile ?? null);
+        setSessions(sessionsRes?.sessions ?? []);
+        if (statusRes) setFriendStatus(statusRes.status ?? 'none');
+      })
+      .catch((e) => setError(e.message || 'Erreur de chargement.'))
+      .finally(() => setLoading(false));
+  }, [userId, isOwnProfile]);
+
+  // Derived display values
+  const displayName  =
+    (profile?.user_first_name && profile?.user_last_name)
+      ? `${profile.user_first_name} ${profile.user_last_name}`
+      : profile?.user_first_name ?? profile?.user_email?.split('@')[0] ?? 'Joueur';
+  const username     = profile?.user_username ?? null;
+  const bio          = profile?.bio ?? null;
+  const level        = profile?.level ?? null;
+  const levelLabel   = LEVEL_LABELS[level] ?? null;
+  const photoUrl     = profile?.photo_url ?? null;
+  const coverUrl     = profile?.cover_photo_url ?? null;
+  const sessionsCount = profile?.sessions_count ?? sessions.length;
+  const friendsCount  = profile?.friends_count ?? 0;
+  const initials     = displayName.slice(0, 2).toUpperCase();
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-40 rounded-2xl bg-muted animate-pulse" />
+        <div className="h-24 rounded-2xl bg-muted animate-pulse" />
+        <div className="grid grid-cols-3 gap-2">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="aspect-square rounded-xl bg-muted animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <AlertCircle className="h-4 w-4 shrink-0" />{error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-0 -mx-4 -mt-8">
+      {/* ── Cover photo ─────────────────────────────────────────────── */}
+      <div className="relative">
+        {/* Back button */}
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute top-4 left-4 z-10 h-8 w-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+
+        {/* Cover */}
+        <div className={cn(
+          'h-40 w-full bg-gradient-to-br',
+          !coverUrl && coverGradient(userId),
+        )}>
+          {coverUrl && (
+            <img src={coverUrl} alt="Cover" className="h-full w-full object-cover" />
+          )}
+        </div>
+      </div>
+
+      {/* ── Profile info card ────────────────────────────────────────── */}
+      <div className="bg-background px-4 pb-4">
+        {/* Avatar row */}
+        <div className="flex items-end justify-between -mt-10 mb-3">
+          {/* Avatar */}
+          <div className="h-20 w-20 rounded-full border-4 border-background bg-muted overflow-hidden flex items-center justify-center shadow-lg shrink-0">
+            {photoUrl ? (
+              <img src={photoUrl} alt={displayName} className="h-full w-full object-cover object-top" />
+            ) : (
+              <span className="text-xl font-black text-muted-foreground">{initials}</span>
+            )}
+          </div>
+
+          {/* Action buttons (shown immediately to the right of avatar at the top) */}
+          {isOwnProfile ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs"
+              onClick={() => navigate('/profile')}
+            >
+              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+              Modifier le profil
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-3 text-xs"
+                onClick={() => navigate(`/messages?userId=${userId}`)}
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+              </Button>
+              <FriendButton
+                friendStatus={friendStatus}
+                targetUserId={userId}
+                onStatusChange={setFriendStatus}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Name */}
+        <div className="space-y-0.5 mb-3">
+          {username && (
+            <p className="text-xs font-medium text-muted-foreground">@{username}</p>
+          )}
+          <h1 className="text-lg font-bold text-foreground leading-tight">{displayName}</h1>
+          {level && levelLabel && (
+            <p className="text-xs text-muted-foreground">Niveau {level} — {levelLabel}</p>
+          )}
+          {bio && (
+            <p className="text-sm text-foreground/80 mt-1.5 leading-relaxed">{bio}</p>
+          )}
+        </div>
+
+        {/* Stats row */}
+        <div className="flex border border-border rounded-xl overflow-hidden">
+          <div className="flex-1 text-center py-3 px-2">
+            <p className="text-lg font-bold text-foreground">{sessionsCount}</p>
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Sessions</p>
+          </div>
+          <div className="w-px bg-border" />
+          <div className="flex-1 text-center py-3 px-2">
+            <p className="text-lg font-bold text-foreground">{level ?? '—'}</p>
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Niveau</p>
+          </div>
+          <div className="w-px bg-border" />
+          <button
+            className="flex-1 text-center py-3 px-2 hover:bg-muted/50 transition-colors"
+            onClick={() => setShowFriends(true)}
+          >
+            <p className="text-lg font-bold text-foreground">{friendsCount}</p>
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Amis</p>
+          </button>
+        </div>
+      </div>
+
+      {/* ── Divider ───────────────────────────────────────────────────── */}
+      <div className="h-2 bg-muted/40" />
+
+      {/* ── Sessions grid ─────────────────────────────────────────────── */}
+      <div className="bg-background px-4 py-4">
+        <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          Sessions jouées
+        </h2>
+
+        {sessions.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-muted/20 py-10 text-center">
+            <Calendar className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Aucune session pour l'instant.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {sessions.map((s) => (
+              <SessionCard
+                key={s.id}
+                session={s}
+                onClick={() => setActiveSession(s)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Pending request banner (for pending_received) ─────────────── */}
+      {friendStatus === 'pending_received' && !isOwnProfile && (
+        <div className="mx-4 mb-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-foreground font-medium">Ce joueur vous a envoyé une demande d'ami.</p>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => acceptFriendRequest(userId).then(() => setFriendStatus('accepted')).catch(() => {})}
+              className="text-xs font-semibold text-green-700 hover:underline"
+            >Accepter</button>
+            <button
+              onClick={() => refuseFriendRequest(userId).then(() => setFriendStatus('none')).catch(() => {})}
+              className="text-xs font-semibold text-muted-foreground hover:underline"
+            >Refuser</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modals ───────────────────────────────────────────────────── */}
+      {activeSession && (
+        <SessionModal session={activeSession} onClose={() => setActiveSession(null)} />
+      )}
+      {showFriends && (
+        <FriendsModal userId={userId} onClose={() => setShowFriends(false)} />
       )}
     </div>
   );

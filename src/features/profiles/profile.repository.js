@@ -20,9 +20,59 @@ async function getByUserId(userId) {
     .leftJoin('users', 'player_profiles.user_id', 'users.id')
     .where({ 'player_profiles.user_id': userId })
     .whereNull('player_profiles.deleted_at')
-    .select(['player_profiles.*', 'users.email as user_email', 'users.first_name as user_first_name', 'users.last_name as user_last_name'])
+    .select([
+      'player_profiles.*',
+      'users.email    as user_email',
+      'users.first_name as user_first_name',
+      'users.last_name  as user_last_name',
+      'users.username   as user_username',
+    ])
     .first();
   return deserialize(row);
+}
+
+/**
+ * Minimal user info when no player_profile exists yet.
+ */
+async function getUserBasicInfo(userId) {
+  const user = await db('users')
+    .where({ id: userId })
+    .whereNull('deleted_at')
+    .select('id', 'first_name', 'last_name', 'username', 'email')
+    .first();
+  if (!user) return null;
+  return {
+    user_id: userId,
+    user_first_name: user.first_name,
+    user_last_name:  user.last_name,
+    user_username:   user.username,
+    user_email:      user.email,
+  };
+}
+
+/**
+ * Sessions created by the user + accepted friendships count.
+ * Used to populate the stats row on the Instagram-style profile.
+ */
+async function getCountsByUserId(userId) {
+  const [sessionsRow, friendsRow] = await Promise.all([
+    db('sessions')
+      .where({ creator_id: userId })
+      .whereNull('deleted_at')
+      .count('id as count')
+      .first(),
+    db('friendships')
+      .where(function () {
+        this.where({ requester_id: userId }).orWhere({ addressee_id: userId });
+      })
+      .where('status', 'accepted')
+      .count('id as count')
+      .first(),
+  ]);
+  return {
+    sessions_count: parseInt(sessionsRow?.count ?? 0, 10),
+    friends_count:  parseInt(friendsRow?.count  ?? 0, 10),
+  };
 }
 
 async function upsert(userId, data) {
@@ -64,8 +114,9 @@ async function getEligibleForSession(excludeUserIds = []) {
     'users.email          as user_email',
     'users.first_name     as user_first_name',
     'users.last_name      as user_last_name',
+    'users.username       as user_username',
   );
   return rows.map(deserialize);
 }
 
-module.exports = { getByUserId, upsert, getEligibleForSession };
+module.exports = { getByUserId, getUserBasicInfo, getCountsByUserId, upsert, getEligibleForSession };

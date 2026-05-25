@@ -1,8 +1,9 @@
-const { generateProfile: generateFromAI }        = require('../../ai/generate-profile');
-const profileRepo                                = require('./profile.repository');
-const adminRepo                                  = require('../admin/admin.repository');
-const notificationsService                       = require('../notifications/notifications.service');
-const { sendNewUserAdminNotification }           = require('../../emails/confirmation');
+const { generateProfile: generateFromAI }       = require('../../ai/generate-profile');
+const profileRepo                               = require('./profile.repository');
+const sessionsRepo                              = require('../sessions/sessions.repository');
+const adminRepo                                 = require('../admin/admin.repository');
+const notificationsService                      = require('../notifications/notifications.service');
+const { sendNewUserAdminNotification }          = require('../../emails/confirmation');
 
 /**
  * Generate (or regenerate) a player profile using AI.
@@ -88,6 +89,7 @@ async function updateProfile(userId, data) {
   if (data.weaknesses   !== undefined) profileData.weaknesses   = data.weaknesses;
   if (data.description  !== undefined) profileData.description  = data.description;
   if (data.phone_number !== undefined) profileData.phone_number = data.phone_number || null;
+  if (data.bio          !== undefined) profileData.bio          = data.bio || null;
 
   return profileRepo.upsert(userId, profileData);
 }
@@ -96,8 +98,46 @@ async function updatePhoto(userId, photoUrl) {
   return profileRepo.upsert(userId, { photo_url: photoUrl });
 }
 
+async function updateCoverPhoto(userId, coverUrl) {
+  return profileRepo.upsert(userId, { cover_photo_url: coverUrl });
+}
+
 async function getProfile(userId) {
   return profileRepo.getByUserId(userId);
 }
 
-module.exports = { generateProfile, updateProfile, updatePhoto, getProfile };
+/**
+ * Public profile: player_profile + basic user info (if no profile) + sessions_count + friends_count.
+ * Used by GET /api/profile/user/:userId.
+ */
+async function getPublicProfile(userId) {
+  const [profile, counts] = await Promise.all([
+    profileRepo.getByUserId(userId),
+    profileRepo.getCountsByUserId(userId),
+  ]);
+
+  if (!profile) {
+    const userInfo = await profileRepo.getUserBasicInfo(userId);
+    if (!userInfo) return null;
+    return { ...userInfo, ...counts };
+  }
+
+  return { ...profile, ...counts };
+}
+
+/**
+ * Sessions created by the given user — used for the sessions grid on their profile.
+ */
+async function getSessionsByUser(userId) {
+  return sessionsRepo.listByCreator(userId);
+}
+
+module.exports = {
+  generateProfile,
+  updateProfile,
+  updatePhoto,
+  updateCoverPhoto,
+  getProfile,
+  getPublicProfile,
+  getSessionsByUser,
+};

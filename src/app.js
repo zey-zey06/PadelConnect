@@ -28,6 +28,7 @@ const contactRouter       = require('./features/contact/contact.controller');
 const messagesRouter      = require('./features/messages/messages.controller');
 const subscriptionsRouter = require('./features/subscriptions/subscriptions.controller');
 const adminSubsRouter     = require('./features/admin/admin.subscriptions.controller');
+const friendshipsRouter   = require('./features/friendships/friendships.controller');
 
 const app = express();
 
@@ -87,6 +88,7 @@ app.use('/api/contact',       contactRouter);
 app.use('/api/messages',      messagesRouter);
 app.use('/api/subscriptions', subscriptionsRouter);
 app.use('/api/admin',         adminSubsRouter);
+app.use('/api/friends',       friendshipsRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';
