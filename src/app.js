@@ -53,6 +53,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'production' ? 5 : 100,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === 'test',
