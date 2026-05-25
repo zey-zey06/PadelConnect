@@ -22,6 +22,7 @@ import History          from '@/pages/History';
 import Landing          from '@/pages/Landing';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
+import Messages         from '@/pages/Messages';
 import Contact          from '@/pages/Contact';
 import Privacy          from '@/pages/Privacy';
 import Layout              from '@/components/Layout';
@@ -210,6 +211,7 @@ export default function App() {
           <Route path="/clubs"     element={<PlayerRoute><Layout><Clubs /></Layout></PlayerRoute>} />
           <Route path="/clubs/:id" element={<PlayerRoute><Layout><ClubProfile /></Layout></PlayerRoute>} />
           <Route path="/profile"   element={<PlayerRoute><Layout><Profile /></Layout></PlayerRoute>} />
+          <Route path="/messages"  element={<PlayerRoute><Layout><Messages /></Layout></PlayerRoute>} />
           <Route path="/players/:userId" element={<PlayerRoute><Layout><PlayerProfile /></Layout></PlayerRoute>} />
 
           {/* ── Shared (all authenticated roles) ────────────────────── */}

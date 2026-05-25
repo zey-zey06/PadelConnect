@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { User, X, Zap, Target, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { User, X, Zap, Target, AlertCircle, MessageSquare } from 'lucide-react';
 import { getUserProfile } from '@/api/profile';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const LEVEL_LABELS = {
@@ -19,6 +21,7 @@ const LEVEL_COLORS = {
 };
 
 export default function PlayerProfilePanel({ userId, onClose }) {
+  const navigate  = useNavigate();
   const [profile,  setProfile]  = useState(undefined);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -174,6 +177,20 @@ export default function PlayerProfilePanel({ userId, onClose }) {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Footer — message CTA */}
+        <div className="shrink-0 px-4 py-3 border-t border-border">
+          <Button
+            className="w-full"
+            onClick={() => {
+              navigate(`/messages?userId=${userId}`);
+              handleClose();
+            }}
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Envoyer un message
+          </Button>
         </div>
       </div>
     </>

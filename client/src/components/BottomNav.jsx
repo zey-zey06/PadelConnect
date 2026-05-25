@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Building2, Plus, Bell, User } from 'lucide-react';
+import { Home, Building2, Plus, MessageSquare, User } from 'lucide-react';
 
 const PRIMARY = '#1A3D2B';
 const GREY    = '#9CA3AF';
@@ -8,16 +8,16 @@ function isActive(pathname, path) {
   return pathname === path || pathname.startsWith(path + '/');
 }
 
-export default function BottomNav({ unreadCount = 0 }) {
+export default function BottomNav({ unreadMsgCount = 0 }) {
   const { pathname } = useLocation();
   const navigate     = useNavigate();
 
   const items = [
-    { to: '/sessions',      Icon: Home,      label: 'Accueil' },
-    { to: '/clubs',         Icon: Building2, label: 'Clubs'   },
+    { to: '/sessions', Icon: Home,           label: 'Accueil'  },
+    { to: '/clubs',    Icon: Building2,      label: 'Clubs'    },
     null, // centre "+"
-    { to: '/notifications', Icon: Bell,      label: 'Notifs', badge: unreadCount },
-    { to: '/profile',       Icon: User,      label: 'Profil'  },
+    { to: '/messages', Icon: MessageSquare,  label: 'Messages', badge: unreadMsgCount },
+    { to: '/profile',  Icon: User,           label: 'Profil'   },
   ];
 
   return (

@@ -4,6 +4,7 @@ import { Bell, LogOut, Menu, X, User, Sparkles } from 'lucide-react';
 import { useAuth } from '@/App';
 import { logout } from '@/api/auth';
 import { getUnreadCount } from '@/api/notifications';
+import { getUnreadMsgCount } from '@/api/messages';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import PIAButton from '@/components/PIA/PIAButton';
@@ -16,6 +17,7 @@ const PLAYER_NAV = [
   { to: '/calendar',  label: 'Calendrier'  },
   { to: '/clubs',     label: 'Clubs'       },
   { to: '/history',   label: 'Historique'  },
+  { to: '/messages',  label: 'Messages'    },
   { to: '/profile',   label: 'Mon Profil'  },
 ];
 
@@ -50,14 +52,18 @@ export default function Layout({ children }) {
   const navigate          = useNavigate();
   const location          = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [piaOpen, setPiaOpen]         = useState(false);
+  const [unreadCount,    setUnreadCount]    = useState(0);
+  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
+  const [piaOpen, setPiaOpen]               = useState(false);
 
   useEffect(() => {
     getUnreadCount()
       .then(({ count }) => setUnreadCount(count ?? 0))
-      .catch(() => {}); // non-fatal — bell just shows no dot
-  }, [location.pathname]); // re-fetch when navigating (e.g. after visiting /notifications)
+      .catch(() => {});
+    getUnreadMsgCount()
+      .then(({ count }) => setUnreadMsgCount(count ?? 0))
+      .catch(() => {});
+  }, [location.pathname]);
 
   async function handleLogout() {
     try { await logout(); } catch { /* non-fatal */ }
@@ -239,7 +245,7 @@ export default function Layout({ children }) {
       {piaOpen && <PIAPanel onClose={() => setPiaOpen(false)} />}
 
       {/* ── Mobile bottom navigation (players + coaches only) ───────────── */}
-      {showBottomNav && <BottomNav unreadCount={unreadCount} />}
+      {showBottomNav && <BottomNav unreadMsgCount={unreadMsgCount} />}
     </div>
   );
 }
