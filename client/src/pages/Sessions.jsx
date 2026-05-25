@@ -2341,7 +2341,8 @@ export default function Sessions() {
   const [bookingMap,  setBookingMap]  = useState({});
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState(null);
-  const [showCreate,  setShowCreate]  = useState(false);
+  // Auto-open the create modal when the bottom-nav "+" button links here with ?create=1
+  const [showCreate,  setShowCreate]  = useState(searchParams.get('create') === '1');
 
   const [dateFilter,   setDateFilter]   = useState('');
   const [levelFilter,  setLevelFilter]  = useState('');

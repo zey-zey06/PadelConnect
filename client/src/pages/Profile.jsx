@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut } from 'lucide-react';
 import { useAuth } from '@/App';
 import { getProfile, updateProfile, uploadPhoto } from '@/api/profile';
-import { updateMe } from '@/api/auth';
+import { updateMe, logout } from '@/api/auth';
 import { getMyBookings } from '@/api/bookings';
 import { getMyPenalties, payPenalty } from '@/api/penalties';
 import { Button }       from '@/components/ui/button';
@@ -492,6 +493,7 @@ function PenaltyRow({ penalty, onPaid }) {
 // ── Profile page ──────────────────────────────────────────────────────────────
 export default function Profile() {
   const { user, setUser, profile: ctxProfile, setProfile } = useAuth();
+  const navigate = useNavigate();
 
   const [profile,   setLocal]    = useState(ctxProfile ?? undefined);
   const [bookings,  setBookings]  = useState([]);
@@ -499,6 +501,12 @@ export default function Profile() {
   const [loading,   setLoading]   = useState(profile === undefined);
   const [error,     setError]     = useState(null);
   const [editing,   setEditing]   = useState(false);
+
+  async function handleLogout() {
+    try { await logout(); } catch { /* non-fatal */ }
+    setUser(null);
+    navigate('/login', { replace: true });
+  }
 
   const name =
     (user?.first_name && user?.last_name)
@@ -629,6 +637,17 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+      {/* Logout — always visible; on mobile this is the only logout entry point for players */}
+      <div className="pt-4 border-t border-border">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <LogOut className="h-4 w-4" />
+          Se déconnecter
+        </button>
+      </div>
     </div>
   );
 }

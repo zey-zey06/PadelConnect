@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Bell, LogOut, Menu, X, User } from 'lucide-react';
+import { Bell, LogOut, Menu, X, User, Sparkles } from 'lucide-react';
 import { useAuth } from '@/App';
 import { logout } from '@/api/auth';
 import { getUnreadCount } from '@/api/notifications';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import PIAButton from '@/components/PIA/PIAButton';
 import PIAPanel from '@/components/PIA/PIAPanel';
+import BottomNav from '@/components/BottomNav';
 
 const PLAYER_NAV = [
   { to: '/sessions',  label: 'Sessions'    },
@@ -41,6 +42,10 @@ export default function Layout({ children }) {
     user?.role === 'super_admin' ? ADMIN_NAV :
     user?.role === 'coach'       ? COACH_NAV  :
     PLAYER_NAV;
+
+  // Bottom nav is shown only for players and coaches
+  const showBottomNav = user?.role === 'player' || user?.role === 'coach';
+
   const navigate          = useNavigate();
   const location          = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -100,6 +105,19 @@ export default function Layout({ children }) {
           {/* Right-side actions */}
           <div className="flex items-center gap-1">
 
+            {/* PIA button — mobile only, players/coaches (desktop uses floating FAB) */}
+            {showBottomNav && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setPiaOpen((o) => !o)}
+                aria-label={piaOpen ? 'Fermer PIA' : 'Ouvrir PIA'}
+                className="md:hidden relative text-foreground/60 hover:text-foreground hover:bg-accent"
+              >
+                <Sparkles className="h-4 w-4" />
+              </Button>
+            )}
+
             {/* Notification bell */}
             <Link to="/notifications">
               <Button
@@ -138,32 +156,37 @@ export default function Layout({ children }) {
               </span>
             </Link>
 
-            {/* Logout */}
+            {/* Logout — desktop always, mobile only for managers/admins */}
             <Button
               variant="ghost"
               size="icon"
               onClick={handleLogout}
               aria-label="Se déconnecter"
-              className="text-foreground/60 hover:text-foreground hover:bg-accent ml-0.5"
+              className={cn(
+                'text-foreground/60 hover:text-foreground hover:bg-accent ml-0.5',
+                showBottomNav ? 'hidden md:flex' : ''
+              )}
             >
               <LogOut className="h-4 w-4" />
             </Button>
 
-            {/* Mobile hamburger */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden text-foreground/60"
-              onClick={() => setMobileOpen((o) => !o)}
-              aria-label={mobileOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
-            >
-              {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-            </Button>
+            {/* Mobile hamburger — managers/admins only (players/coaches use bottom nav) */}
+            {!showBottomNav && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden text-foreground/60"
+                onClick={() => setMobileOpen((o) => !o)}
+                aria-label={mobileOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+              >
+                {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Mobile nav drawer */}
-        {mobileOpen && (
+        {/* Mobile nav drawer — managers/admins only */}
+        {!showBottomNav && mobileOpen && (
           <nav className="md:hidden border-t border-border bg-white px-4 py-3 space-y-0.5">
             {NAV_LINKS.map(({ to, label }) => (
               <NavLink
@@ -184,19 +207,30 @@ export default function Layout({ children }) {
             ))}
             <div className="pt-2 mt-2 border-t border-border">
               <p className="px-3 py-1 text-xs text-muted-foreground truncate">{user?.email}</p>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-2 w-full rounded-lg text-sm text-foreground/65 hover:text-foreground hover:bg-accent transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Se déconnecter
+              </button>
             </div>
           </nav>
         )}
       </header>
 
       {/* ── Page content ────────────────────────────────────────────────── */}
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
+      {/* pb-20 on mobile gives breathing room above the fixed bottom nav */}
+      <main className={cn('mx-auto max-w-6xl px-4 sm:px-6 py-8', showBottomNav && 'pb-20 md:pb-8')}>
         {children}
       </main>
 
       {/* ── PIA floating assistant ──────────────────────────────────────── */}
       <PIAButton onClick={() => setPiaOpen((o) => !o)} isOpen={piaOpen} />
       {piaOpen && <PIAPanel onClose={() => setPiaOpen(false)} />}
+
+      {/* ── Mobile bottom navigation (players + coaches only) ───────────── */}
+      {showBottomNav && <BottomNav unreadCount={unreadCount} />}
     </div>
   );
 }
