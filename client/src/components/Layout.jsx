@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import PIAButton from '@/components/PIA/PIAButton';
 import PIAPanel from '@/components/PIA/PIAPanel';
-import BottomNav from '@/components/BottomNav';
+import BottomNav  from '@/components/BottomNav';
+import SearchBar  from '@/components/SearchBar';
 
 const PLAYER_NAV = [
   { to: '/sessions',  label: 'Sessions'    },
@@ -69,7 +70,7 @@ export default function Layout({ children }) {
 
       {/* ── Navbar ─────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-40 w-full border-b border-border bg-white/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6 gap-2">
 
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0">
@@ -83,7 +84,7 @@ export default function Layout({ children }) {
           </Link>
 
           {/* Desktop navigation */}
-          <nav className="hidden md:flex items-center gap-0.5">
+          <nav className="hidden md:flex items-center gap-0.5 ml-2">
             {NAV_LINKS.map(({ to, label }) => (
               <NavLink
                 key={to}
@@ -102,8 +103,11 @@ export default function Layout({ children }) {
             ))}
           </nav>
 
-          {/* Right-side actions */}
-          <div className="flex items-center gap-1">
+          {/* Desktop search bar — grows to fill space between nav and actions */}
+          <SearchBar className="hidden md:block flex-1 max-w-xs mx-2" />
+
+          {/* Right-side actions — pushed to far right */}
+          <div className="flex items-center gap-1 ml-auto">
 
             {/* PIA button — mobile only, players/coaches (desktop uses floating FAB) */}
             {showBottomNav && (
@@ -183,6 +187,11 @@ export default function Layout({ children }) {
               </Button>
             )}
           </div>
+        </div>
+
+        {/* Mobile search row — full width below logo/actions row */}
+        <div className="md:hidden border-t border-border px-4 py-2.5">
+          <SearchBar className="w-full" />
         </div>
 
         {/* Mobile nav drawer — managers/admins only */}
