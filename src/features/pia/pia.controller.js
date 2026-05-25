@@ -213,38 +213,53 @@ ${upcoming || '  Aucune session à venir.'}`;
           .whereNull('venue_slots.deleted_at')
           .modify(filter);
 
+      // Each query has its own .catch() so one DB error doesn't kill the whole context
       const [
         venueRow, todayRow, weekRow, revenueRow,
         peakHoursRows, topCourtsRows, upcomingTodayRow,
+        availTodayRow, availWeekRow,
       ] = await Promise.all([
-        db('venues').where({ organization_id: orgId }).whereNull('deleted_at').count('id as count').first(),
-        slots((q) => q.where('venue_slots.date', today).where('venue_slots.status', 'booked')).count('venue_slots.id as count').first(),
-        slots((q) => q.where('venue_slots.date', '>=', today).where('venue_slots.date', '<=', weekEndStr).where('venue_slots.status', 'booked')).count('venue_slots.id as count').first(),
-        slots((q) => q.where('venue_slots.date', today).where('venue_slots.status', 'booked')).sum('venue_slots.price as total').first(),
+        db('venues').where({ organization_id: orgId }).whereNull('deleted_at').count('id as count').first()
+          .catch(() => null),
+        slots((q) => q.where('venue_slots.date', today).where('venue_slots.status', 'booked')).count('venue_slots.id as count').first()
+          .catch(() => null),
+        slots((q) => q.where('venue_slots.date', '>=', today).where('venue_slots.date', '<=', weekEndStr).where('venue_slots.status', 'booked')).count('venue_slots.id as count').first()
+          .catch(() => null),
+        slots((q) => q.where('venue_slots.date', today).where('venue_slots.status', 'booked')).sum('venue_slots.price as total').first()
+          .catch(() => null),
         // Peak hours (top 3 most booked start_times)
         slots((q) => q.where('venue_slots.status', 'booked'))
           .groupBy('venue_slots.start_time')
           .orderBy('count', 'desc')
           .limit(3)
-          .select('venue_slots.start_time', db.raw('COUNT(*) as count')),
+          .select('venue_slots.start_time', db.raw('COUNT(*) as count'))
+          .catch(() => []),
         // Top 3 courts
         slots((q) => q.where('venue_slots.status', 'booked'))
           .groupBy('venue_slots.venue_id', 'venues.name')
           .orderBy('count', 'desc')
           .limit(3)
-          .select('venues.name', db.raw('COUNT(*) as count')),
+          .select('venues.name', db.raw('COUNT(*) as count'))
+          .catch(() => []),
         // Remaining booked slots today (upcoming)
         slots((q) =>
           q.where('venue_slots.date', today)
            .where('venue_slots.status', 'booked')
            .where(db.raw('venue_slots.start_time > CURRENT_TIME'))
-        ).count('venue_slots.id as count').first(),
+        ).count('venue_slots.id as count').first()
+          .catch(() => null),
+        // Available slots today
+        slots((q) => q.where('venue_slots.date', today).where('venue_slots.status', 'available')).count('venue_slots.id as count').first()
+          .catch(() => null),
+        // Available slots this week
+        slots((q) => q.where('venue_slots.date', '>=', today).where('venue_slots.date', '<=', weekEndStr).where('venue_slots.status', 'available')).count('venue_slots.id as count').first()
+          .catch(() => null),
       ]);
 
-      const peakHours = peakHoursRows
+      const peakHours = (peakHoursRows || [])
         .map((r) => `${String(r.start_time).slice(0, 5)} (${r.count} rés.)`)
         .join(', ');
-      const topCourts = topCourtsRows
+      const topCourts = (topCourtsRows || [])
         .map((r, i) => `  ${i + 1}. ${r.name} (${r.count} rés.)`)
         .join('\n');
 
@@ -252,6 +267,7 @@ ${upcoming || '  Aucune session à venir.'}`;
 Réservations aujourd'hui : ${Number(todayRow?.count ?? 0)} | Cette semaine : ${Number(weekRow?.count ?? 0)}
 Revenus aujourd'hui : ${Number(revenueRow?.total ?? 0).toLocaleString('fr-FR')} FCFA
 Prochaines réservations aujourd'hui : ${Number(upcomingTodayRow?.count ?? 0)}
+Créneaux disponibles aujourd'hui : ${Number(availTodayRow?.count ?? 0)} | Cette semaine : ${Number(availWeekRow?.count ?? 0)}
 Créneaux les plus demandés : ${peakHours || 'Aucune donnée'}
 Top 3 terrains :
 ${topCourts || '  Aucune donnée'}`;
@@ -382,11 +398,24 @@ async function chatHandler(req, res, next) {
 async function historyHandler(req, res, next) {
   try {
     const userId = req.user.sub;
+    const { conversation_id: convId } = req.query;
 
-    const conversation = await db('pia_conversations')
-      .where({ user_id: userId })
-      .orderBy('updated_at', 'desc')
-      .first('id', 'messages', 'updated_at');
+    let conversation;
+    if (convId) {
+      // Validate UUID format
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(convId)) {
+        return res.status(422).json({ status: 422, error: 'Validation Error', message: 'conversation_id doit être un UUID valide.' });
+      }
+      // Ensure the conversation belongs to this user (no cross-user access)
+      conversation = await db('pia_conversations')
+        .where({ id: convId, user_id: userId })
+        .first('id', 'messages', 'updated_at');
+    } else {
+      conversation = await db('pia_conversations')
+        .where({ user_id: userId })
+        .orderBy('updated_at', 'desc')
+        .first('id', 'messages', 'updated_at');
+    }
 
     if (!conversation) {
       return res.json({ messages: [], conversation_id: null });
@@ -401,9 +430,37 @@ async function historyHandler(req, res, next) {
   }
 }
 
+async function conversationsHandler(req, res, next) {
+  try {
+    const userId = req.user.sub;
+
+    const convRows = await db('pia_conversations')
+      .where({ user_id: userId })
+      .orderBy('updated_at', 'desc')
+      .limit(50)
+      .select('id', 'messages', 'updated_at', 'created_at');
+
+    const conversations = convRows.map((conv) => {
+      const msgs         = Array.isArray(conv.messages) ? conv.messages : [];
+      const firstUserMsg = msgs.find((m) => m.role === 'user');
+      return {
+        id:            conv.id,
+        title:         firstUserMsg?.text?.slice(0, 60) ?? 'Conversation',
+        updated_at:    conv.updated_at,
+        message_count: msgs.length,
+      };
+    });
+
+    return res.json({ conversations });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 const router = Router();
-router.post('/chat',   authenticate, chatHandler);
-router.get('/history', authenticate, historyHandler);
+router.post('/chat',          authenticate, chatHandler);
+router.get('/history',        authenticate, historyHandler);
+router.get('/conversations',  authenticate, conversationsHandler);
 
 module.exports = router;

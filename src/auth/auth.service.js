@@ -7,7 +7,7 @@ const { sendVerificationEmail } = require('../emails/verification');
 const BCRYPT_ROUNDS = 12;
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-async function signup({ email, password, role = 'player', organization_id = null, first_name = null, last_name = null }) {
+async function signup({ email, password, role = 'player', organization_id = null, first_name = null, last_name = null, is_ball_picker = false }) {
   const existing = await db('users').where({ email }).whereNull('deleted_at').first();
   if (existing) {
     const err = new Error('Email déjà utilisé.');
@@ -29,6 +29,15 @@ async function signup({ email, password, role = 'player', organization_id = null
   //   email_verification_token: verification_token,
   //   email_verification_expires_at: verification_expires,
   // });
+
+  // Auto-create coach_profiles row so the coach dashboard loads without a 404
+  if (role === 'coach') {
+    await db('coach_profiles').insert({
+      user_id:        row.id,
+      is_independent: true,
+      is_ball_picker: is_ball_picker === true,
+    });
+  }
 
   // Fire-and-forget — don't block signup on side-effect failures
   notificationsService

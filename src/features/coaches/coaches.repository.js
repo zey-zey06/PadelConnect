@@ -93,4 +93,50 @@ async function getSessionsByCoach(coachProfileId) {
     .select('sessions.*');
 }
 
-module.exports = { listAvailable, getById, getByUserId, updateAvailability, getByOrg, getCoachUser, getCoachUserByEmail, attachToClub, detachFromClub, getSessionsByCoach };
+// ── Club invitations ──────────────────────────────────────────────────────────
+
+async function createInvitation({ organization_id, coach_user_id, invited_by }) {
+  const [row] = await db('club_invitations')
+    .insert({ organization_id, coach_user_id, invited_by })
+    .returning('*');
+  return row;
+}
+
+async function getPendingInvitationsByCoach(coachUserId) {
+  return db('club_invitations')
+    .join('organizations', 'club_invitations.organization_id', 'organizations.id')
+    .join('users as inviter', 'club_invitations.invited_by', 'inviter.id')
+    .where({ 'club_invitations.coach_user_id': coachUserId, 'club_invitations.status': 'pending' })
+    .whereNull('organizations.deleted_at')
+    .orderBy('club_invitations.created_at', 'desc')
+    .select(
+      'club_invitations.id',
+      'club_invitations.organization_id',
+      'club_invitations.status',
+      'club_invitations.created_at',
+      'organizations.name as organization_name',
+      'inviter.first_name as inviter_first_name',
+      'inviter.last_name  as inviter_last_name',
+    );
+}
+
+async function getInvitationById(id) {
+  return db('club_invitations').where({ id }).first();
+}
+
+async function updateInvitationStatus(id, status) {
+  const [row] = await db('club_invitations')
+    .where({ id })
+    .update({ status, updated_at: new Date() })
+    .returning('*');
+  return row;
+}
+
+async function hasPendingInvitation(organization_id, coach_user_id) {
+  const row = await db('club_invitations')
+    .where({ organization_id, coach_user_id, status: 'pending' })
+    .first('id');
+  return !!row;
+}
+
+module.exports = { listAvailable, getById, getByUserId, updateAvailability, getByOrg, getCoachUser, getCoachUserByEmail, attachToClub, detachFromClub, getSessionsByCoach, createInvitation, getPendingInvitationsByCoach, getInvitationById, updateInvitationStatus, hasPendingInvitation };

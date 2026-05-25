@@ -98,6 +98,7 @@ export default function Signup() {
 
   const [step, setStep] = useState(0); // 0 = role, 1 = email+password
   const [selectedRole, setSelectedRole] = useState(null);
+  const [isBallPicker, setIsBallPicker] = useState(false);
 
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
@@ -129,7 +130,14 @@ export default function Signup() {
     setLoading(true);
     setError(null);
     try {
-      const data = await signup({ email: form.email, password: form.password, role: selectedRole, first_name: form.firstName.trim(), last_name: form.lastName.trim() });
+      const data = await signup({
+        email:          form.email,
+        password:       form.password,
+        role:           selectedRole,
+        first_name:     form.firstName.trim(),
+        last_name:      form.lastName.trim(),
+        is_ball_picker: selectedRole === 'coach' ? isBallPicker : false,
+      });
       // Backend issues a JWT cookie immediately (email verification disabled).
       // Hydrate auth context and send the user to the right place.
       setUser(data.user);
@@ -210,6 +218,26 @@ export default function Signup() {
                   </button>
                 ))}
               </div>
+
+              {/* Ball-picker option — only visible when 'coach' is selected */}
+              {selectedRole === 'coach' && (
+                <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-border bg-card p-4 hover:border-primary/30 hover:bg-accent transition-all">
+                  <input
+                    type="checkbox"
+                    checked={isBallPicker}
+                    onChange={(e) => setIsBallPicker(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-input accent-primary cursor-pointer"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-foreground leading-tight">
+                      Je peux aussi servir de ramasseur
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Vous serez disponible pour aider lors des sessions en tant que ramasseur de balles.
+                    </p>
+                  </div>
+                </label>
+              )}
 
               <Button
                 className="w-full"

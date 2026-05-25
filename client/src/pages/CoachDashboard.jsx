@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Dumbbell, CalendarDays, Users, AlertCircle, Clock } from 'lucide-react';
+import { Dumbbell, CalendarDays, Users, AlertCircle, Clock, Building2, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '@/App';
-import { getMyCoachProfile, getCoachSessions } from '@/api/coaches';
+import { getMyCoachProfile, getCoachSessions, getMyInvitations, respondToInvitation } from '@/api/coaches';
 import PageSkeleton from '@/components/PageSkeleton';
 
 const LEVEL_LABELS = {
@@ -54,19 +54,30 @@ function SessionCard({ session }) {
 export default function CoachDashboard() {
   const { user } = useAuth();
 
-  const [coach,    setCoach]    = useState(null);
-  const [sessions, setSessions] = useState({ upcoming: [], past: [] });
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(null);
-  const [tab,      setTab]      = useState('upcoming');
+  const [coach,       setCoach]       = useState(null);
+  const [sessions,    setSessions]    = useState({ upcoming: [], past: [] });
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [tab,         setTab]         = useState('upcoming');
+  const [invitations, setInvitations] = useState([]);
+  const [invLoading,  setInvLoading]  = useState(false);
+  const [invAction,   setInvAction]   = useState(null); // id of invitation being processed
 
   useEffect(() => {
     async function load() {
       try {
         const { coach: c } = await getMyCoachProfile();
         setCoach(c);
-        const { sessions: s } = await getCoachSessions(c.id);
-        setSessions(s ?? { upcoming: [], past: [] });
+        const [sessData, invData] = await Promise.allSettled([
+          getCoachSessions(c.id),
+          getMyInvitations(),
+        ]);
+        if (sessData.status === 'fulfilled') {
+          setSessions(sessData.value?.sessions ?? { upcoming: [], past: [] });
+        }
+        if (invData.status === 'fulfilled') {
+          setInvitations(invData.value?.invitations ?? []);
+        }
       } catch (err) {
         setError(err.message || 'Erreur de chargement.');
       } finally {
@@ -75,6 +86,18 @@ export default function CoachDashboard() {
     }
     load();
   }, []);
+
+  async function handleInvitation(invId, status) {
+    setInvAction(invId);
+    try {
+      await respondToInvitation(invId, status);
+      setInvitations((prev) => prev.filter((i) => i.id !== invId));
+    } catch {
+      // silently ignore — invitation will stay visible
+    } finally {
+      setInvAction(null);
+    }
+  }
 
   const displayed = tab === 'upcoming' ? sessions.upcoming : sessions.past;
 
@@ -126,6 +149,54 @@ export default function CoachDashboard() {
               <p className="text-2xl font-bold text-foreground">{sessions.past.length}</p>
             </div>
           </div>
+
+          {/* ── Club invitations ──────────────────────────────────── */}
+          {invitations.length > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-amber-600 shrink-0" />
+                <h2 className="text-sm font-semibold text-amber-800">
+                  Invitations de clubs ({invitations.length})
+                </h2>
+              </div>
+              <div className="space-y-2">
+                {invitations.map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {inv.organization_name}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Invité par {inv.inviter_first_name ?? ''} {inv.inviter_last_name ?? ''} ·{' '}
+                        {new Date(inv.created_at).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleInvitation(inv.id, 'accepted')}
+                        disabled={invAction === inv.id}
+                        className="flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Accepter
+                      </button>
+                      <button
+                        onClick={() => handleInvitation(inv.id, 'refused')}
+                        disabled={invAction === inv.id}
+                        className="flex items-center gap-1.5 rounded-lg border border-border bg-white hover:bg-muted disabled:opacity-50 px-3 py-1.5 text-xs font-medium text-foreground transition-colors"
+                      >
+                        <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                        Refuser
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="flex gap-1 border-b border-border">

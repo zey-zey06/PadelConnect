@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Send, Sparkles, Plus, ExternalLink } from 'lucide-react';
+import { X, Send, Sparkles, Plus, ExternalLink, History, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { piaChatMessage, getPiaHistory } from '@/api/pia';
+import { piaChatMessage, getPiaHistory, getPiaConversations } from '@/api/pia';
 import { useAuth } from '@/App';
 
 const RATE_LIMIT = 20;
@@ -21,6 +21,23 @@ function formatMsgDate(ts) {
   return new Date(ts).toLocaleDateString('fr-FR', {
     weekday: 'short', day: 'numeric', month: 'short',
   });
+}
+
+/** Group conversations by calendar date (label → [conv, ...]) */
+function groupByDate(conversations) {
+  const groups = [];
+  const seen   = {};
+  for (const conv of conversations) {
+    const label = new Date(conv.updated_at).toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long',
+    });
+    if (!seen[label]) {
+      seen[label] = [];
+      groups.push({ label, items: seen[label] });
+    }
+    seen[label].push(conv);
+  }
+  return groups;
 }
 
 function shouldShowDateSeparator(msgs, idx) {
@@ -49,6 +66,12 @@ export default function PIAPanel({ onClose }) {
   const [conversationId,  setConversationId]  = useState(null);
   const [rateLimited,     setRateLimited]     = useState(false);
   const [retryMinutes,    setRetryMinutes]    = useState(0);
+
+  // ── History panel ─────────────────────────────────────────────────────────
+  const [view,              setView]              = useState('chat');   // 'chat' | 'history'
+  const [conversations,     setConversations]     = useState([]);
+  const [convsLoading,      setConvsLoading]      = useState(false);
+  const [convsLoaded,       setConvsLoaded]       = useState(false); // avoid re-fetching
 
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
@@ -93,7 +116,40 @@ export default function PIAPanel({ onClose }) {
   function handleNewConversation() {
     setConversationId(null);
     setRateLimited(false);
+    setView('chat');
     setMessages([{ role: 'model', text: WELCOME, ts: new Date().toISOString() }]);
+  }
+
+  async function openHistory() {
+    setView('history');
+    if (!convsLoaded) {
+      setConvsLoading(true);
+      try {
+        const { conversations: convs } = await getPiaConversations();
+        setConversations(convs ?? []);
+        setConvsLoaded(true);
+      } catch {
+        setConversations([]);
+      } finally {
+        setConvsLoading(false);
+      }
+    }
+  }
+
+  async function loadConversation(convId) {
+    setHistoryLoading(true);
+    setView('chat');
+    try {
+      const { messages: hist, conversation_id: newConvId } = await getPiaHistory({ conversationId: convId });
+      if (hist?.length) {
+        setMessages(hist);
+        setConversationId(newConvId);
+      }
+    } catch {
+      // keep existing messages on error
+    } finally {
+      setHistoryLoading(false);
+    }
   }
 
   const handleSend = useCallback(async () => {
@@ -179,21 +235,47 @@ export default function PIAPanel({ onClose }) {
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-violet-600 to-primary text-white shrink-0">
-          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-            <Sparkles className="h-4 w-4" />
-          </div>
+          {view === 'history' ? (
+            <button
+              onClick={() => setView('chat')}
+              className="text-white/80 hover:text-white transition-colors p-1 rounded"
+              aria-label="Retour au chat"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+              <Sparkles className="h-4 w-4" />
+            </div>
+          )}
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm leading-tight">PIA</p>
-            <p className="text-xs text-white/80 truncate">{roleLabel}</p>
+            <p className="font-semibold text-sm leading-tight">
+              {view === 'history' ? 'Historique' : 'PIA'}
+            </p>
+            <p className="text-xs text-white/80 truncate">
+              {view === 'history' ? 'Vos conversations passées' : roleLabel}
+            </p>
           </div>
-          <button
-            onClick={handleNewConversation}
-            title="Nouvelle conversation"
-            className="text-white/80 hover:text-white transition-colors p-1 rounded"
-            aria-label="Nouvelle conversation"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+          {view === 'chat' && (
+            <>
+              <button
+                onClick={handleNewConversation}
+                title="Nouvelle conversation"
+                className="text-white/80 hover:text-white transition-colors p-1 rounded"
+                aria-label="Nouvelle conversation"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <button
+                onClick={openHistory}
+                title="Historique"
+                className="text-white/80 hover:text-white transition-colors p-1 rounded"
+                aria-label="Historique des conversations"
+              >
+                <History className="h-4 w-4" />
+              </button>
+            </>
+          )}
           <button
             onClick={handleClose}
             className="text-white/80 hover:text-white transition-colors p-1 rounded"
@@ -203,9 +285,63 @@ export default function PIAPanel({ onClose }) {
           </button>
         </div>
 
-        {/* ── Messages ────────────────────────────────────────────────── */}
+        {/* ── Messages / History ──────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
-          {historyLoading ? (
+
+          {/* ── History view ──────────────────────────────────────────── */}
+          {view === 'history' && (
+            convsLoading ? (
+              <div className="flex items-center justify-center h-full gap-1">
+                {[0, 150, 300].map((d) => (
+                  <span
+                    key={d}
+                    className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce"
+                    style={{ animationDelay: `${d}ms` }}
+                  />
+                ))}
+              </div>
+            ) : conversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+                <History className="h-8 w-8 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">Aucune conversation enregistrée.</p>
+                <button
+                  onClick={() => setView('chat')}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Démarrer une conversation
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {groupByDate(conversations).map(({ label, items }) => (
+                  <div key={label}>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-1">
+                      {label}
+                    </p>
+                    <div className="space-y-1">
+                      {items.map((conv) => (
+                        <button
+                          key={conv.id}
+                          onClick={() => loadConversation(conv.id)}
+                          className="w-full text-left rounded-xl border border-border bg-card hover:border-primary/30 hover:bg-accent px-3 py-2.5 transition-colors"
+                        >
+                          <p className="text-sm font-medium text-foreground truncate leading-tight">
+                            {conv.title}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {conv.message_count} message{conv.message_count !== 1 ? 's' : ''}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+
+          {/* ── Chat view ─────────────────────────────────────────────── */}
+          {view === 'chat' && (historyLoading ? (
             <div className="flex items-center justify-center h-full gap-1">
               {[0, 150, 300].map((d) => (
                 <span
@@ -289,19 +425,19 @@ export default function PIAPanel({ onClose }) {
                 </div>
               )}
             </>
-          )}
+          ))}
           <div ref={bottomRef} />
         </div>
 
         {/* Rate-limit banner */}
-        {rateLimited && (
+        {view === 'chat' && rateLimited && (
           <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 text-xs text-amber-700 text-center shrink-0">
             Limite de {RATE_LIMIT} messages/heure atteinte. Réessayez dans {retryMinutes} min.
           </div>
         )}
 
-        {/* ── Input ───────────────────────────────────────────────────── */}
-        <div className="shrink-0 px-3 py-3 border-t border-border bg-white">
+        {/* ── Input (hidden in history view) ──────────────────────────── */}
+        {view === 'chat' && <div className="shrink-0 px-3 py-3 border-t border-border bg-white">
           <div className="flex items-end gap-2">
             <textarea
               ref={inputRef}
@@ -334,7 +470,7 @@ export default function PIAPanel({ onClose }) {
           <p className="text-[10px] text-muted-foreground text-center mt-1.5">
             PIA peut faire des erreurs. Vérifiez les informations importantes.
           </p>
-        </div>
+        </div>}
       </div>
     </>
   );

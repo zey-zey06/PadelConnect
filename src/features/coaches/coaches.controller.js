@@ -19,6 +19,14 @@ const addCoachSchema = Joi.object({
   email: Joi.string().email({ tlds: { allow: false } }).required(),
 });
 
+const invitationSchema = Joi.object({
+  email: Joi.string().email({ tlds: { allow: false } }).required(),
+});
+
+const respondInvitationSchema = Joi.object({
+  status: Joi.string().valid('accepted', 'refused').required(),
+});
+
 // ─── /api/coaches router ─────────────────────────────────────────────────────
 async function listCoachesHandler(req, res, next) {
   try {
@@ -93,6 +101,54 @@ async function getCoachSessionsHandler(req, res, next) {
   }
 }
 
+// ─── Invitation handlers ─────────────────────────────────────────────────────
+
+async function sendInvitationHandler(req, res, next) {
+  try {
+    const { error, value } = invitationSchema.validate(req.body);
+    if (error) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    }
+    const invitation = await coachesService.sendClubInvitation(
+      req.params.id,
+      req.user.organization_id,
+      req.user.sub,
+      value.email,
+    );
+    return res.status(201).json({ invitation });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function getPendingInvitationsHandler(req, res, next) {
+  try {
+    const invitations = await coachesService.getPendingInvitations(req.user.sub);
+    return res.json({ invitations });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function respondInvitationHandler(req, res, next) {
+  try {
+    const { error, value } = respondInvitationSchema.validate(req.body);
+    if (error) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    }
+    const result = await coachesService.respondToInvitation(
+      req.params.id,
+      req.user.sub,
+      value.status,
+    );
+    return res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ─── Routers ─────────────────────────────────────────────────────────────────
+
 const coachesRouter = Router();
 coachesRouter.get('/', authenticate, listCoachesHandler);
 coachesRouter.get('/me', authenticate, requireRole('coach'), async (req, res, next) => {
@@ -110,6 +166,13 @@ coachesRouter.put('/:id/availability', authenticate, updateAvailabilityHandler);
 const clubCoachesRouter = Router();
 clubCoachesRouter.get('/:id/coaches', authenticate, listClubCoachesHandler);
 clubCoachesRouter.post('/:id/coaches', authenticate, requireRole('venue_admin'), addCoachToClubHandler);
+// Invitation-based flow: manager sends invite → coach accepts/refuses
+clubCoachesRouter.post('/:id/coach-invitations', authenticate, requireRole('venue_admin'), sendInvitationHandler);
 clubCoachesRouter.delete('/:id/coaches/:userId', authenticate, requireRole('venue_admin'), removeCoachFromClubHandler);
 
-module.exports = { coachesRouter, clubCoachesRouter };
+// /api/coach-invitations routes (coach role)
+const coachInvitationsRouter = Router();
+coachInvitationsRouter.get('/pending', authenticate, requireRole('coach'), getPendingInvitationsHandler);
+coachInvitationsRouter.patch('/:id', authenticate, requireRole('coach'), respondInvitationHandler);
+
+module.exports = { coachesRouter, clubCoachesRouter, coachInvitationsRouter };

@@ -9,6 +9,8 @@ const signupSchema = Joi.object({
     .valid('player', 'coach', 'ball_picker', 'venue_admin')
     .default('player'),
   organization_id: Joi.string().uuid().optional().allow(null),
+  // Only meaningful when role === 'coach'; stored on coach_profiles
+  is_ball_picker: Joi.boolean().optional().default(false),
 });
 
 const loginSchema = Joi.object({
