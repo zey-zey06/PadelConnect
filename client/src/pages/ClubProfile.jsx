@@ -602,6 +602,19 @@ export default function ClubProfile() {
         </div>
       </div>
 
+      {/* ── Suspension banner ───────────────────────────────────────────── */}
+      {club.subscription_status === 'suspended' && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 px-5 py-4 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-orange-800">Ce club n'est plus disponible</p>
+            <p className="text-xs text-orange-700 mt-0.5">
+              Les réservations sont temporairement suspendues. Contactez directement l'équipe du club pour plus d'informations.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Photo gallery ────────────────────────────────────────────────── */}
       {photos.length > 1 && (
         <div>
@@ -636,8 +649,8 @@ export default function ClubProfile() {
         </div>
       )}
 
-      {/* ── Date picker + slots ──────────────────────────────────────────── */}
-      <div className="space-y-5">
+      {/* ── Date picker + slots (hidden when suspended) ──────────────────── */}
+      {club.subscription_status !== 'suspended' && <div className="space-y-5">
         {/* Date navigation */}
         <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
           <button
@@ -742,10 +755,10 @@ export default function ClubProfile() {
             })}
           </div>
         )}
-      </div>
+      </div>}
 
-      {/* ── Booking modal — hidden for admin ─────────────────────────────── */}
-      {booking && !isAdmin && (
+      {/* ── Booking modal — hidden for admin and suspended clubs ─────────── */}
+      {booking && !isAdmin && club.subscription_status !== 'suspended' && (
         <BookingModal
           slot={booking.slot}
           venueName={booking.venueName}

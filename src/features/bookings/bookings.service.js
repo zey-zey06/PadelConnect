@@ -3,6 +3,7 @@ const sessionsRepo = require('../sessions/sessions.repository');
 const venuesRepo = require('../venues/venues.repository');
 const clubsRepo = require('../clubs/clubs.repository');
 const penaltiesRepo = require('../penalties/penalties.repository');
+const { isOrgSubscriptionActive } = require('../subscriptions/subscriptions.repository');
 const notificationsService = require('../notifications/notifications.service');
 const { sendBookingConfirmation, sendManagerBookingNotification } = require('../../emails/confirmation');
 const { sendBookingCancellation } = require('../../emails/cancellation');
@@ -32,6 +33,13 @@ async function createBooking(userId, { session_id, venue_slot_id, payment_method
   const slot = await venuesRepo.getSlotById(venue_slot_id);
   if (!slot) throw makeError(404, 'Créneau introuvable.');
   if (slot.status !== 'available') throw makeError(409, 'Ce créneau n\'est plus disponible.');
+
+  // Block booking if the club's subscription is expired
+  const venue = await venuesRepo.getById(slot.venue_id);
+  if (venue) {
+    const active = await isOrgSubscriptionActive(venue.organization_id);
+    if (!active) throw makeError(403, 'Ce club n\'a pas d\'abonnement actif. La réservation est impossible.');
+  }
 
   const bookingData = { session_id, venue_slot_id, payment_method };
   if (payment_phone) bookingData.payment_phone = payment_phone;

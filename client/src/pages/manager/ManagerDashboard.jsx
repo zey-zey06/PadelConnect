@@ -4,7 +4,7 @@ import {
   Building2, MapPin, CalendarDays, TrendingUp, CalendarCheck,
   ChevronRight, AlertCircle, Plus, X, Users, UserCheck,
   ShowerHead, ParkingSquare, Wifi, Utensils, ShoppingBag, Lightbulb, Shirt,
-  Trash2,
+  Trash2, CreditCard,
 } from 'lucide-react';
 import { useAuth } from '@/App';
 import {
@@ -12,6 +12,7 @@ import {
   addCoachToClub, removeCoachFromClub, addBallPickerToClub, removeBallPickerFromClub,
 } from '@/api/manager';
 import { getClubCoaches, getClubBallPickers } from '@/api/clubs';
+import { getMySubscription, getSubscriptionHistory, paySubscription } from '@/api/subscriptions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -448,6 +449,186 @@ function StaffRow({ member, onRemove, removing }) {
   );
 }
 
+// ── Subscription card ─────────────────────────────────────────────────────────
+function SubscriptionCard({ subscription, history, onPay }) {
+  const { status, days_remaining, venue_count, amount_due, period_end } = subscription;
+  const isSuspended = status === 'suspended';
+  const isUrgent    = !isSuspended && days_remaining <= 7;
+  const statusMap   = {
+    trial:     { label: 'Essai gratuit', cls: 'bg-amber-50 text-amber-800 border-amber-200'   },
+    active:    { label: 'Actif',         cls: 'bg-green-50 text-green-800 border-green-200'   },
+    suspended: { label: 'Suspendu',      cls: 'bg-red-50   text-red-800   border-red-200'     },
+  };
+  const cfg = statusMap[status] ?? statusMap.suspended;
+
+  return (
+    <div className={`rounded-xl border overflow-hidden ${isSuspended ? 'border-red-200 bg-red-50/20' : 'border-border bg-card'}`}>
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/60">
+        <div className="flex items-center gap-2">
+          <CreditCard className="h-4 w-4 text-primary" />
+          <p className="text-sm font-semibold text-foreground">Abonnement</p>
+        </div>
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${cfg.cls}`}>
+          {cfg.label}
+        </span>
+      </div>
+
+      <div className="p-5 space-y-4">
+        {/* Stats */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Jours restants</p>
+            <p className={`text-2xl font-bold ${isUrgent || isSuspended ? 'text-red-600' : 'text-foreground'}`}>
+              {isSuspended ? '—' : days_remaining}
+            </p>
+            {period_end && !isSuspended && (
+              <p className="text-xs text-muted-foreground">
+                jusqu'au {new Date(period_end).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+              </p>
+            )}
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Montant mensuel</p>
+            <p className="text-2xl font-bold text-foreground">
+              {(amount_due ?? 0).toLocaleString('fr-FR')} FCFA
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {Math.max(venue_count, 1)} terrain{venue_count !== 1 ? 's' : ''} × 3 000 FCFA
+            </p>
+          </div>
+        </div>
+
+        {/* CTA */}
+        <Button
+          size="sm"
+          onClick={onPay}
+          variant={!isSuspended && !isUrgent ? 'outline' : 'default'}
+          style={isSuspended ? { backgroundColor: '#dc2626', borderColor: '#dc2626' } : undefined}
+          className="w-full"
+        >
+          <CreditCard className="h-4 w-4" />
+          {isSuspended ? "Réactiver l'abonnement" : "Renouveler l'abonnement"}
+        </Button>
+
+        {/* Payment history */}
+        {history.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Historique des paiements
+            </p>
+            <div className="divide-y divide-border/50">
+              {history.slice(0, 3).map((h) => (
+                <div key={h.id} className="flex items-center justify-between py-1.5 text-xs">
+                  <span className="text-muted-foreground">
+                    {new Date(h.paid_at || h.created_at).toLocaleDateString('fr-FR', {
+                      day: '2-digit', month: 'short', year: 'numeric',
+                    })}
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {Number(h.amount).toLocaleString('fr-FR')} FCFA
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Subscription payment modal ─────────────────────────────────────────────────
+function SubscriptionPaymentModal({ sub, onClose, onPaid }) {
+  const [method,  setMethod]  = useState('wave');
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await paySubscription(method);
+      onPaid();
+    } catch (err) {
+      setError(err.message || 'Erreur lors du paiement.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const amount = sub?.amount_due ?? 0;
+  const vCount = Math.max(sub?.venue_count ?? 1, 1);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Renouveler l'abonnement</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {vCount} terrain{vCount !== 1 ? 's' : ''} × 3 000 FCFA = {amount.toLocaleString('fr-FR')} FCFA / mois
+            </p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />{error}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label>Mode de paiement</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'wave',         label: 'Wave'          },
+                { value: 'orange_money', label: 'Orange Money'  },
+                { value: 'card',         label: 'Carte bancaire'},
+                { value: 'agency',       label: 'Agence'        },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setMethod(value)}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all ${
+                    method === value
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-border text-foreground/70 hover:border-primary/40'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-muted/40 border border-border px-4 py-3 text-sm text-foreground">
+            Total à payer :{' '}
+            <span className="font-bold">{amount.toLocaleString('fr-FR')} FCFA</span>
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+              Annuler
+            </Button>
+            <Button type="submit" disabled={loading} className="flex-1">
+              {loading ? 'Paiement…' : 'Confirmer le paiement'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── ManagerDashboard page ─────────────────────────────────────────────────────
 export default function ManagerDashboard() {
   const { user } = useAuth();
@@ -466,6 +647,11 @@ export default function ManagerDashboard() {
   const [showAddCoach,     setShowAddCoach]     = useState(false);
   const [showAddBallPicker,setShowAddBallPicker]= useState(false);
   const [removingId,       setRemovingId]       = useState(null); // userId being removed
+
+  // Subscription state
+  const [subscription,  setSubscription]  = useState(null);
+  const [subHistory,    setSubHistory]    = useState([]);
+  const [showPayModal,  setShowPayModal]  = useState(false);
 
   const loadStaff = useCallback(async (clubId) => {
     if (!clubId) return;
@@ -489,14 +675,18 @@ export default function ManagerDashboard() {
 
     async function load() {
       try {
-        const [{ stats: s }, { club: c }, { venues: v }] = await Promise.all([
+        const [{ stats: s }, { club: c }, { venues: v }, subResult, histResult] = await Promise.all([
           getManagerDashboard(),
           getMyClub(user.organization_id),
           getMyVenues(user.organization_id),
+          getMySubscription().catch(() => null),
+          getSubscriptionHistory().catch(() => null),
         ]);
         setStats(s);
         setClub(c);
         setVenues(v ?? []);
+        if (subResult)  setSubscription(subResult.subscription ?? null);
+        if (histResult) setSubHistory(histResult.history ?? []);
         await loadStaff(user.organization_id);
       } catch (err) {
         setError(err.message || 'Erreur de chargement.');
@@ -609,6 +799,15 @@ export default function ManagerDashboard() {
                 {club.status === 'active' ? 'Actif' : 'Inactif'}
               </Badge>
             </div>
+          )}
+
+          {/* ── Abonnement ──────────────────────────────────────────── */}
+          {subscription && (
+            <SubscriptionCard
+              subscription={subscription}
+              history={subHistory}
+              onPay={() => setShowPayModal(true)}
+            />
           )}
 
           {/* ── Venues section ──────────────────────────────────────── */}
@@ -762,6 +961,19 @@ export default function ManagerDashboard() {
           onAdded={(bp) => {
             setBallPickers((prev) => [...prev, bp]);
             setShowAddBallPicker(false);
+          }}
+        />
+      )}
+
+      {showPayModal && subscription && (
+        <SubscriptionPaymentModal
+          sub={subscription}
+          onClose={() => setShowPayModal(false)}
+          onPaid={() => {
+            setShowPayModal(false);
+            // Refresh subscription status
+            getMySubscription().then((r) => setSubscription(r.subscription ?? null)).catch(() => {});
+            getSubscriptionHistory().then((r) => setSubHistory(r.history ?? [])).catch(() => {});
           }}
         />
       )}

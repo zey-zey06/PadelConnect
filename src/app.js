@@ -24,8 +24,10 @@ const managerRouter  = require('./features/manager/manager.controller');
 const aiRouter       = require('./features/ai/ai.controller');
 const piaRouter      = require('./features/pia/pia.controller');
 const searchRouter   = require('./features/search/search.controller');
-const contactRouter  = require('./features/contact/contact.controller');
-const messagesRouter = require('./features/messages/messages.controller');
+const contactRouter       = require('./features/contact/contact.controller');
+const messagesRouter      = require('./features/messages/messages.controller');
+const subscriptionsRouter = require('./features/subscriptions/subscriptions.controller');
+const adminSubsRouter     = require('./features/admin/admin.subscriptions.controller');
 
 const app = express();
 
@@ -81,8 +83,10 @@ app.use('/api/manager', managerRouter);
 app.use('/api/ai',      aiRouter);
 app.use('/api/pia',     piaRouter);
 app.use('/api/search', searchRouter);
-app.use('/api/contact',  contactRouter);
-app.use('/api/messages', messagesRouter);
+app.use('/api/contact',       contactRouter);
+app.use('/api/messages',      messagesRouter);
+app.use('/api/subscriptions', subscriptionsRouter);
+app.use('/api/admin',         adminSubsRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';
@@ -129,6 +133,11 @@ app.use((err, req, res, next) => {
 // Start the daily reminder cron job in non-test environments
 if (process.env.NODE_ENV !== 'test') {
   require('./jobs/reminder');
+
+  // Subscription expiry cron — runs once on startup then every 24 h
+  const { runCron: runSubscriptionCron } = require('./features/subscriptions/subscriptions.service');
+  runSubscriptionCron();
+  setInterval(runSubscriptionCron, 24 * 60 * 60 * 1000);
 }
 
 // Back-fill missing slots for all venues on startup (non-fatal, skipped in tests)

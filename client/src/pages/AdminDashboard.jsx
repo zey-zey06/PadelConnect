@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, Layers, Building2, BookOpen,
   ShieldAlert, AlertCircle, ChevronDown, Trash2, CheckCircle,
   Ban, XCircle, Search, Calendar, Filter, Activity,
-  UserCheck, Clock, LogOut, Settings,
+  UserCheck, Clock, LogOut, Settings, CreditCard,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/App';
@@ -18,6 +18,7 @@ import {
 } from '@/api/admin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { getAdminSubscriptions, activateSubscription, suspendSubscription } from '@/api/subscriptions';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -785,6 +786,169 @@ function SanctionsTab() {
   );
 }
 
+// ── Subscriptions tab ─────────────────────────────────────────────────────────
+const SUB_STATUS_MAP = {
+  trial:     { label: 'Essai',    color: 'yellow' },
+  active:    { label: 'Actif',    color: 'green'  },
+  suspended: { label: 'Suspendu', color: 'red'    },
+};
+
+function SubscriptionsTab() {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+  const [saving,  setSaving]  = useState(null); // orgId being saved
+
+  function load() {
+    setLoading(true);
+    getAdminSubscriptions()
+      .then((d) => setData(d))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }
+  useEffect(load, []);
+
+  const handleActivate = useCallback(async (orgId) => {
+    setSaving(orgId);
+    try {
+      await activateSubscription(orgId);
+      setData((prev) => ({
+        ...prev,
+        clubs: prev.clubs.map((c) =>
+          c.id === orgId ? { ...c, subscription_status: 'active', days_remaining: 30 } : c
+        ),
+      }));
+    } catch { /* ignore */ }
+    finally { setSaving(null); }
+  }, []);
+
+  const handleSuspend = useCallback(async (orgId) => {
+    if (!confirm('Suspendre cet abonnement ? Le club ne pourra plus accepter de réservations.')) return;
+    setSaving(orgId);
+    try {
+      await suspendSubscription(orgId);
+      setData((prev) => ({
+        ...prev,
+        clubs: prev.clubs.map((c) =>
+          c.id === orgId ? { ...c, subscription_status: 'suspended', days_remaining: 0 } : c
+        ),
+      }));
+    } catch { /* ignore */ }
+    finally { setSaving(null); }
+  }, []);
+
+  const clubs = data?.clubs ?? [];
+
+  return (
+    <div className="space-y-5">
+
+      {/* Revenue card */}
+      {data && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+            <CreditCard className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Revenus ce mois</p>
+            <p className="text-2xl font-bold text-slate-800 mt-0.5">
+              {Number(data.revenue_this_month ?? 0).toLocaleString('fr-FR')} FCFA
+            </p>
+          </div>
+          <div className="ml-auto text-right">
+            <p className="text-xs text-slate-400">Clubs actifs</p>
+            <p className="text-lg font-bold text-slate-700">
+              {clubs.filter((c) => c.subscription_status === 'active').length}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-400">Suspendus</p>
+            <p className="text-lg font-bold text-red-600">
+              {clubs.filter((c) => c.subscription_status === 'suspended').length}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {loading ? <Skeleton /> : error ? <ErrorBanner message={error} /> : (
+        <>
+          <p className="text-xs text-slate-400">{clubs.length} club{clubs.length !== 1 ? 's' : ''}</p>
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Club</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Abonnement</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Terrains</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Jours restants</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Montant dû</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {clubs.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">
+                      Aucun club enregistré.
+                    </td>
+                  </tr>
+                ) : clubs.map((c) => {
+                  const cfg      = SUB_STATUS_MAP[c.subscription_status] ?? SUB_STATUS_MAP.suspended;
+                  const isSaving = saving === c.id;
+                  const urgent   = c.subscription_status !== 'suspended' && (c.days_remaining ?? 0) <= 7;
+                  return (
+                    <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-slate-700 truncate max-w-[160px]">{c.name}</p>
+                        <p className="text-xs text-slate-400 font-mono">/{c.slug ?? ''}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge label={cfg.label} color={cfg.color} />
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 hidden sm:table-cell">
+                        {c.venue_count ?? 0}
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <span className={urgent ? 'text-red-600 font-semibold' : 'text-slate-500'}>
+                          {c.subscription_status === 'suspended' ? '—' : `${c.days_remaining ?? 0} j`}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700 text-xs font-medium hidden lg:table-cell">
+                        {Number(c.amount_due ?? 0).toLocaleString('fr-FR')} FCFA
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {c.subscription_status !== 'active' && (
+                            <button
+                              disabled={isSaving}
+                              onClick={() => handleActivate(c.id)}
+                              className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40"
+                            >
+                              {isSaving ? '…' : 'Activer'}
+                            </button>
+                          )}
+                          {c.subscription_status !== 'suspended' && (
+                            <button
+                              disabled={isSaving}
+                              onClick={() => handleSuspend(c.id)}
+                              className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-red-200 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                            >
+                              {isSaving ? '…' : 'Suspendre'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Sidebar nav items ─────────────────────────────────────────────────────────
 const NAV = [
   { key: 'overview',    label: 'Dashboard',      icon: LayoutDashboard },
@@ -792,7 +956,8 @@ const NAV = [
   { key: 'sessions',    label: 'Sessions',        icon: Layers          },
   { key: 'clubs',       label: 'Clubs',           icon: Building2       },
   { key: 'bookings',    label: 'Réservations',    icon: BookOpen        },
-  { key: 'sanctions',   label: 'Sanctions',       icon: ShieldAlert     },
+  { key: 'sanctions',      label: 'Sanctions',       icon: ShieldAlert  },
+  { key: 'subscriptions', label: 'Abonnements',     icon: CreditCard   },
 ];
 
 // ── AdminDashboard page ───────────────────────────────────────────────────────
@@ -823,8 +988,9 @@ export default function AdminDashboard() {
     users:     <UsersTab />,
     sessions:  <SessionsTab />,
     clubs:     <ClubsTab />,
-    bookings:  <BookingsTab />,
-    sanctions: <SanctionsTab />,
+    bookings:       <BookingsTab />,
+    sanctions:      <SanctionsTab />,
+    subscriptions:  <SubscriptionsTab />,
   }[tab] ?? null;
 
   return (

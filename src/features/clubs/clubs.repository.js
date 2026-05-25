@@ -16,6 +16,13 @@ async function getById(id) {
 async function listWithStats() {
   return db('organizations')
     .whereNull('organizations.deleted_at')
+    .where(function () {
+      this.where('organizations.subscription_status', 'active')
+        .orWhere(function () {
+          this.where('organizations.subscription_status', 'trial')
+            .whereRaw('organizations.trial_ends_at > NOW()');
+        });
+    })
     .orderBy('organizations.name', 'asc')
     .select([
       'organizations.*',
