@@ -576,9 +576,14 @@ export default function ClubProfile() {
               </div>
             )}
             {club.phone && (
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Phone className="h-3.5 w-3.5 shrink-0" />{club.phone}
-              </div>
+              <a
+                href={`tel:${club.phone.replace(/\s/g, '')}`}
+                className="flex items-center gap-1.5 text-sm text-primary hover:underline transition-colors"
+              >
+                <Phone className="h-3.5 w-3.5 shrink-0" />
+                {club.phone}
+                <span className="text-xs font-medium bg-primary/10 px-2 py-0.5 rounded-full">Appeler</span>
+              </a>
             )}
           </div>
 

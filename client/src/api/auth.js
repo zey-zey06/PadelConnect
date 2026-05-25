@@ -43,3 +43,9 @@ export const updateMe = (data) => client.patch('/auth/me', data);
  * { current_password, new_password } → { ok: true }
  */
 export const changePassword = (data) => client.patch('/auth/password', data);
+
+/**
+ * DELETE /api/auth/me
+ * Soft-deletes the current user's account and clears the session cookie.
+ */
+export const deleteAccount = () => client.delete('/auth/me');

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, MapPin, ChevronRight, Eye, AlertCircle } from 'lucide-react';
+import { Building2, MapPin, Phone, ChevronRight, Eye, AlertCircle } from 'lucide-react';
 import { listClubs } from '@/api/clubs';
 import { useAuth } from '@/App';
 import { Button } from '@/components/ui/button';
@@ -60,6 +60,17 @@ function ClubCard({ club, isAdmin }) {
             <span className="font-medium text-foreground">{priceLabel}</span>
           )}
         </div>
+
+        {/* Phone */}
+        {club.phone && (
+          <a
+            href={`tel:${club.phone.replace(/\s/g, '')}`}
+            className="flex items-center gap-1.5 text-xs text-primary hover:underline transition-colors"
+          >
+            <Phone className="h-3 w-3 shrink-0" />
+            {club.phone}
+          </a>
+        )}
 
         <Link to={`/clubs/${club.id}`} className="mt-auto">
           {isAdmin ? (

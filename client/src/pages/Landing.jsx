@@ -439,6 +439,13 @@ function Footer() {
                 )}
               </ul>
             </div>
+            <div className="space-y-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/40">Support</p>
+              <ul className="space-y-2 text-sm text-white/60">
+                <li><Link to="/contact" className="hover:text-white transition-colors">Nous contacter</Link></li>
+                <li><Link to="/privacy" className="hover:text-white transition-colors">Confidentialité</Link></li>
+              </ul>
+            </div>
           </div>
         </div>
 

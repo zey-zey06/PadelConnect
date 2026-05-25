@@ -22,6 +22,8 @@ import History          from '@/pages/History';
 import Landing          from '@/pages/Landing';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
+import Contact          from '@/pages/Contact';
+import Privacy          from '@/pages/Privacy';
 import Layout              from '@/components/Layout';
 import SplashScreen        from '@/components/SplashScreen';
 import PlayerProfilePanel  from '@/components/PlayerProfilePanel';
@@ -231,6 +233,8 @@ export default function App() {
 
           {/* ── Landing — public ────────────────────────────────────── */}
           <Route path="/" element={<Landing />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/privacy" element={<Privacy />} />
 
           {/* ── Catch-all: role-aware redirect ──────────────────────── */}
           <Route path="*" element={<DefaultRedirect />} />

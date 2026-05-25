@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet } from 'lucide-react';
 import { useAuth } from '@/App';
 import { getProfile, updateProfile, uploadPhoto } from '@/api/profile';
-import { updateMe, logout } from '@/api/auth';
+import { updateMe, logout, changePassword, deleteAccount } from '@/api/auth';
 import { getMyBookings } from '@/api/bookings';
 import { getMyPenalties, payPenalty } from '@/api/penalties';
 import { Button }       from '@/components/ui/button';
@@ -490,6 +490,195 @@ function PenaltyRow({ penalty, onPaid }) {
   );
 }
 
+// ── Recharge modal (mocked) ───────────────────────────────────────────────────
+function RechargeModal({ onClose }) {
+  const [selected, setSelected] = useState(null);
+  const options = [
+    { value: 'wave',         label: 'Wave',          emoji: '🌊', color: '#1DC8FF' },
+    { value: 'orange_money', label: 'Orange Money',  emoji: '🟠', color: '#FF6600' },
+    { value: 'card',         label: 'Carte bancaire', emoji: '💳', color: null },
+    { value: 'agency',       label: 'En agence',      emoji: '🏢', color: null },
+  ];
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-foreground">Recharger mon solde</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          {options.map(({ value, label, emoji, color }) => {
+            const active = selected === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setSelected(value)}
+                style={active && color ? { borderColor: color, backgroundColor: `${color}15` } : undefined}
+                className={cn(
+                  'flex flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-sm font-medium transition-all',
+                  active && !color ? 'border-primary bg-primary/5 text-primary'
+                    : !active ? 'border-border text-foreground/70 hover:border-primary/40'
+                    : '',
+                )}
+              >
+                <span className="text-2xl leading-none">{emoji}</span>
+                <span style={active && color ? { color } : undefined}>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-start gap-2">
+          <span className="shrink-0">⚡</span>
+          <span>La recharge de solde sera disponible très prochainement. Restez connecté !</span>
+        </div>
+        <Button variant="outline" onClick={onClose} className="w-full">Fermer</Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Change password modal ─────────────────────────────────────────────────────
+function ChangePasswordModal({ onClose }) {
+  const [form, setForm]   = useState({ current: '', next: '', confirm: '' });
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+  const [done,    setDone]    = useState(false);
+
+  function handle(field) {
+    return (e) => { setForm((f) => ({ ...f, [field]: e.target.value })); setError(null); };
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (form.next !== form.confirm) { setError('Les mots de passe ne correspondent pas.'); return; }
+    if (form.next.length < 8)       { setError('Minimum 8 caractères.'); return; }
+    setLoading(true); setError(null);
+    try {
+      await changePassword({ current_password: form.current, new_password: form.next });
+      setDone(true);
+    } catch (err) {
+      setError(err.message || 'Erreur lors du changement de mot de passe.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const inputClass = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-foreground">Changer le mot de passe</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {done ? (
+          <div className="text-center space-y-4 py-4">
+            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+              <Check className="h-6 w-6 text-green-600" />
+            </div>
+            <p className="text-sm font-medium text-foreground">Mot de passe modifié !</p>
+            <Button onClick={onClose} className="w-full">Fermer</Button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />{error}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Mot de passe actuel</label>
+              <input type="password" value={form.current} onChange={handle('current')} required className={inputClass} placeholder="••••••••" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Nouveau mot de passe</label>
+              <input type="password" value={form.next} onChange={handle('next')} required className={inputClass} placeholder="8 caractères minimum" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Confirmer le nouveau mot de passe</label>
+              <input type="password" value={form.confirm} onChange={handle('confirm')} required className={inputClass} placeholder="••••••••" />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <Button type="submit" disabled={loading} className="flex-1">
+                {loading ? 'Modification…' : 'Enregistrer'}
+              </Button>
+              <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Delete account modal ──────────────────────────────────────────────────────
+function DeleteAccountModal({ onClose, onDeleted }) {
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  async function handleDelete() {
+    setLoading(true); setError(null);
+    try {
+      await deleteAccount();
+      onDeleted();
+    } catch (err) {
+      setError(err.message || 'Erreur lors de la suppression.');
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-sm rounded-2xl border border-red-200 bg-card shadow-xl p-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+            <Trash2 className="h-5 w-5 text-red-600" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Supprimer mon compte</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Cette action est irréversible</p>
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Votre compte, vos données et votre historique seront définitivement supprimés.
+          Vos réservations en cours resteront visibles pour les clubs concernés.
+        </p>
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <AlertCircle className="h-4 w-4 shrink-0" />{error}
+          </div>
+        )}
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={onClose} className="flex-1">Annuler</Button>
+          <Button
+            onClick={handleDelete}
+            disabled={loading}
+            className="flex-1 bg-red-600 hover:bg-red-700 text-white border-0"
+          >
+            {loading ? 'Suppression…' : 'Supprimer'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Profile page ──────────────────────────────────────────────────────────────
 export default function Profile() {
   const { user, setUser, profile: ctxProfile, setProfile } = useAuth();
@@ -501,6 +690,10 @@ export default function Profile() {
   const [loading,   setLoading]   = useState(profile === undefined);
   const [error,     setError]     = useState(null);
   const [editing,   setEditing]   = useState(false);
+
+  const [showRechargeModal,  setShowRechargeModal]  = useState(false);
+  const [showPasswordModal,  setShowPasswordModal]  = useState(false);
+  const [showDeleteModal,    setShowDeleteModal]     = useState(false);
 
   async function handleLogout() {
     try { await logout(); } catch { /* non-fatal */ }
@@ -595,6 +788,25 @@ export default function Profile() {
             onEditClick={() => setEditing(true)}
           />
           <StatsBar bookingsCount={bookings.length} />
+
+          {/* Balance card */}
+          <div className="w-full max-w-sm mx-auto">
+            <div className="rounded-xl border border-border bg-card px-5 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">Mon solde</p>
+                  <p className="text-lg font-bold text-foreground leading-tight">
+                    {Number(user?.balance ?? 0).toLocaleString('fr-FR')}
+                    <span className="text-xs font-normal text-muted-foreground ml-1">FCFA</span>
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setShowRechargeModal(true)}>
+                Recharger
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* Right: edit form (only when editing) */}
@@ -638,16 +850,55 @@ export default function Profile() {
         </div>
       )}
 
-      {/* Logout — always visible; on mobile this is the only logout entry point for players */}
-      <div className="pt-4 border-t border-border">
+      {/* Settings */}
+      <div className="pt-4 border-t border-border space-y-0.5">
+        <h2 className="text-sm font-semibold text-foreground mb-3 px-1">Paramètres</h2>
+
+        <button
+          onClick={() => setShowPasswordModal(true)}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-foreground hover:bg-muted transition-colors text-left"
+        >
+          <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+          Changer le mot de passe
+        </button>
+
+        <Link
+          to="/privacy"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-foreground hover:bg-muted transition-colors"
+        >
+          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+          Politique de confidentialité
+        </Link>
+
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-left"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-4 w-4 shrink-0" />
           Se déconnecter
         </button>
+
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
+        >
+          <Trash2 className="h-4 w-4 shrink-0" />
+          Supprimer mon compte
+        </button>
       </div>
+
+      {/* Modals */}
+      {showRechargeModal && <RechargeModal onClose={() => setShowRechargeModal(false)} />}
+      {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
+      {showDeleteModal && (
+        <DeleteAccountModal
+          onClose={() => setShowDeleteModal(false)}
+          onDeleted={() => {
+            setUser(null);
+            navigate('/login', { replace: true });
+          }}
+        />
+      )}
     </div>
   );
 }

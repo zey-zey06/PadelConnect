@@ -24,6 +24,7 @@ const managerRouter  = require('./features/manager/manager.controller');
 const aiRouter       = require('./features/ai/ai.controller');
 const piaRouter      = require('./features/pia/pia.controller');
 const searchRouter   = require('./features/search/search.controller');
+const contactRouter  = require('./features/contact/contact.controller');
 
 const app = express();
 
@@ -78,6 +79,7 @@ app.use('/api/manager', managerRouter);
 app.use('/api/ai',      aiRouter);
 app.use('/api/pia',     piaRouter);
 app.use('/api/search', searchRouter);
+app.use('/api/contact', contactRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';

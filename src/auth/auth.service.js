@@ -138,7 +138,12 @@ async function getUserById(id) {
     status: user.status,
     first_name: user.first_name ?? null,
     last_name: user.last_name ?? null,
+    balance: Number(user.balance ?? 0),
   };
+}
+
+async function softDeleteAccount(userId) {
+  await db('users').where({ id: userId }).update({ deleted_at: new Date(), status: 'deleted' });
 }
 
 async function updateName(userId, first_name, last_name) {
@@ -166,4 +171,4 @@ async function changePassword(userId, currentPassword, newPassword) {
   await db('users').where({ id: userId }).update({ password_hash: hash, updated_at: new Date() });
 }
 
-module.exports = { signup, login, verifyEmail, getUserById, updateName, changePassword };
+module.exports = { signup, login, verifyEmail, getUserById, updateName, changePassword, softDeleteAccount };

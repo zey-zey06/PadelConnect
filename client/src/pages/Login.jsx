@@ -220,6 +220,13 @@ export default function Login() {
               <Button variant="outline" className="w-full" size="lg">Créer un compte</Button>
             </Link>
           </div>
+
+          <p className="text-center text-xs text-muted-foreground">
+            Besoin d'aide ?{' '}
+            <Link to="/contact" className="text-primary hover:underline font-medium">
+              Contactez-nous
+            </Link>
+          </p>
         </div>
       </div>
     </div>

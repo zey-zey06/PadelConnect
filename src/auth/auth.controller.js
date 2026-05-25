@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { signupSchema, loginSchema } = require('./auth.validation');
-const { signup, login, verifyEmail, getUserById, updateName, changePassword } = require('./auth.service');
+const { signup, login, verifyEmail, getUserById, updateName, changePassword, softDeleteAccount } = require('./auth.service');
 const { signToken } = require('./jwt');
 const authenticate = require('../middleware/authenticate');
 
@@ -144,5 +144,21 @@ router.post('/logout', logoutHandler);
 router.get('/me', authenticate, meHandler);
 router.patch('/me', authenticate, updateMeHandler);
 router.patch('/password', authenticate, changePasswordHandler);
+
+async function deleteAccountHandler(req, res, next) {
+  try {
+    await softDeleteAccount(req.user.sub);
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.COOKIE_SECURE === 'true',
+      sameSite: 'lax',
+    });
+    return res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+router.delete('/me', authenticate, deleteAccountHandler);
 
 module.exports = router;
