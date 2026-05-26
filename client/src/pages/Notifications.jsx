@@ -7,14 +7,33 @@ import { cn } from '@/lib/utils';
 import PageSkeleton from '@/components/PageSkeleton';
 
 const TYPE_LABELS = {
-  session_request:  'Demande reçue',
-  request_accepted: 'Demande acceptée',
-  request_refused:  'Demande refusée',
-  session_complete: 'Session complète',
-  booking_confirmed:'Réservation confirmée',
-  late_cancel:      'Annulation tardive',
-  no_show:          'No-show enregistré',
-  ban:              'Compte suspendu',
+  // Sessions
+  session_request:   'Demande de session',
+  request_accepted:  'Demande acceptée',
+  request_refused:   'Demande refusée',
+  session_complete:  'Session complète',
+  session_cancelled: 'Session annulée',
+  session_invite:    'Invitation reçue',
+  // Bookings
+  new_booking:       'Nouvelle réservation',
+  booking_confirmed: 'Réservation confirmée',
+  booking_cancelled: 'Réservation annulée',
+  slot_cancelled:    'Créneau annulé',
+  // Coaches
+  coach_invite:      'Invitation coach',
+  club_invitation:   'Invitation au club',
+  // Sanctions
+  late_cancel:       'Annulation tardive',
+  no_show:           'No-show enregistré',
+  club_ban:          'Banni du club',
+  app_ban:           'Compte suspendu',
+  ban:               'Compte suspendu',
+  // Social
+  friend_request:    'Demande d\'ami',
+  friend_accepted:   'Demande acceptée',
+  // System
+  welcome:           'Bienvenue',
+  new_user:          'Nouveau joueur',
 };
 
 export default function Notifications() {

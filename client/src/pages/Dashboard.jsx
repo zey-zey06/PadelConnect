@@ -131,7 +131,7 @@ export default function Dashboard() {
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Bonjour, {user?.email?.split('@')[0]} 👋
+            Bonjour, {user?.first_name || user?.email?.split('@')[0]} 👋
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">Prêt à jouer aujourd'hui ?</p>
         </div>

@@ -1611,7 +1611,11 @@ function RequestRow({ request, sessionId, onRespond }) {
   const { openPlayerPanel } = usePlayerPanel();
   const [state, setState] = useState('idle'); // idle | loading | done | error
   const [errMsg, setErrMsg] = useState('');
-  const name = request.player_email?.split('@')[0] ?? 'Joueur';
+  const name =
+    [request.player_first_name, request.player_last_name].filter(Boolean).join(' ') ||
+    request.player_username ||
+    request.player_email?.split('@')[0] ||
+    'Joueur';
   const strengths = Array.isArray(request.player_strengths) ? request.player_strengths : [];
 
   async function handle(status) {
@@ -2318,12 +2322,12 @@ function MySessions({ autoOpen = false }) {
 
   return (
     <div className="space-y-3">
-      {sessions.map((s) => (
+      {sessions.map((s, idx) => (
         <MySessionCard
           key={s.id}
           session={s}
           booking={bookingMap[s.id] ?? null}
-          autoOpen={autoOpen}
+          autoOpen={autoOpen && idx === 0}
           onRefresh={refresh}
         />
       ))}

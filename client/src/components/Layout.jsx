@@ -162,7 +162,7 @@ export default function Layout({ children }) {
                 )}
               </div>
               <span className="text-xs text-muted-foreground max-w-[120px] truncate">
-                {user?.email?.split('@')[0]}
+                {user?.first_name || user?.email?.split('@')[0]}
               </span>
             </Link>
 

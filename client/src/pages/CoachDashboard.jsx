@@ -108,7 +108,7 @@ export default function CoachDashboard() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Espace Coach</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Bienvenue, {user?.email?.split('@')[0]} — vos séances d'entraînement.
+            Bienvenue, {user?.first_name || user?.email?.split('@')[0]} — vos séances d'entraînement.
           </p>
         </div>
       </div>

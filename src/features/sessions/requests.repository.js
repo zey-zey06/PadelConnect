@@ -21,7 +21,10 @@ async function getBySession(sessionId) {
     .orderBy('session_requests.created_at', 'asc')
     .select(
       'session_requests.*',
-      'users.email as player_email',
+      'users.email      as player_email',
+      'users.first_name as player_first_name',
+      'users.last_name  as player_last_name',
+      'users.username   as player_username',
       'player_profiles.level as player_level',
       'player_profiles.style as player_style',
       'player_profiles.strengths as player_strengths',

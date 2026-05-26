@@ -731,7 +731,7 @@ export default function ManagerDashboard() {
           {club ? club.name : 'Tableau de bord'}
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Bienvenue, {user?.email?.split('@')[0]}
+          Bienvenue, {user?.first_name || user?.email?.split('@')[0]}
         </p>
       </div>
 

@@ -45,9 +45,23 @@ const SESSION_STATUS_LABEL = {
 const NOTIF_ICON_COLOR = {
   booking_confirmed: 'text-emerald-500 bg-emerald-50',
   booking_cancelled: 'text-red-500 bg-red-50',
+  new_booking:       'text-emerald-500 bg-emerald-50',
+  slot_cancelled:    'text-orange-500 bg-orange-50',
   session_cancelled: 'text-orange-500 bg-orange-50',
+  session_complete:  'text-emerald-600 bg-emerald-50',
+  session_request:   'text-primary bg-primary/10',
+  session_invite:    'text-primary bg-primary/10',
+  request_accepted:  'text-emerald-500 bg-emerald-50',
+  request_refused:   'text-red-500 bg-red-50',
+  friend_request:    'text-primary bg-primary/10',
+  friend_accepted:   'text-emerald-500 bg-emerald-50',
+  club_invitation:   'text-primary bg-primary/10',
+  coach_invite:      'text-primary bg-primary/10',
   welcome:           'text-primary bg-primary/10',
   no_show:           'text-red-500 bg-red-50',
+  late_cancel:       'text-orange-500 bg-orange-50',
+  club_ban:          'text-red-600 bg-red-50',
+  app_ban:           'text-red-600 bg-red-50',
   ban:               'text-red-600 bg-red-50',
 };
 
