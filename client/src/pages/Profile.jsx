@@ -6,6 +6,7 @@ import { getProfile, updateProfile, uploadPhoto, uploadCoverPhoto, updateUsernam
 import { updateMe, logout, changePassword, deleteAccount } from '@/api/auth';
 import { getMyBookings } from '@/api/bookings';
 import { getMyPenalties, payPenalty } from '@/api/penalties';
+import { getFriendRequests, acceptFriendRequest, refuseFriendRequest } from '@/api/friends';
 import { Button }       from '@/components/ui/button';
 import { Input }        from '@/components/ui/input';
 import { Label }        from '@/components/ui/label';
@@ -513,6 +514,49 @@ function EditForm({ profile, user, onSave, onCancel, onPhotoUploaded }) {
   );
 }
 
+// ── Friend requests section ───────────────────────────────────────────────────
+function FriendRequestsSection({ requests, onAccept, onRefuse }) {
+  if (!requests || requests.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-primary/20 bg-primary/[0.03] p-4 space-y-3">
+      <p className="text-sm font-semibold text-foreground">
+        Demandes d&apos;amis ({requests.length})
+      </p>
+      <div className="space-y-2">
+        {requests.map((r) => {
+          const name =
+            (r.first_name || r.last_name)
+              ? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()
+              : r.username ?? 'Joueur';
+          return (
+            <div key={r.friendship_id} className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full overflow-hidden bg-muted shrink-0 flex items-center justify-center ring-1 ring-border">
+                {r.photo_url
+                  ? <img src={r.photo_url} alt={name} className="h-full w-full object-cover" />
+                  : <span className="text-xs font-bold text-muted-foreground">{name.slice(0, 2).toUpperCase()}</span>
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{name}</p>
+                {r.username && <p className="text-xs text-muted-foreground">@{r.username}</p>}
+              </div>
+              <div className="flex gap-1.5 shrink-0">
+                <Button size="sm" className="h-7 text-xs px-3" onClick={() => onAccept(r.user_id)}>
+                  Accepter
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs px-3" onClick={() => onRefuse(r.user_id)}>
+                  Refuser
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Penalties section ─────────────────────────────────────────────────────────
 const PENALTY_LABELS = {
   no_show:    'No-show',
@@ -791,12 +835,13 @@ export default function Profile() {
   const { user, setUser, profile: ctxProfile, setProfile } = useAuth();
   const navigate = useNavigate();
 
-  const [profile,   setLocal]    = useState(ctxProfile ?? undefined);
-  const [bookings,  setBookings]  = useState([]);
-  const [penalties, setPenalties] = useState([]);
-  const [loading,   setLoading]   = useState(profile === undefined);
-  const [error,     setError]     = useState(null);
-  const [editing,   setEditing]   = useState(false);
+  const [profile,        setLocal]         = useState(ctxProfile ?? undefined);
+  const [bookings,       setBookings]       = useState([]);
+  const [penalties,      setPenalties]      = useState([]);
+  const [friendRequests, setFriendRequests] = useState([]);
+  const [loading,        setLoading]        = useState(profile === undefined);
+  const [error,          setError]          = useState(null);
+  const [editing,        setEditing]        = useState(false);
 
   const [showRechargeModal,  setShowRechargeModal]  = useState(false);
   const [showPasswordModal,  setShowPasswordModal]  = useState(false);
@@ -809,21 +854,23 @@ export default function Profile() {
   }
 
   const name =
-    (user?.first_name && user?.last_name)
-      ? `${user.first_name} ${user.last_name}`
+    (user?.first_name || user?.last_name)
+      ? `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim()
       : user?.email?.split('@')[0] ?? 'Joueur';
 
   useEffect(() => {
     async function load() {
       try {
-        const [{ profile: p }, { bookings: b }, penResult] = await Promise.all([
+        const [{ profile: p }, { bookings: b }, penResult, reqResult] = await Promise.all([
           getProfile(),
           getMyBookings().catch(() => ({ bookings: [] })),
           getMyPenalties().catch(() => ({ penalties: [] })),
+          getFriendRequests().catch(() => ({ requests: [] })),
         ]);
         setLocal(p ?? null);
         setBookings(b ?? []);
         setPenalties(penResult.penalties ?? []);
+        setFriendRequests(reqResult.requests ?? []);
       } catch (err) {
         setError(err.message || 'Erreur de chargement.');
       } finally {
@@ -837,9 +884,11 @@ export default function Profile() {
       Promise.allSettled([
         getMyBookings(),
         getMyPenalties(),
-      ]).then(([bkRes, penRes]) => {
+        getFriendRequests(),
+      ]).then(([bkRes, penRes, reqRes]) => {
         if (bkRes.status  === 'fulfilled') setBookings(bkRes.value.bookings   ?? []);
         if (penRes.status === 'fulfilled') setPenalties(penRes.value.penalties ?? []);
+        if (reqRes.status === 'fulfilled') setFriendRequests(reqRes.value.requests ?? []);
       });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -934,6 +983,22 @@ export default function Profile() {
       </div>
 
       {/* Penalties */}
+      <FriendRequestsSection
+        requests={friendRequests}
+        onAccept={async (userId) => {
+          try {
+            await acceptFriendRequest(userId);
+            setFriendRequests((prev) => prev.filter((r) => r.user_id !== userId));
+          } catch { /* silent */ }
+        }}
+        onRefuse={async (userId) => {
+          try {
+            await refuseFriendRequest(userId);
+            setFriendRequests((prev) => prev.filter((r) => r.user_id !== userId));
+          } catch { /* silent */ }
+        }}
+      />
+
       <PenaltiesSection
         penalties={penalties}
         onPaid={() => getMyPenalties().then((r) => setPenalties(r.penalties ?? [])).catch(() => {})}

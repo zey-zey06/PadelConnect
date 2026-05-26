@@ -109,9 +109,8 @@ function Avatar({ name, photo, size = 'md', dot = false, dotBorder = '#ffffff' }
 
 function partnerDisplayName(p) {
   if (!p) return 'Joueur';
-  return (p.first_name && p.last_name)
-    ? `${p.first_name} ${p.last_name}`
-    : p.email?.split('@')[0] ?? 'Joueur';
+  if (p.first_name || p.last_name) return `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim();
+  return p.username ?? p.email?.split('@')[0] ?? 'Joueur';
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────

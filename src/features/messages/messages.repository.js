@@ -6,6 +6,7 @@ async function getConversations(userId) {
       partner.id              AS partner_id,
       partner.first_name,
       partner.last_name,
+      partner.username,
       partner.email,
       pp.photo_url,
       lm.content              AS last_content,
