@@ -36,7 +36,8 @@ async function searchHandler(req, res, next) {
         .whereIn('users.role', ['player', 'coach'])
         .where(function () {
           this.whereILike('users.first_name', term)
-              .orWhereILike('users.last_name', term);
+              .orWhereILike('users.last_name',  term)
+              .orWhereILike('users.username',   term);
         })
         .orderBy('users.first_name', 'asc')
         .limit(5)
@@ -44,6 +45,7 @@ async function searchHandler(req, res, next) {
           'users.id         as user_id',
           'users.first_name',
           'users.last_name',
+          'users.username',
           'users.email',
           'player_profiles.level',
           'player_profiles.photo_url',

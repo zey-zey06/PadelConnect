@@ -192,11 +192,12 @@ export default function SearchBar({ className }) {
                         {/* Text */}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{name}</p>
-                          {p.level && (
-                            <p className="text-xs text-muted-foreground leading-none mt-0.5">
-                              {LEVEL_LABELS[p.level] ?? `Niv. ${p.level}`}
-                            </p>
-                          )}
+                          <p className="text-xs text-muted-foreground leading-none mt-0.5 truncate">
+                            {[
+                              p.username && `@${p.username}`,
+                              p.level && (LEVEL_LABELS[p.level] ?? `Niv. ${p.level}`),
+                            ].filter(Boolean).join(' · ') || null}
+                          </p>
                         </div>
                       </button>
                     );
