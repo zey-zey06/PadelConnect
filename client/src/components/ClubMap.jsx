@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -15,13 +16,19 @@ L.Icon.Default.mergeOptions({
 
 // ── Single-club map (used in ClubProfile) ─────────────────────────────────────
 export function SingleClubMap({ lat, lng, clubName, className = '' }) {
+  const [ready, setReady] = useState(false);
+
   return (
     <div className={`relative z-0 h-64 rounded-xl overflow-hidden border border-border ${className}`}>
+      {!ready && (
+        <div className="absolute inset-0 z-10 bg-muted animate-pulse" />
+      )}
       <MapContainer
         center={[lat, lng]}
         zoom={15}
         scrollWheelZoom={false}
         style={{ height: '100%', width: '100%' }}
+        whenReady={() => setReady(true)}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -56,13 +63,19 @@ export function MultiClubMap({ clubs, onClubClick, className = '' }) {
     );
   }
 
+  const [ready, setReady] = useState(false);
+
   return (
     <div className={`relative z-0 h-96 rounded-xl overflow-hidden border border-border ${className}`}>
+      {!ready && (
+        <div className="absolute inset-0 z-10 bg-muted animate-pulse" />
+      )}
       <MapContainer
         center={center}
         zoom={13}
         scrollWheelZoom={false}
         style={{ height: '100%', width: '100%' }}
+        whenReady={() => setReady(true)}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

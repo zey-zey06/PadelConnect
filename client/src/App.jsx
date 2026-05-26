@@ -28,6 +28,7 @@ import Privacy          from '@/pages/Privacy';
 import Layout              from '@/components/Layout';
 import SplashScreen        from '@/components/SplashScreen';
 import PlayerProfilePanel  from '@/components/PlayerProfilePanel';
+import ErrorBoundary       from '@/components/ErrorBoundary';
 import { me }           from '@/api/auth';
 import { getProfile }   from '@/api/profile';
 
@@ -186,6 +187,7 @@ export default function App() {
     <AuthContext.Provider value={{ user, setUser, profile, setProfile, loading }}>
       <PlayerPanelContext.Provider value={{ openPlayerPanel, closePlayerPanel, panelUserId }}>
       <BrowserRouter>
+        <ErrorBoundary>
         <Routes>
           {/* ── Public routes ──────────────────────────────────────── */}
           <Route path="/login"        element={<PublicRoute><Login  /></PublicRoute>} />
@@ -243,6 +245,7 @@ export default function App() {
         </Routes>
         {/* ── Global player profile slide panel ─────────────────────────── */}
         <PlayerProfilePanel userId={panelUserId} onClose={closePlayerPanel} />
+        </ErrorBoundary>
       </BrowserRouter>
 
       </PlayerPanelContext.Provider>

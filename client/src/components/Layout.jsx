@@ -10,8 +10,9 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import PIAButton from '@/components/PIA/PIAButton';
 import PIAPanel from '@/components/PIA/PIAPanel';
-import BottomNav  from '@/components/BottomNav';
-import SearchBar  from '@/components/SearchBar';
+import BottomNav     from '@/components/BottomNav';
+import SearchBar     from '@/components/SearchBar';
+import NetworkStatus from '@/components/NetworkStatus';
 
 const PLAYER_NAV = [
   { to: '/sessions',  label: 'Sessions'    },
@@ -242,6 +243,9 @@ export default function Layout({ children }) {
           </nav>
         )}
       </header>
+
+      {/* ── Offline banner ──────────────────────────────────────────────── */}
+      <NetworkStatus />
 
       {/* ── Page content ────────────────────────────────────────────────── */}
       {/* pb-20 on mobile gives breathing room above the fixed bottom nav */}
