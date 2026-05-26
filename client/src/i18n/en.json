@@ -1,0 +1,93 @@
+{
+  "nav": {
+    "sessions": "Sessions",
+    "calendar": "Calendar",
+    "clubs": "Clubs",
+    "history": "History",
+    "messages": "Messages",
+    "profile": "My Profile",
+    "notifications": "Notifications",
+    "logout": "Log out"
+  },
+  "auth": {
+    "login": "Log in",
+    "signup": "Create account",
+    "logout": "Log out",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "noAccount": "No account yet?",
+    "alreadyAccount": "Already have an account?",
+    "chooseRole": "Choose my role",
+    "connect": "Connecting…",
+    "creating": "Creating…"
+  },
+  "landing": {
+    "player": "I'm a player",
+    "manager": "I'm a manager",
+    "coach": "I'm a coach",
+    "login": "I already have an account — Log in"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "back": "Back",
+    "loading": "Loading…",
+    "error": "An error occurred",
+    "retry": "Retry",
+    "close": "Close",
+    "yes": "Yes",
+    "no": "No",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "noResults": "No results"
+  },
+  "profile": {
+    "title": "My Profile",
+    "settings": "Settings",
+    "changePassword": "Change password",
+    "deleteAccount": "Delete my account",
+    "privacy": "Privacy policy",
+    "language": "Language",
+    "balance": "My balance",
+    "recharge": "Top up",
+    "level": "Level",
+    "style": "Playing style",
+    "bio": "Bio",
+    "notConfigured": "Profile not configured"
+  },
+  "sessions": {
+    "title": "Sessions",
+    "create": "Create session",
+    "join": "Join",
+    "open": "Open",
+    "full": "Full",
+    "cancelled": "Cancelled",
+    "noSessions": "No sessions available"
+  },
+  "messages": {
+    "title": "Messages",
+    "placeholder": "Write a message…",
+    "noConversations": "No conversations",
+    "startConversation": "Select a conversation",
+    "send": "Send",
+    "you": "You",
+    "online": "Online"
+  },
+  "clubs": {
+    "title": "Clubs",
+    "venues": "courts",
+    "openMaps": "Open in Google Maps",
+    "location": "Location"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all as read",
+    "noNotifications": "No notifications"
+  }
+}

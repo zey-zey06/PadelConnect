@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image } from 'lucide-react';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe } from 'lucide-react';
+import { setLanguage } from '@/i18n/i18n';
 import { useAuth } from '@/App';
 import { getProfile, updateProfile, uploadPhoto, uploadCoverPhoto, updateUsername } from '@/api/profile';
 import { updateMe, logout, changePassword, deleteAccount } from '@/api/auth';
@@ -830,6 +831,49 @@ function DeleteAccountModal({ onClose, onDeleted }) {
   );
 }
 
+// ── Language selector ─────────────────────────────────────────────────────────
+const LANGUAGES = [
+  { code: 'fr', label: 'Français',  flag: '🇫🇷' },
+  { code: 'en', label: 'English',   flag: '🇬🇧' },
+  { code: 'ar', label: 'العربية',   flag: '🇸🇦' },
+];
+
+function LanguageSelector() {
+  const [current, setCurrent] = useState(
+    () => localStorage.getItem('padelconnect_lang') || 'fr'
+  );
+
+  function handleSelect(code) {
+    setCurrent(code);
+    setLanguage(code);
+  }
+
+  return (
+    <div className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl">
+      <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+      <span className="text-sm text-foreground flex-1">Langue</span>
+      <div className="flex gap-1">
+        {LANGUAGES.map(({ code, label, flag }) => (
+          <button
+            key={code}
+            type="button"
+            onClick={() => handleSelect(code)}
+            title={label}
+            className={cn(
+              'h-8 w-8 rounded-lg text-base flex items-center justify-center transition-all',
+              current === code
+                ? 'bg-primary/10 ring-2 ring-primary/30 scale-110'
+                : 'hover:bg-muted opacity-60 hover:opacity-100'
+            )}
+          >
+            {flag}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Profile page ──────────────────────────────────────────────────────────────
 export default function Profile() {
   const { user, setUser, profile: ctxProfile, setProfile } = useAuth();
@@ -1025,6 +1069,9 @@ export default function Profile() {
       {/* Settings */}
       <div className="pt-4 border-t border-border space-y-0.5">
         <h2 className="text-sm font-semibold text-foreground mb-3 px-1">Paramètres</h2>
+
+        {/* Language selector */}
+        <LanguageSelector />
 
         <button
           onClick={() => setShowPasswordModal(true)}

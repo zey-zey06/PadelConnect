@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Send, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Send, ArrowLeft, AlertCircle, Smile } from 'lucide-react';
+import EmojiPicker from 'emoji-picker-react';
 import { getConversations, getMessages, sendMessage, markAsRead } from '@/api/messages';
 import { getUserProfile } from '@/api/profile';
 import { useAuth } from '@/App';
@@ -128,8 +129,10 @@ export default function Messages() {
   const [loadingConvs,    setLoadingConvs]    = useState(true);
   const [loadingMsgs,     setLoadingMsgs]     = useState(false);
   const [msgError,        setMsgError]        = useState(null);
+  const [showEmoji,       setShowEmoji]       = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef       = useRef(null);
+  const emojiRef       = useRef(null);
 
   // Conversations — poll every 5 s
   useEffect(() => {
@@ -194,6 +197,21 @@ export default function Messages() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    if (!showEmoji) return;
+    function onOutside(e) {
+      if (emojiRef.current && !emojiRef.current.contains(e.target)) setShowEmoji(false);
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, [showEmoji]);
+
+  function handleEmojiClick({ emoji }) {
+    setDraft((prev) => prev + emoji);
+    inputRef.current?.focus();
+  }
 
   async function handleSend(e) {
     e.preventDefault();
@@ -339,7 +357,7 @@ export default function Messages() {
       </div>
 
       {/* ══ RIGHT: Chat panel ══════════════════════════════════════════════ */}
-      <div className={cn('flex-1 flex flex-col min-w-0 bg-white', !showChatPanel && 'hidden md:flex')}>
+      <div className={cn('flex-1 flex flex-col min-w-0 bg-white relative', !showChatPanel && 'hidden md:flex')}>
 
         {!selectedUserId ? (
           /* Empty state */
@@ -432,50 +450,84 @@ export default function Messages() {
             </div>
 
             {/* Input bar */}
-            <form
-              onSubmit={handleSend}
-              className="flex items-center gap-2.5 px-4 py-3 shrink-0 bg-white"
+            <div
+              className="shrink-0 bg-white"
               style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}
             >
-              <input
-                ref={inputRef}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Écrire un message…"
-                disabled={sending}
-                autoComplete="off"
-                className="flex-1 text-sm outline-none transition-all duration-150"
-                style={{
-                  background: '#F5F0E8',
-                  border: '1px solid rgba(0,0,0,0.08)',
-                  borderRadius: '50px',
-                  padding: '10px 18px',
-                  color: '#1a1a1a',
-                  boxShadow: 'none',
-                }}
-                onFocus={(e)  => { e.target.style.boxShadow = '0 0 0 2.5px rgba(26,61,43,0.18)'; }}
-                onBlur={(e)   => { e.target.style.boxShadow = 'none'; }}
-              />
-              <button
-                type="submit"
-                disabled={!draft.trim() || sending}
-                aria-label="Envoyer"
-                className="shrink-0 h-10 w-10 rounded-full flex items-center justify-center transition-all duration-150"
-                style={{
-                  background: draft.trim() && !sending ? '#1A3D2B' : '#E8E0D4',
-                  boxShadow: draft.trim() && !sending ? '0 2px 10px rgba(26,61,43,0.3)' : 'none',
-                  transform: draft.trim() && !sending ? 'scale(1)' : 'scale(0.95)',
-                }}
-                onMouseEnter={(e) => { if (draft.trim() && !sending) e.currentTarget.style.transform = 'scale(1.06)'; }}
-                onMouseLeave={(e) => { if (draft.trim() && !sending) e.currentTarget.style.transform = 'scale(1)'; }}
+              {/* Emoji picker — floats above the input bar */}
+              {showEmoji && (
+                <div
+                  ref={emojiRef}
+                  className="absolute bottom-[70px] left-4 z-50"
+                >
+                  <EmojiPicker
+                    onEmojiClick={handleEmojiClick}
+                    skinTonesDisabled
+                    searchDisabled={false}
+                    height={340}
+                    width={300}
+                  />
+                </div>
+              )}
+
+              <form
+                onSubmit={handleSend}
+                className="flex items-center gap-2 px-4 py-3"
               >
-                <Send
-                  className="h-4 w-4"
-                  style={{ color: draft.trim() && !sending ? '#ffffff' : '#A89878', transform: 'translateX(1px)' }}
+                {/* Emoji toggle button */}
+                <button
+                  type="button"
+                  onClick={() => setShowEmoji((v) => !v)}
+                  aria-label="Emojis"
+                  className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center transition-colors"
+                  style={{
+                    background: showEmoji ? 'rgba(26,61,43,0.12)' : 'transparent',
+                    color: showEmoji ? '#1A3D2B' : '#A89878',
+                  }}
+                >
+                  <Smile className="h-5 w-5" />
+                </button>
+
+                <input
+                  ref={inputRef}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Écrire un message…"
+                  disabled={sending}
+                  autoComplete="off"
+                  className="flex-1 text-sm outline-none transition-all duration-150"
+                  style={{
+                    background: '#F5F0E8',
+                    border: '1px solid rgba(0,0,0,0.08)',
+                    borderRadius: '50px',
+                    padding: '10px 18px',
+                    color: '#1a1a1a',
+                    boxShadow: 'none',
+                  }}
+                  onFocus={(e)  => { e.target.style.boxShadow = '0 0 0 2.5px rgba(26,61,43,0.18)'; }}
+                  onBlur={(e)   => { e.target.style.boxShadow = 'none'; }}
                 />
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={!draft.trim() || sending}
+                  aria-label="Envoyer"
+                  className="shrink-0 h-10 w-10 rounded-full flex items-center justify-center transition-all duration-150"
+                  style={{
+                    background: draft.trim() && !sending ? '#1A3D2B' : '#E8E0D4',
+                    boxShadow: draft.trim() && !sending ? '0 2px 10px rgba(26,61,43,0.3)' : 'none',
+                    transform: draft.trim() && !sending ? 'scale(1)' : 'scale(0.95)',
+                  }}
+                  onMouseEnter={(e) => { if (draft.trim() && !sending) e.currentTarget.style.transform = 'scale(1.06)'; }}
+                  onMouseLeave={(e) => { if (draft.trim() && !sending) e.currentTarget.style.transform = 'scale(1)'; }}
+                >
+                  <Send
+                    className="h-4 w-4"
+                    style={{ color: draft.trim() && !sending ? '#ffffff' : '#A89878', transform: 'translateX(1px)' }}
+                  />
+                </button>
+              </form>
+            </div>
           </>
         )}
       </div>

@@ -1,0 +1,93 @@
+{
+  "nav": {
+    "sessions": "Sessions",
+    "calendar": "Calendrier",
+    "clubs": "Clubs",
+    "history": "Historique",
+    "messages": "Messages",
+    "profile": "Mon Profil",
+    "notifications": "Notifications",
+    "logout": "Se déconnecter"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "signup": "Créer un compte",
+    "logout": "Se déconnecter",
+    "email": "Email",
+    "password": "Mot de passe",
+    "confirmPassword": "Confirmer le mot de passe",
+    "firstName": "Prénom",
+    "lastName": "Nom",
+    "noAccount": "Pas encore de compte ?",
+    "alreadyAccount": "Déjà un compte ?",
+    "chooseRole": "Choisir mon rôle",
+    "connect": "Connexion…",
+    "creating": "Création…"
+  },
+  "landing": {
+    "player": "Je suis joueur",
+    "manager": "Je suis gérant",
+    "coach": "Je suis coach",
+    "login": "J'ai déjà un compte — Se connecter"
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "back": "Retour",
+    "loading": "Chargement…",
+    "error": "Une erreur est survenue",
+    "retry": "Réessayer",
+    "close": "Fermer",
+    "yes": "Oui",
+    "no": "Non",
+    "confirm": "Confirmer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "search": "Rechercher",
+    "noResults": "Aucun résultat"
+  },
+  "profile": {
+    "title": "Mon Profil",
+    "settings": "Paramètres",
+    "changePassword": "Changer le mot de passe",
+    "deleteAccount": "Supprimer mon compte",
+    "privacy": "Politique de confidentialité",
+    "language": "Langue",
+    "balance": "Mon solde",
+    "recharge": "Recharger",
+    "level": "Niveau",
+    "style": "Style de jeu",
+    "bio": "Biographie",
+    "notConfigured": "Profil non configuré"
+  },
+  "sessions": {
+    "title": "Sessions",
+    "create": "Créer une session",
+    "join": "Rejoindre",
+    "open": "Ouvert",
+    "full": "Complet",
+    "cancelled": "Annulé",
+    "noSessions": "Aucune session disponible"
+  },
+  "messages": {
+    "title": "Messages",
+    "placeholder": "Écrire un message…",
+    "noConversations": "Aucune conversation",
+    "startConversation": "Sélectionnez une conversation",
+    "send": "Envoyer",
+    "you": "Vous",
+    "online": "En ligne"
+  },
+  "clubs": {
+    "title": "Clubs",
+    "venues": "terrains",
+    "openMaps": "Ouvrir dans Google Maps",
+    "location": "Localisation"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Tout marquer comme lu",
+    "noNotifications": "Aucune notification"
+  }
+}

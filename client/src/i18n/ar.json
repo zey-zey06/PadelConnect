@@ -1,0 +1,93 @@
+{
+  "nav": {
+    "sessions": "الجلسات",
+    "calendar": "التقويم",
+    "clubs": "النوادي",
+    "history": "السجل",
+    "messages": "الرسائل",
+    "profile": "ملفي الشخصي",
+    "notifications": "الإشعارات",
+    "logout": "تسجيل الخروج"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "signup": "إنشاء حساب",
+    "logout": "تسجيل الخروج",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "firstName": "الاسم الأول",
+    "lastName": "اسم العائلة",
+    "noAccount": "ليس لديك حساب بعد؟",
+    "alreadyAccount": "لديك حساب بالفعل؟",
+    "chooseRole": "اختر دورك",
+    "connect": "جارٍ الاتصال…",
+    "creating": "جارٍ الإنشاء…"
+  },
+  "landing": {
+    "player": "أنا لاعب",
+    "manager": "أنا مدير نادٍ",
+    "coach": "أنا مدرب",
+    "login": "لدي حساب بالفعل — تسجيل الدخول"
+  },
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "back": "رجوع",
+    "loading": "جارٍ التحميل…",
+    "error": "حدث خطأ",
+    "retry": "إعادة المحاولة",
+    "close": "إغلاق",
+    "yes": "نعم",
+    "no": "لا",
+    "confirm": "تأكيد",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "add": "إضافة",
+    "search": "بحث",
+    "noResults": "لا توجد نتائج"
+  },
+  "profile": {
+    "title": "ملفي الشخصي",
+    "settings": "الإعدادات",
+    "changePassword": "تغيير كلمة المرور",
+    "deleteAccount": "حذف حسابي",
+    "privacy": "سياسة الخصوصية",
+    "language": "اللغة",
+    "balance": "رصيدي",
+    "recharge": "إعادة الشحن",
+    "level": "المستوى",
+    "style": "أسلوب اللعب",
+    "bio": "نبذة عني",
+    "notConfigured": "الملف غير مكتمل"
+  },
+  "sessions": {
+    "title": "الجلسات",
+    "create": "إنشاء جلسة",
+    "join": "الانضمام",
+    "open": "مفتوح",
+    "full": "ممتلئ",
+    "cancelled": "ملغى",
+    "noSessions": "لا توجد جلسات متاحة"
+  },
+  "messages": {
+    "title": "الرسائل",
+    "placeholder": "اكتب رسالة…",
+    "noConversations": "لا توجد محادثات",
+    "startConversation": "اختر محادثة",
+    "send": "إرسال",
+    "you": "أنت",
+    "online": "متصل"
+  },
+  "clubs": {
+    "title": "النوادي",
+    "venues": "ملاعب",
+    "openMaps": "فتح في خرائط جوجل",
+    "location": "الموقع"
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "markAllRead": "تحديد الكل كمقروء",
+    "noNotifications": "لا توجد إشعارات"
+  }
+}
