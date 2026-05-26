@@ -17,8 +17,9 @@ import { Badge } from '@/components/ui/badge';
 import {
   Users, Plus, AlertCircle, X,
   CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2, Calendar,
-  ChevronLeft, ChevronRight, Banknote, CreditCard,
+  ChevronLeft, ChevronRight, Banknote, CreditCard, Share2,
 } from 'lucide-react';
+import ShareContactPicker from '@/components/ShareContactPicker';
 import { useAuth, usePlayerPanel } from '@/App';
 import { cn } from '@/lib/utils';
 import PageSkeleton from '@/components/PageSkeleton';
@@ -192,6 +193,7 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked }) {
   const [state, setState] = useState('idle'); // idle | loading | done | error
   const [msg,   setMsg]   = useState('');
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
+  const [showSharePicker,   setShowSharePicker]   = useState(false);
 
   const isOwner = user?.id === session.creator_id;
   const filled  = Math.min(session.current_players ?? 0, session.max_players ?? 4);
@@ -392,6 +394,18 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked }) {
             </Button>
           )}
         </div>
+
+        {/* Share */}
+        <div className="flex justify-end pt-0.5">
+          <button
+            type="button"
+            onClick={() => setShowSharePicker(true)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors py-1 px-1 rounded"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            Partager
+          </button>
+        </div>
       </div>
 
       {showTerrainPicker && (
@@ -400,6 +414,21 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked }) {
           bookingMode="free"
           onClose={() => setShowTerrainPicker(false)}
           onBooked={() => { setShowTerrainPicker(false); onBooked?.(); }}
+        />
+      )}
+
+      {showSharePicker && (
+        <ShareContactPicker
+          shareType="session_share"
+          metadata={{
+            session_id:   session.id,
+            date:         session.date?.toString().slice(0, 10),
+            time:         session.time?.slice(0, 5),
+            end_time:     session.end_time?.slice(0, 5),
+            level_min:    session.preferences?.level_min,
+            creator_name: creatorName,
+          }}
+          onClose={() => setShowSharePicker(false)}
         />
       )}
     </article>

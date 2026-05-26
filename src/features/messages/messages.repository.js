@@ -53,10 +53,10 @@ async function getMessagesBetween(userId, partnerId) {
     .select('*');
 }
 
-async function createMessage(senderId, receiverId, content) {
-  const [msg] = await db('messages')
-    .insert({ sender_id: senderId, receiver_id: receiverId, content })
-    .returning('*');
+async function createMessage(senderId, receiverId, content, type = 'text', metadata = null) {
+  const row = { sender_id: senderId, receiver_id: receiverId, content, type };
+  if (metadata !== null) row.metadata = metadata;
+  const [msg] = await db('messages').insert(row).returning('*');
   return msg;
 }
 

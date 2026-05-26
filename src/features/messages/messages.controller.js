@@ -8,6 +8,8 @@ const router = Router();
 
 const sendSchema = Joi.object({
   content: Joi.string().trim().min(1).max(2000).required(),
+  type:     Joi.string().valid('text', 'session_share', 'slot_share').default('text'),
+  metadata: Joi.object().unknown(true).optional(),
 });
 
 // GET /api/messages/conversations
@@ -37,7 +39,8 @@ router.get('/:userId', authenticate, async (req, res, next) => {
 // POST /api/messages/:userId
 router.post('/:userId', authenticate, validate(sendSchema), async (req, res, next) => {
   try {
-    const message = await messagesService.sendMessage(req.user.sub, req.params.userId, req.body.content);
+    const { content, type = 'text', metadata = null } = req.body;
+    const message = await messagesService.sendMessage(req.user.sub, req.params.userId, content, type, metadata);
     res.status(201).json({ message });
   } catch (err) { next(err); }
 });

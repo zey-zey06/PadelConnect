@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Send, ArrowLeft, AlertCircle, Smile } from 'lucide-react';
+import { Send, ArrowLeft, AlertCircle, Smile, Calendar, Clock, Building2 } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import { getConversations, getMessages, sendMessage, markAsRead } from '@/api/messages';
 import { getUserProfile } from '@/api/profile';
@@ -112,6 +112,110 @@ function partnerDisplayName(p) {
   if (!p) return 'Joueur';
   if (p.first_name || p.last_name) return `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim();
   return p.username ?? p.email?.split('@')[0] ?? 'Joueur';
+}
+
+// ── Session share bubble ───────────────────────────────────────────────────────
+function SessionShareCard({ msg }) {
+  const navigate = useNavigate();
+  const m        = msg.metadata ?? {};
+  const dateStr  = m.date ? m.date.slice(0, 10) : null;
+  return (
+    <div
+      className="rounded-2xl overflow-hidden border border-border shadow-sm"
+      style={{ maxWidth: '260px', minWidth: '180px' }}
+    >
+      <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ background: '#1A3D2B' }}>
+        <Calendar className="h-3.5 w-3.5 shrink-0 text-white/70" />
+        <span className="text-xs font-semibold text-white">Session partagée</span>
+      </div>
+      <div className="bg-white px-3.5 py-3 space-y-1.5">
+        {m.creator_name && (
+          <p className="text-xs font-semibold" style={{ color: '#111827' }}>{m.creator_name}</p>
+        )}
+        {dateStr && (
+          <p className="text-xs flex items-center gap-1" style={{ color: '#6B7280' }}>
+            <Clock className="h-3 w-3 shrink-0" />
+            {new Date(`${dateStr}T00:00:00`).toLocaleDateString('fr-FR', {
+              weekday: 'short', day: 'numeric', month: 'short',
+            })}
+            {m.time && <span>· {m.time.slice(0, 5)}</span>}
+          </p>
+        )}
+        {m.level_min && (
+          <span
+            className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(26,61,43,0.1)', color: '#1A3D2B' }}
+          >
+            Niv. {m.level_min}+
+          </span>
+        )}
+        <button
+          onClick={() => navigate('/sessions')}
+          className="block w-full mt-1.5 py-1.5 rounded-lg text-xs font-semibold text-center transition-colors"
+          style={{ background: 'rgba(26,61,43,0.12)', color: '#1A3D2B' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(26,61,43,0.22)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(26,61,43,0.12)'; }}
+        >
+          Rejoindre →
+        </button>
+      </div>
+      <div className="bg-white px-3.5 pb-2.5 flex justify-end">
+        <span className="text-[10px]" style={{ color: '#9CA3AF' }}>{formatTime(msg.created_at)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Slot share bubble ──────────────────────────────────────────────────────────
+function SlotShareCard({ msg }) {
+  const navigate = useNavigate();
+  const m        = msg.metadata ?? {};
+  const dateStr  = m.date ? m.date.slice(0, 10) : null;
+  return (
+    <div
+      className="rounded-2xl overflow-hidden border border-border shadow-sm"
+      style={{ maxWidth: '260px', minWidth: '180px' }}
+    >
+      <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ background: '#1d4ed8' }}>
+        <Building2 className="h-3.5 w-3.5 shrink-0 text-white/70" />
+        <span className="text-xs font-semibold text-white">Terrain disponible</span>
+      </div>
+      <div className="bg-white px-3.5 py-3 space-y-1.5">
+        {m.club_name && (
+          <p className="text-xs font-semibold" style={{ color: '#111827' }}>{m.club_name}</p>
+        )}
+        {m.venue_name && (
+          <p className="text-xs" style={{ color: '#6B7280' }}>{m.venue_name}</p>
+        )}
+        {dateStr && (
+          <p className="text-xs flex items-center gap-1" style={{ color: '#6B7280' }}>
+            <Clock className="h-3 w-3 shrink-0" />
+            {new Date(`${dateStr}T00:00:00`).toLocaleDateString('fr-FR', {
+              weekday: 'short', day: 'numeric', month: 'short',
+            })}
+            {m.start_time && <span>· {m.start_time} – {m.end_time}</span>}
+          </p>
+        )}
+        {m.price > 0 && (
+          <p className="text-xs font-semibold" style={{ color: '#111827' }}>
+            {Number(m.price).toLocaleString('fr-FR')} FCFA
+          </p>
+        )}
+        <button
+          onClick={() => m.club_id && navigate(`/clubs/${m.club_id}`)}
+          className="block w-full mt-1.5 py-1.5 rounded-lg text-xs font-semibold text-center text-white transition-opacity"
+          style={{ background: '#1d4ed8' }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+        >
+          Réserver →
+        </button>
+      </div>
+      <div className="bg-white px-3.5 pb-2.5 flex justify-end">
+        <span className="text-[10px]" style={{ color: '#9CA3AF' }}>{formatTime(msg.created_at)}</span>
+      </div>
+    </div>
+  );
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -429,6 +533,23 @@ export default function Messages() {
               ) : (
                 messages.map((msg) => {
                   const isMine = msg.sender_id === user?.id;
+
+                  if (msg.type === 'session_share') {
+                    return (
+                      <div key={msg.id} className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
+                        <SessionShareCard msg={msg} />
+                      </div>
+                    );
+                  }
+
+                  if (msg.type === 'slot_share') {
+                    return (
+                      <div key={msg.id} className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
+                        <SlotShareCard msg={msg} />
+                      </div>
+                    );
+                  }
+
                   return (
                     <div key={msg.id} className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
                       <div style={isMine ? SENT_BUBBLE : RECV_BUBBLE}>

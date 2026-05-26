@@ -3,8 +3,9 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Building2, MapPin, Phone, Clock,
   AlertCircle, X, CreditCard, Banknote,
-  CheckCircle2, ChevronLeft, ChevronRight, Calendar, ArrowLeft, Eye,
+  CheckCircle2, ChevronLeft, ChevronRight, Calendar, ArrowLeft, Eye, Share2,
 } from 'lucide-react';
+import ShareContactPicker from '@/components/ShareContactPicker';
 import { getPublicClub, getClubSlots } from '@/api/clubs';
 import { getMySessions }               from '@/api/sessions';
 import { createBooking }               from '@/api/bookings';
@@ -91,7 +92,7 @@ function downloadICS(content, filename) {
 }
 
 // ── Slot button ───────────────────────────────────────────────────────────────
-function SlotBtn({ slot, venueName, clubName, onBook, isMyBooking }) {
+function SlotBtn({ slot, venueName, clubName, onBook, onShare, isMyBooking }) {
   const avail     = slot.status === 'available';
   const cancelled = slot.status === 'cancelled';
 
@@ -119,38 +120,58 @@ function SlotBtn({ slot, venueName, clubName, onBook, isMyBooking }) {
           <Calendar className="h-3 w-3" />
           Calendrier
         </button>
+        <button
+          type="button"
+          onClick={() => onShare?.(slot, venueName)}
+          title="Partager ce créneau"
+          className="flex items-center gap-0.5 text-xs text-green-700 hover:text-green-900 transition-colors"
+        >
+          <Share2 className="h-3 w-3" />
+        </button>
       </div>
     );
   }
 
   return (
-    <button
-      onClick={() => avail && onBook(slot, venueName)}
-      disabled={!avail}
-      title={avail ? `${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}` : undefined}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all select-none',
-        avail     && 'border-green-200 bg-green-50 text-green-800 hover:bg-green-100 hover:shadow-sm cursor-pointer',
-        !avail && !cancelled && 'border-zinc-200 bg-zinc-100 text-zinc-500 cursor-not-allowed',
-        cancelled && 'border-border bg-muted/40 text-muted-foreground line-through cursor-not-allowed opacity-60',
+    <div className="inline-flex items-center gap-1">
+      <button
+        onClick={() => avail && onBook(slot, venueName)}
+        disabled={!avail}
+        title={avail ? `${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}` : undefined}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all select-none',
+          avail     && 'border-green-200 bg-green-50 text-green-800 hover:bg-green-100 hover:shadow-sm cursor-pointer',
+          !avail && !cancelled && 'border-zinc-200 bg-zinc-100 text-zinc-500 cursor-not-allowed',
+          cancelled && 'border-border bg-muted/40 text-muted-foreground line-through cursor-not-allowed opacity-60',
+        )}
+      >
+        {cancelled ? (
+          'Annulé'
+        ) : !avail ? (
+          'Réservé'
+        ) : (
+          <>
+            <Clock className="h-3 w-3 shrink-0" />
+            {slot.start_time?.slice(0, 5)}–{slot.end_time?.slice(0, 5)}
+            {slot.price > 0 && (
+              <span className="ml-1 font-normal opacity-80">
+                | {Number(slot.price).toLocaleString('fr-FR')} FCFA
+              </span>
+            )}
+          </>
+        )}
+      </button>
+      {avail && (
+        <button
+          type="button"
+          onClick={() => onShare?.(slot, venueName)}
+          title="Partager ce créneau"
+          className="inline-flex items-center justify-center rounded-lg border border-green-200 bg-green-50 p-2 text-green-700 hover:bg-green-100 transition-colors"
+        >
+          <Share2 className="h-3 w-3" />
+        </button>
       )}
-    >
-      {cancelled ? (
-        'Annulé'
-      ) : !avail ? (
-        'Réservé'
-      ) : (
-        <>
-          <Clock className="h-3 w-3 shrink-0" />
-          {slot.start_time?.slice(0, 5)}–{slot.end_time?.slice(0, 5)}
-          {slot.price > 0 && (
-            <span className="ml-1 font-normal opacity-80">
-              | {Number(slot.price).toLocaleString('fr-FR')} FCFA
-            </span>
-          )}
-        </>
-      )}
-    </button>
+    </div>
   );
 }
 
@@ -481,9 +502,10 @@ export default function ClubProfile() {
   const [slotsData,    setSlotsData]    = useState(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
 
-  const [booking,   setBooking]   = useState(null);  // { slot, venueName } — opens modal
+  const [booking,   setBooking]   = useState(null);  // { slot, venueName } — opens booking modal
   const [myBooking, setMyBooking] = useState(null);  // booking just made in this session
   const [booked,    setBooked]    = useState(false);
+  const [shareSlot, setShareSlot] = useState(null);  // { slot, venueName } — opens share picker
 
   // Load club info once
   useEffect(() => {
@@ -767,6 +789,7 @@ export default function ClubProfile() {
                               clubName={club.name}
                               isMyBooking={myBooking?.venue_slot_id === slot.id}
                               onBook={(s, name) => setBooking({ slot: s, venueName: name })}
+                              onShare={(s, name) => setShareSlot({ slot: s, venueName: name })}
                             />
                           )
                         ))}
@@ -797,6 +820,23 @@ export default function ClubProfile() {
               .finally(() => setSlotsLoading(false));
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
+        />
+      )}
+
+      {/* ── Share contact picker ─────────────────────────────────────────── */}
+      {shareSlot && (
+        <ShareContactPicker
+          shareType="slot_share"
+          metadata={{
+            club_id:    club.id,
+            club_name:  club.name,
+            venue_name: shareSlot.venueName,
+            date:       selectedDate,
+            start_time: shareSlot.slot.start_time?.slice(0, 5),
+            end_time:   shareSlot.slot.end_time?.slice(0, 5),
+            price:      shareSlot.slot.price,
+          }}
+          onClose={() => setShareSlot(null)}
         />
       )}
     </div>

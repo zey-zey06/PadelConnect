@@ -8,8 +8,8 @@ async function getMessages(userId, partnerId) {
   return messagesRepo.getMessagesBetween(userId, partnerId);
 }
 
-async function sendMessage(senderId, receiverId, content) {
-  return messagesRepo.createMessage(senderId, receiverId, content.trim());
+async function sendMessage(senderId, receiverId, content, type = 'text', metadata = null) {
+  return messagesRepo.createMessage(senderId, receiverId, content.trim(), type, metadata);
 }
 
 async function markAsRead(userId, partnerId) {
