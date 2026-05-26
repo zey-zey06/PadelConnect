@@ -215,7 +215,7 @@ async function fillMissingSlots() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dates = [];
-  for (let d = 0; d < 60; d++) {
+  for (let d = 0; d < 90; d++) {
     const dt = new Date(today);
     dt.setDate(today.getDate() + d);
     dates.push(dt.toISOString().slice(0, 10));
