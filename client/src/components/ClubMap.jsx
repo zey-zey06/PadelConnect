@@ -46,6 +46,7 @@ export function SingleClubMap({ lat, lng, clubName, className = '' }) {
 const ABIDJAN_CENTER = [5.3453, -4.0242];
 
 export function MultiClubMap({ clubs, onClubClick, className = '' }) {
+  const [ready, setReady] = useState(false);
   const withCoords = clubs.filter((c) => c.latitude != null && c.longitude != null);
 
   let center = ABIDJAN_CENTER;
@@ -62,8 +63,6 @@ export function MultiClubMap({ clubs, onClubClick, className = '' }) {
       </div>
     );
   }
-
-  const [ready, setReady] = useState(false);
 
   return (
     <div className={`relative z-0 h-96 rounded-xl overflow-hidden border border-border ${className}`}>
