@@ -241,10 +241,9 @@ export default function App() {
           {/* ── Catch-all: role-aware redirect ──────────────────────── */}
           <Route path="*" element={<DefaultRedirect />} />
         </Routes>
+        {/* ── Global player profile slide panel ─────────────────────────── */}
+        <PlayerProfilePanel userId={panelUserId} onClose={closePlayerPanel} />
       </BrowserRouter>
-
-      {/* ── Global player profile slide panel ─────────────────────────── */}
-      <PlayerProfilePanel userId={panelUserId} onClose={closePlayerPanel} />
 
       </PlayerPanelContext.Provider>
     </AuthContext.Provider>
