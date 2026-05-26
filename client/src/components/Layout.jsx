@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Bell, LogOut, Menu, X, User, Sparkles } from 'lucide-react';
-import { useAuth } from '@/App';
+import { Bell, LogOut, Menu, X, User, Sparkles, ChevronLeft } from 'lucide-react';
+import { useAuth, usePlayerPanel } from '@/App';
 import { logout } from '@/api/auth';
+import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { getUnreadCount } from '@/api/notifications';
 import { getUnreadMsgCount } from '@/api/messages';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ const ADMIN_NAV = [
 
 export default function Layout({ children }) {
   const { user, setUser, profile } = useAuth();
+  const { panelUserId } = usePlayerPanel();
   const NAV_LINKS =
     user?.role === 'venue_admin' ? MANAGER_NAV :
     user?.role === 'super_admin' ? ADMIN_NAV :
@@ -55,6 +57,13 @@ export default function Layout({ children }) {
   const [unreadCount,    setUnreadCount]    = useState(0);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
   const [piaOpen, setPiaOpen]               = useState(false);
+
+  const swipeEnabled =
+    location.pathname !== '/sessions' &&
+    !panelUserId &&
+    !piaOpen &&
+    !mobileOpen;
+  const { indicatorRef } = useSwipeBack({ enabled: swipeEnabled });
 
   useEffect(() => {
     getUnreadCount()
@@ -246,6 +255,18 @@ export default function Layout({ children }) {
 
       {/* ── Mobile bottom navigation (players + coaches only) ───────────── */}
       {showBottomNav && <BottomNav unreadMsgCount={unreadMsgCount} />}
+
+      {/* ── Swipe-back edge indicator (mobile only) ─────────────────────── */}
+      <div
+        ref={indicatorRef}
+        className="fixed left-0 top-1/2 z-50 pointer-events-none md:hidden"
+        style={{ opacity: 0, transform: 'translateY(-50%) translateX(-4px)' }}
+        aria-hidden="true"
+      >
+        <div className="flex items-center justify-center w-8 h-14 bg-black/20 rounded-r-2xl backdrop-blur-sm">
+          <ChevronLeft className="h-4 w-4 text-white" />
+        </div>
+      </div>
     </div>
   );
 }
