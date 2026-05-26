@@ -60,7 +60,10 @@ const ROLE_LABEL = {
   ball_picker: 'Ramasseur', super_admin: 'Super Admin',
 };
 const PENALTY_LABEL = {
-  app_ban: 'Ban app', club_ban: 'Ban club', no_show: 'No-show',
+  app_ban:     'Ban app',
+  club_ban:    'Ban club',
+  no_show:     'No-show',
+  late_cancel: 'Annulation tardive',
 };
 
 function ErrorBanner({ message }) {
