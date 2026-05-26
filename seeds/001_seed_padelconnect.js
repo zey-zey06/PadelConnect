@@ -60,7 +60,8 @@ exports.seed = async function (knex) {
   await knex('users').del();
   await knex('organizations').del();
 
-  const now = new Date();
+  const now          = new Date();
+  const trialEndsAt  = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 days
   const hash      = await bcrypt.hash('Password123!', BCRYPT_COST);
   const adminHash = await bcrypt.hash('Admin2026!',   BCRYPT_COST);
 
@@ -71,6 +72,8 @@ exports.seed = async function (knex) {
       name: 'Elite Padel Club',
       slug: 'elite-padel',
       status: 'active',
+      subscription_status: 'active',
+      trial_ends_at: trialEndsAt,
       address:   'Zone 3, Marcory, Abidjan',
       latitude:  5.2986175,
       longitude: -3.9889973,
@@ -82,6 +85,8 @@ exports.seed = async function (knex) {
       name: 'Cocody Padel Academy',
       slug: 'cocody-padel',
       status: 'active',
+      subscription_status: 'active',
+      trial_ends_at: trialEndsAt,
       latitude:  5.3657,
       longitude: -3.9744,
       created_at: now,
