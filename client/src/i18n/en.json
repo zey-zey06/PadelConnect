@@ -7,7 +7,10 @@
     "messages": "Messages",
     "profile": "My Profile",
     "notifications": "Notifications",
-    "logout": "Log out"
+    "logout": "Log out",
+    "mySpace": "My Space",
+    "dashboard": "Dashboard",
+    "myClub": "My Club"
   },
   "auth": {
     "login": "Log in",

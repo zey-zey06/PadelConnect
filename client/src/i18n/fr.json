@@ -7,7 +7,10 @@
     "messages": "Messages",
     "profile": "Mon Profil",
     "notifications": "Notifications",
-    "logout": "Se déconnecter"
+    "logout": "Se déconnecter",
+    "mySpace": "Mon espace",
+    "dashboard": "Tableau de bord",
+    "myClub": "Mon Club"
   },
   "auth": {
     "login": "Se connecter",

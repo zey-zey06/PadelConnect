@@ -600,39 +600,57 @@ export default function ProfileSetup() {
               {/* Photo upload */}
               <div className="space-y-3">
                 <Label>Photo de profil</Label>
-                <label
-                  htmlFor="photo-upload"
-                  className="group flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-muted/20 p-8 cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent"
-                >
-                  {photoPreview ? (
+
+                {/* Preview */}
+                {photoPreview && (
+                  <div className="flex justify-center">
                     <img
                       src={photoPreview}
                       alt="Aperçu"
                       className="w-24 h-24 rounded-full object-cover ring-4 ring-border"
                     />
-                  ) : (
-                    <>
-                      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-accent transition-colors">
-                        <Upload className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-medium text-foreground/80">
-                          Cliquez pour choisir une photo
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          JPG, PNG ou WEBP — max 5 Mo
-                        </p>
-                      </div>
-                    </>
-                  )}
-                  <input
-                    id="photo-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handlePhotoChange}
-                  />
-                </label>
+                  </div>
+                )}
+
+                {/* Two-button chooser */}
+                <div className="grid grid-cols-2 gap-3">
+                  <label
+                    htmlFor="photo-gallery"
+                    className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/20 p-5 cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent text-center"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                      <Upload className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <p className="text-xs font-medium text-foreground/80 leading-tight">Choisir depuis la galerie</p>
+                    <input
+                      id="photo-gallery"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePhotoChange}
+                    />
+                  </label>
+
+                  <label
+                    htmlFor="photo-camera"
+                    className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/20 p-5 cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent text-center"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                      <span className="text-base">📷</span>
+                    </div>
+                    <p className="text-xs font-medium text-foreground/80 leading-tight">Prendre une photo</p>
+                    <input
+                      id="photo-camera"
+                      type="file"
+                      accept="image/*"
+                      capture="user"
+                      className="hidden"
+                      onChange={handlePhotoChange}
+                    />
+                  </label>
+                </div>
+
+                <p className="text-xs text-muted-foreground text-center">JPG, PNG ou WEBP — max 5 Mo</p>
                 {photoPreview && (
                   <button
                     type="button"

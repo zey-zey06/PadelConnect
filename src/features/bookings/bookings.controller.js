@@ -7,7 +7,7 @@ const bookingsService = require('./bookings.service');
 const createBookingSchema = Joi.object({
   session_id:     Joi.string().uuid().required(),
   venue_slot_id:  Joi.string().uuid().required(),
-  payment_method: Joi.string().valid('card', 'on_arrival', 'wave', 'orange_money').optional().default('on_arrival'),
+  payment_method: Joi.string().valid('card', 'on_arrival', 'wave', 'orange_money', 'balance').optional().default('on_arrival'),
   payment_phone:  Joi.string().optional().allow('', null),
   addons: Joi.array().items(
     Joi.object({

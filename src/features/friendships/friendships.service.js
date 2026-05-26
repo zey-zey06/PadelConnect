@@ -24,12 +24,13 @@ async function sendRequest(requesterId, addresseeId) {
   }
   const friendship = await repo.sendRequest(requesterId, addresseeId);
 
-  // Non-blocking notification
+  // Non-blocking notification — carry actor_id so the UI can show Accept/Refuse
   displayName(requesterId).then((name) =>
     notificationsService.createNotification(
       addresseeId,
       'friend_request',
       `${name} vous a envoyé une demande d'ami.`,
+      requesterId,
     )
   ).catch(() => {});
 

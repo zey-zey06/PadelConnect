@@ -93,10 +93,11 @@ export default function Signup() {
         is_ball_picker: selectedRole === 'coach' ? isBallPicker : false,
       });
       setUser(data.user);
-      navigate(
-        data.user.role === 'player' ? '/profile/setup' : homeFor(data.user),
-        { replace: true },
-      );
+      const dest =
+        data.user.role === 'player' ? '/profile/setup' :
+        data.user.role === 'coach'  ? '/coach/setup'   :
+        homeFor(data.user);
+      navigate(dest, { replace: true });
     } catch (err) {
       setError(err.message || 'Erreur lors de la création du compte.');
     } finally {

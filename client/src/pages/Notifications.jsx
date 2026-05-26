@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getNotifications, markAsRead } from '@/api/notifications';
+import { acceptFriendRequest, refuseFriendRequest } from '@/api/friends';
 import { Button } from '@/components/ui/button';
-import { Bell, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Bell, CheckCircle2, AlertCircle, UserCheck, UserX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PageSkeleton from '@/components/PageSkeleton';
 
@@ -61,6 +62,25 @@ export default function Notifications() {
       );
     } catch {
       // non-fatal
+    }
+  }
+
+  const [friendActionLoading, setFriendActionLoading] = useState({});
+
+  async function handleFriendAction(notifId, actorId, action) {
+    setFriendActionLoading((prev) => ({ ...prev, [notifId]: action }));
+    try {
+      if (action === 'accept') {
+        await acceptFriendRequest(actorId);
+      } else {
+        await refuseFriendRequest(actorId);
+      }
+      // Remove notification after action
+      setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+    } catch {
+      // non-fatal
+    } finally {
+      setFriendActionLoading((prev) => { const next = { ...prev }; delete next[notifId]; return next; });
     }
   }
 
@@ -150,7 +170,37 @@ export default function Notifications() {
                     </Button>
                   </Link>
                 )}
-                {!n.read && (
+                {n.type === 'friend_request' && n.actor_id && (
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="text-xs h-7 px-2 gap-1 bg-green-600 hover:bg-green-700"
+                      disabled={!!friendActionLoading[n.id]}
+                      onClick={() => handleFriendAction(n.id, n.actor_id, 'accept')}
+                    >
+                      {friendActionLoading[n.id] === 'accept'
+                        ? <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin" />
+                        : <UserCheck className="h-3 w-3" />
+                      }
+                      Accepter
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7 px-2 gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                      disabled={!!friendActionLoading[n.id]}
+                      onClick={() => handleFriendAction(n.id, n.actor_id, 'refuse')}
+                    >
+                      {friendActionLoading[n.id] === 'refuse'
+                        ? <span className="w-3 h-3 border border-red-400/50 border-t-transparent rounded-full animate-spin" />
+                        : <UserX className="h-3 w-3" />
+                      }
+                      Refuser
+                    </Button>
+                  </div>
+                )}
+                {!n.read && n.type !== 'friend_request' && (
                   <Button
                     size="sm"
                     variant="ghost"

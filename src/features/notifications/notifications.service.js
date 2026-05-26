@@ -10,9 +10,9 @@ function makeError(status, message) {
  * Fire-and-forget notification creation.
  * Errors are caught internally — never blocks the caller.
  */
-async function createNotification(userId, type, message) {
+async function createNotification(userId, type, message, actorId = null) {
   try {
-    return await notificationsRepo.create({ user_id: userId, type, message });
+    return await notificationsRepo.create({ user_id: userId, type, message, actor_id: actorId || undefined });
   } catch {
     // Non-fatal: notification failure must never block business operations
   }

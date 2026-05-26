@@ -386,6 +386,10 @@ async function chatHandler(req, res, next) {
 
     return res.json({ response, conversation_id: conversation.id });
   } catch (err) {
+    console.error('[PIA] Gemini error:', err?.message ?? err, 'status:', err?.status ?? 'unknown');
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('[PIA] GEMINI_API_KEY is not set — check environment variables.');
+    }
     if (!res.headersSent) {
       return res.json({
         response: 'Désolée, je rencontre des difficultés techniques. Veuillez réessayer dans un instant. 🎾',

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { setLanguage } from '@/i18n/i18n';
 import { useAuth } from '@/App';
 import { getProfile, updateProfile, uploadPhoto, uploadCoverPhoto, updateUsername } from '@/api/profile';
@@ -839,12 +840,10 @@ const LANGUAGES = [
 ];
 
 function LanguageSelector() {
-  const [current, setCurrent] = useState(
-    () => localStorage.getItem('padelconnect_lang') || 'fr'
-  );
+  const { i18n } = useTranslation();
+  const current = i18n.language?.slice(0, 2) || localStorage.getItem('padelconnect_lang') || 'fr';
 
   function handleSelect(code) {
-    setCurrent(code);
     setLanguage(code);
   }
 

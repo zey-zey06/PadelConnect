@@ -11,6 +11,7 @@ import Calendar         from '@/pages/Calendar';
 import Clubs            from '@/pages/Clubs';
 import Notifications    from '@/pages/Notifications';
 import CoachDashboard   from '@/pages/CoachDashboard';
+import CoachSetup       from '@/pages/CoachSetup';
 import ManagerDashboard from '@/pages/manager/ManagerDashboard';
 import SlotManager      from '@/pages/manager/SlotManager';
 import ClubSetup        from '@/pages/manager/ClubSetup';
@@ -220,6 +221,7 @@ export default function App() {
           <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
 
           {/* ── Coach ───────────────────────────────────────────────── */}
+          <Route path="/coach/setup"     element={<CoachRoute><CoachSetup /></CoachRoute>} />
           <Route path="/coach/dashboard" element={<CoachRoute><Layout><CoachDashboard /></Layout></CoachRoute>} />
 
           {/* ── Manager — setup (venue_admin, no org required) ──────── */}

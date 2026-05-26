@@ -1,16 +1,16 @@
 const db = require('../../db');
 
 async function create(data) {
-  const [row] = await db('notifications')
-    .insert({
-      user_id: data.user_id,
-      type: data.type,
-      message: data.message,
-      read: false,
-      created_at: new Date(),
-    })
-    .returning('*');
-  return row;
+  const row = {
+    user_id: data.user_id,
+    type: data.type,
+    message: data.message,
+    read: false,
+    created_at: new Date(),
+  };
+  if (data.actor_id) row.actor_id = data.actor_id;
+  const [result] = await db('notifications').insert(row).returning('*');
+  return result;
 }
 
 async function getById(id) {

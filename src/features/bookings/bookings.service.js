@@ -1,4 +1,5 @@
 const bookingsRepo = require('./bookings.repository');
+const db = require('../../db');
 const sessionsRepo = require('../sessions/sessions.repository');
 const venuesRepo = require('../venues/venues.repository');
 const clubsRepo = require('../clubs/clubs.repository');
@@ -39,6 +40,18 @@ async function createBooking(userId, { session_id, venue_slot_id, payment_method
   if (venue) {
     const active = await isOrgSubscriptionActive(venue.organization_id);
     if (!active) throw makeError(403, 'Ce club n\'a pas d\'abonnement actif. La réservation est impossible.');
+  }
+
+  // Balance payment: verify and deduct from user's wallet
+  if (payment_method === 'balance') {
+    const slotPrice = slot.price ?? 0;
+    const [userRow] = await db('users').where({ id: userId }).select('balance');
+    if (!userRow) throw makeError(404, 'Utilisateur introuvable.');
+    const currentBalance = Number(userRow.balance ?? 0);
+    if (currentBalance < slotPrice) {
+      throw makeError(422, `Solde insuffisant (${currentBalance.toLocaleString('fr-FR')} FCFA). Rechargez votre compte.`);
+    }
+    await db('users').where({ id: userId }).decrement('balance', slotPrice);
   }
 
   const bookingData = { session_id, venue_slot_id, payment_method };

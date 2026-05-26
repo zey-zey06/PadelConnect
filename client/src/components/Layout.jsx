@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Bell, LogOut, Menu, X, User, Sparkles, ChevronLeft } from 'lucide-react';
 import { useAuth, usePlayerPanel } from '@/App';
@@ -14,40 +15,51 @@ import BottomNav     from '@/components/BottomNav';
 import SearchBar     from '@/components/SearchBar';
 import NetworkStatus from '@/components/NetworkStatus';
 
-const PLAYER_NAV = [
-  { to: '/sessions',  label: 'Sessions'    },
-  { to: '/calendar',  label: 'Calendrier'  },
-  { to: '/clubs',     label: 'Clubs'       },
-  { to: '/history',   label: 'Historique'  },
-  { to: '/messages',  label: 'Messages'    },
-  { to: '/profile',   label: 'Mon Profil'  },
+// Nav link keys — labels resolved at render time via useTranslation()
+const PLAYER_NAV_KEYS = [
+  { to: '/sessions',  key: 'nav.sessions'  },
+  { to: '/calendar',  key: 'nav.calendar'  },
+  { to: '/clubs',     key: 'nav.clubs'     },
+  { to: '/history',   key: 'nav.history'   },
+  { to: '/messages',  key: 'nav.messages'  },
+  { to: '/profile',   key: 'nav.profile'   },
 ];
 
-const COACH_NAV = [
-  { to: '/coach/dashboard', label: 'Mon espace'  },
-  { to: '/sessions',        label: 'Sessions'    },
-  { to: '/clubs',           label: 'Clubs'       },
-  { to: '/profile',         label: 'Mon Profil'  },
+const COACH_NAV_KEYS = [
+  { to: '/coach/dashboard', key: 'nav.mySpace'  },
+  { to: '/sessions',        key: 'nav.sessions' },
+  { to: '/clubs',           key: 'nav.clubs'    },
+  { to: '/profile',         key: 'nav.profile'  },
 ];
 
-const MANAGER_NAV = [
-  { to: '/manager/dashboard', label: 'Tableau de bord' },
-  { to: '/manager/profile',   label: 'Mon Club'        },
+const MANAGER_NAV_KEYS = [
+  { to: '/manager/dashboard', key: 'nav.dashboard' },
+  { to: '/manager/profile',   key: 'nav.myClub'    },
 ];
 
-const ADMIN_NAV = [
-  { to: '/admin/dashboard', label: 'Dashboard' },
-  { to: '/clubs',           label: 'Clubs'     },
+const ADMIN_NAV_KEYS = [
+  { to: '/admin/dashboard', key: 'nav.dashboard' },
+  { to: '/clubs',           key: 'nav.clubs'     },
 ];
 
 export default function Layout({ children }) {
   const { user, setUser, profile } = useAuth();
   const { panelUserId } = usePlayerPanel();
-  const NAV_LINKS =
-    user?.role === 'venue_admin' ? MANAGER_NAV :
-    user?.role === 'super_admin' ? ADMIN_NAV :
-    user?.role === 'coach'       ? COACH_NAV  :
-    PLAYER_NAV;
+  const { t } = useTranslation();
+
+  const NAV_KEY_LIST =
+    user?.role === 'venue_admin' ? MANAGER_NAV_KEYS :
+    user?.role === 'super_admin' ? ADMIN_NAV_KEYS :
+    user?.role === 'coach'       ? COACH_NAV_KEYS  :
+    PLAYER_NAV_KEYS;
+
+  // Resolve translation keys — fall back to static strings if key is missing
+  const NAV_LINKS = NAV_KEY_LIST.map(({ to, key }) => ({
+    to,
+    label: t(key, {
+      defaultValue: key.replace('nav.', ''),
+    }),
+  }));
 
   // Bottom nav is shown only for players and coaches
   const showBottomNav = user?.role === 'player' || user?.role === 'coach';

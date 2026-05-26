@@ -177,6 +177,9 @@ function SlotBtn({ slot, venueName, clubName, onBook, onShare, isMyBooking }) {
 
 // ── Booking modal ─────────────────────────────────────────────────────────────
 function BookingModal({ slot, venueName, onClose, onBooked }) {
+  const { user } = useAuth();
+  const userBalance = Number(user?.balance ?? 0);
+
   const [sessions,        setSessions]        = useState([]);
   const [sessionId,       setSessionId]       = useState('');
   const [paymentMethod,   setPaymentMethod]   = useState('on_arrival');
@@ -352,26 +355,44 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
                 { value: 'card',         label: 'Carte bancaire', Icon: CreditCard, color: null },
                 { value: 'wave',         label: 'Wave',           Icon: null,       color: '#1DC8FF' },
                 { value: 'orange_money', label: 'Orange Money',   Icon: null,       color: '#FF6600' },
+                { value: 'balance',      label: `Solde (${userBalance.toLocaleString('fr-FR')} FCFA)`, Icon: null, color: null },
               ].map(({ value, label, Icon, color }) => {
                 const active = paymentMethod === value;
+                const isBalance = value === 'balance';
+                const insufficient = isBalance && userBalance < (slot.price ?? 0);
                 return (
                   <button
                     key={value}
                     type="button"
-                    onClick={() => setPaymentMethod(value)}
+                    onClick={() => !insufficient && setPaymentMethod(value)}
+                    disabled={insufficient}
                     style={active && color ? { borderColor: color, backgroundColor: `${color}15` } : undefined}
                     className={cn(
                       'flex flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-sm font-medium transition-all',
                       active && !color ? 'border-primary bg-primary/5 text-primary'
-                        : !active ? 'border-border text-foreground/70 hover:border-primary/40'
+                        : !active && !insufficient ? 'border-border text-foreground/70 hover:border-primary/40'
+                        : insufficient ? 'border-border text-muted-foreground/40 cursor-not-allowed opacity-50'
                         : ''
                     )}
                   >
                     {Icon
                       ? <Icon className={cn('h-5 w-5', active ? 'text-primary' : '')} />
-                      : <span className="text-lg leading-none">{value === 'wave' ? '🌊' : '🟠'}</span>
+                      : <span className="text-lg leading-none">
+                          {value === 'wave' ? '🌊' : value === 'orange_money' ? '🟠' : '💰'}
+                        </span>
                     }
-                    <span style={active && color ? { color } : undefined}>{label}</span>
+                    <span style={active && color ? { color } : undefined} className="text-xs text-center leading-tight">
+                      {isBalance ? (
+                        <>
+                          Solde PadelConnect
+                          <br />
+                          <span className={cn('text-[10px]', insufficient ? 'text-red-500' : 'text-muted-foreground')}>
+                            {userBalance.toLocaleString('fr-FR')} FCFA
+                            {insufficient && ' — insuffisant'}
+                          </span>
+                        </>
+                      ) : label}
+                    </span>
                   </button>
                 );
               })}
