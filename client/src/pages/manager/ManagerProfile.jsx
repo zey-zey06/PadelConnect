@@ -360,6 +360,8 @@ function EditForm({ club, onSave, onCancel }) {
     address:     club.address     ?? '',
     phone:       club.phone       ?? '',
     email:       club.email       ?? '',
+    latitude:    club.latitude  != null ? String(club.latitude)  : '',
+    longitude:   club.longitude != null ? String(club.longitude) : '',
   });
   const [amenities, setAmenities] = useState(club.amenities ?? {});
   const [localClub, setLocalClub] = useState(club);
@@ -379,6 +381,8 @@ function EditForm({ club, onSave, onCancel }) {
     setSaving(true); setError(null);
     try {
       const hasAmenities = Object.values(amenities).some(Boolean);
+      const latVal = parseFloat(form.latitude);
+      const lngVal = parseFloat(form.longitude);
       const { club: updated } = await updateClub(club.id, {
         name:        form.name.trim(),
         description: form.description.trim() || null,
@@ -386,6 +390,8 @@ function EditForm({ club, onSave, onCancel }) {
         phone:       form.phone.trim()       || null,
         email:       form.email.trim()       || null,
         amenities:   hasAmenities ? amenities : null,
+        latitude:    form.latitude.trim()  && !isNaN(latVal) ? latVal : null,
+        longitude:   form.longitude.trim() && !isNaN(lngVal) ? lngVal : null,
       });
       onSave(updated);
     } catch (err) {
@@ -477,6 +483,39 @@ function EditForm({ club, onSave, onCancel }) {
                 onChange={set('address')}
                 className="pl-9"
               />
+            </div>
+          </div>
+
+          {/* Coordinates */}
+          <div className="space-y-1.5">
+            <Label>
+              Coordonnées GPS <span className="font-normal text-muted-foreground">(optionnel · pour la carte)</span>
+            </Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-muted-foreground pointer-events-none select-none">LAT</span>
+                <Input
+                  id="e-lat"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="5.3657"
+                  value={form.latitude}
+                  onChange={set('latitude')}
+                  className="pl-11"
+                />
+              </div>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-muted-foreground pointer-events-none select-none">LNG</span>
+                <Input
+                  id="e-lng"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="-3.9744"
+                  value={form.longitude}
+                  onChange={set('longitude')}
+                  className="pl-11"
+                />
+              </div>
             </div>
           </div>
 

@@ -13,6 +13,7 @@ import { Button }  from '@/components/ui/button';
 import { Badge }   from '@/components/ui/badge';
 import { cn }      from '@/lib/utils';
 import { CLUB_AMENITIES } from './manager/ClubSetup';
+import { SingleClubMap } from '@/components/ClubMap';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function todayISO() {
@@ -601,6 +602,28 @@ export default function ClubProfile() {
           )}
         </div>
       </div>
+
+      {/* ── Location map ─────────────────────────────────────────────────── */}
+      {club.latitude != null && club.longitude != null && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" />
+              Localisation
+            </h2>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${club.latitude},${club.longitude}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
+            >
+              Ouvrir dans Google Maps
+              <ChevronRight className="h-3.5 w-3.5" />
+            </a>
+          </div>
+          <SingleClubMap lat={Number(club.latitude)} lng={Number(club.longitude)} clubName={club.name} />
+        </div>
+      )}
 
       {/* ── Suspension banner ───────────────────────────────────────────── */}
       {club.subscription_status === 'suspended' && (

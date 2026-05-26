@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Building2, MapPin, Phone, ChevronRight, Eye, AlertCircle } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Building2, MapPin, Phone, ChevronRight, Eye, AlertCircle, Map, List } from 'lucide-react';
 import { listClubs } from '@/api/clubs';
 import { useAuth } from '@/App';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import PageSkeleton from '@/components/PageSkeleton';
+import { MultiClubMap } from '@/components/ClubMap';
 
 // ── Club card ─────────────────────────────────────────────────────────────────
 function ClubCard({ club, isAdmin }) {
@@ -92,12 +93,14 @@ function ClubCard({ club, isAdmin }) {
 
 // ── Clubs page ────────────────────────────────────────────────────────────────
 export default function Clubs() {
-  const { user } = useAuth();
-  const isAdmin  = user?.role === 'super_admin';
+  const { user }   = useAuth();
+  const navigate   = useNavigate();
+  const isAdmin    = user?.role === 'super_admin';
 
-  const [clubs,   setClubs]   = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+  const [clubs,    setClubs]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
 
   useEffect(() => {
     listClubs()
@@ -108,11 +111,43 @@ export default function Clubs() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Clubs</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Découvrez les clubs partenaires à Abidjan.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Clubs</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Découvrez les clubs partenaires à Abidjan.
+          </p>
+        </div>
+
+        {/* View toggle — only show once loaded and clubs exist */}
+        {!loading && !error && clubs.length > 0 && (
+          <div className="flex items-center rounded-lg border border-border bg-card p-0.5 gap-0.5 shrink-0">
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                viewMode === 'list'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <List className="h-3.5 w-3.5" />
+              Liste
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                viewMode === 'map'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Map className="h-3.5 w-3.5" />
+              Carte
+            </button>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -129,6 +164,12 @@ export default function Clubs() {
             Les fiches des clubs seront disponibles prochainement.
           </p>
         </div>
+      ) : viewMode === 'map' ? (
+        <MultiClubMap
+          clubs={clubs}
+          onClubClick={(id) => navigate(`/clubs/${id}`)}
+          className="w-full"
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {clubs.map((c) => <ClubCard key={c.id} club={c} isAdmin={isAdmin} />)}
