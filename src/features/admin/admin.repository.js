@@ -199,7 +199,9 @@ async function listSanctions(filters = {}) {
 
   return query.select([
     'penalties.*',
-    'users.email as user_email',
+    'users.email      as user_email',
+    'users.first_name as user_first_name',
+    'users.last_name  as user_last_name',
     'organizations.name as club_name',
   ]);
 }

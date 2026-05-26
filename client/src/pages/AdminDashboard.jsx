@@ -659,7 +659,7 @@ function SanctionsTab() {
   }, []);
 
   const bans  = sanctions.filter((s) => ['app_ban', 'club_ban'].includes(s.type));
-  const fines = sanctions.filter((s) => s.type === 'no_show');
+  const fines = sanctions.filter((s) => ['no_show', 'late_cancel'].includes(s.type));
 
   return (
     <div className="space-y-6">
@@ -673,13 +673,14 @@ function SanctionsTab() {
           <option value="app_ban">Ban app</option>
           <option value="club_ban">Ban club</option>
           <option value="no_show">Amendes no-show</option>
+          <option value="late_cancel">Annulation tardive</option>
         </select>
       </div>
 
       {loading ? <Skeleton /> : error ? <ErrorBanner message={error} /> : (
         <>
           {/* Bans */}
-          {(!typeF || typeF !== 'no_show') && (
+          {(!typeF || (typeF !== 'no_show' && typeF !== 'late_cancel')) && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Ban className="h-4 w-4 text-red-500" />
@@ -702,7 +703,9 @@ function SanctionsTab() {
                     <tbody className="divide-y divide-slate-50">
                       {bans.map((s) => (
                         <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-4 py-3 text-slate-700 text-xs font-medium">{s.user_email}</td>
+                          <td className="px-4 py-3 text-slate-700 text-xs font-medium">
+                            {[s.user_first_name, s.user_last_name].filter(Boolean).join(' ') || s.user_email}
+                          </td>
                           <td className="px-4 py-3">
                             <Badge
                               label={PENALTY_LABEL[s.type] ?? s.type}
@@ -730,11 +733,11 @@ function SanctionsTab() {
           )}
 
           {/* Fines */}
-          {(!typeF || typeF === 'no_show') && (
+          {(!typeF || typeF === 'no_show' || typeF === 'late_cancel') && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <ShieldAlert className="h-4 w-4 text-amber-500" />
-                <h3 className="text-sm font-semibold text-slate-700">Amendes no-show ({fines.length})</h3>
+                <h3 className="text-sm font-semibold text-slate-700">Amendes ({fines.length})</h3>
               </div>
               {fines.length === 0 ? (
                 <p className="text-sm text-slate-400 italic">Aucune amende en attente.</p>
@@ -753,7 +756,9 @@ function SanctionsTab() {
                     <tbody className="divide-y divide-slate-50">
                       {fines.map((s) => (
                         <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-4 py-3 text-slate-700 text-xs font-medium">{s.user_email}</td>
+                          <td className="px-4 py-3 text-slate-700 text-xs font-medium">
+                            {[s.user_first_name, s.user_last_name].filter(Boolean).join(' ') || s.user_email}
+                          </td>
                           <td className="px-4 py-3 text-slate-500 text-xs hidden sm:table-cell">{s.club_name ?? '—'}</td>
                           <td className="px-4 py-3 text-slate-700 text-xs font-medium">
                             {s.amount ? `${Number(s.amount).toLocaleString('fr-FR')} FCFA` : '—'}
