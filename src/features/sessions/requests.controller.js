@@ -78,10 +78,19 @@ async function invitePlayerHandler(req, res, next) {
   }
 }
 
+async function myRequestsHandler(req, res, next) {
+  try {
+    const requestsRepo = require('./requests.repository');
+    const sessionIds = await requestsRepo.getSessionIdsByPlayer(req.user.sub);
+    return res.json({ sessionIds });
+  } catch (err) { next(err); }
+}
+
 const router = Router();
-router.post('/:id/requests', authenticate, createRequestHandler);
-router.get('/:id/requests', authenticate, getRequestsHandler);
+router.get('/my-requests',           authenticate, myRequestsHandler);
+router.post('/:id/requests',         authenticate, createRequestHandler);
+router.get('/:id/requests',          authenticate, getRequestsHandler);
 router.patch('/:id/requests/:requestId', authenticate, respondHandler);
-router.post('/:id/invite-player', authenticate, invitePlayerHandler);
+router.post('/:id/invite-player',    authenticate, invitePlayerHandler);
 
 module.exports = router;

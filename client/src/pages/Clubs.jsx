@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Building2, MapPin, Phone, ChevronRight, Eye, AlertCircle, Map, List } from 'lucide-react';
-import { listClubs } from '@/api/clubs';
+import { Building2, MapPin, Phone, ChevronRight, Eye, AlertCircle, Map, List, Heart } from 'lucide-react';
+import { listClubs, toggleClubFavorite, getClubFavoriteStatus } from '@/api/clubs';
 import { useAuth } from '@/App';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,28 @@ function ClubCard({ club, isAdmin }) {
   const venueCount = parseInt(club.venue_count ?? 0, 10);
   const minPrice   = club.min_price != null ? Number(club.min_price) : null;
   const maxPrice   = club.max_price != null ? Number(club.max_price) : null;
+
+  const [favorited, setFavorited] = useState(false);
+  const [favLoading, setFavLoading] = useState(false);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    getClubFavoriteStatus(club.id)
+      .then(({ favorited: f }) => setFavorited(f))
+      .catch(() => {});
+  }, [club.id, isAdmin]);
+
+  const handleFavorite = useCallback(async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (favLoading) return;
+    setFavLoading(true);
+    try {
+      const { favorited: f } = await toggleClubFavorite(club.id);
+      setFavorited(f);
+    } catch { /* non-fatal */ }
+    finally { setFavLoading(false); }
+  }, [club.id, favLoading]);
 
   let priceLabel = null;
   if (minPrice !== null && maxPrice !== null) {
@@ -31,13 +53,23 @@ function ClubCard({ club, isAdmin }) {
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
         <span className={cn(
-          'absolute top-3 right-3 text-xs font-medium px-2 py-0.5 rounded-full',
+          'absolute top-3 left-3 text-xs font-medium px-2 py-0.5 rounded-full',
           club.status === 'active'
             ? 'bg-green-100/90 text-green-700'
             : 'bg-muted/90 text-muted-foreground'
         )}>
           {club.status === 'active' ? 'Actif' : 'Inactif'}
         </span>
+        {!isAdmin && (
+          <button
+            onClick={handleFavorite}
+            disabled={favLoading}
+            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm hover:bg-white transition-colors disabled:opacity-60"
+            aria-label={favorited ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+          >
+            <Heart className={cn('h-4 w-4 transition-colors', favorited ? 'fill-red-500 text-red-500' : 'text-slate-400')} />
+          </button>
+        )}
       </div>
 
       {/* Content */}

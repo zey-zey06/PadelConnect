@@ -190,9 +190,61 @@ clubCoachesRouter.post('/:id/coach-invitations', authenticate, requireRole('venu
 clubCoachesRouter.delete('/:id/coach-invitations/:invId', authenticate, requireRole('venue_admin'), cancelInvitationHandler);
 clubCoachesRouter.delete('/:id/coaches/:userId', authenticate, requireRole('venue_admin'), removeCoachFromClubHandler);
 
+// ─── Ball-picker invitation handlers ─────────────────────────────────────────
+
+async function sendBallPickerInvitationHandler(req, res, next) {
+  try {
+    const { error, value } = invitationSchema.validate(req.body);
+    if (error) return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    const invitation = await coachesService.sendBallPickerInvitation(req.params.id, req.user.organization_id, req.user.sub, value.email);
+    return res.status(201).json({ invitation });
+  } catch (err) { next(err); }
+}
+
+async function getClubBallPickerInvitationsHandler(req, res, next) {
+  try {
+    const invitations = await coachesService.getClubPendingBallPickerInvitations(req.params.id, req.user.organization_id);
+    return res.json({ invitations });
+  } catch (err) { next(err); }
+}
+
+async function getPendingBallPickerInvitationsHandler(req, res, next) {
+  try {
+    const invitations = await coachesService.getPendingBallPickerInvitations(req.user.sub);
+    return res.json({ invitations });
+  } catch (err) { next(err); }
+}
+
+async function respondBallPickerInvitationHandler(req, res, next) {
+  try {
+    const { error, value } = respondInvitationSchema.validate(req.body);
+    if (error) return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    const result = await coachesService.respondToBallPickerInvitation(req.params.id, req.user.sub, value.status);
+    return res.json(result);
+  } catch (err) { next(err); }
+}
+
+// Manager: cancel a ball-picker invitation
+async function cancelBallPickerInvitationHandler(req, res, next) {
+  try {
+    await coachesService.cancelInvitation(req.params.invId, req.user.organization_id);
+    return res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
 // /api/coach-invitations routes (coach role)
 const coachInvitationsRouter = Router();
 coachInvitationsRouter.get('/pending', authenticate, requireRole('coach'), getPendingInvitationsHandler);
 coachInvitationsRouter.patch('/:id', authenticate, requireRole('coach'), respondInvitationHandler);
 
-module.exports = { coachesRouter, clubCoachesRouter, coachInvitationsRouter };
+// /api/ball-picker-invitations routes (any authenticated user)
+const ballPickerInvitationsRouter = Router();
+ballPickerInvitationsRouter.get('/pending', authenticate, getPendingBallPickerInvitationsHandler);
+ballPickerInvitationsRouter.patch('/:id',   authenticate, respondBallPickerInvitationHandler);
+
+// Club-level ball-picker invitation management (venue_admin)
+clubCoachesRouter.get('/:id/ball-picker-invitations',           authenticate, requireRole('venue_admin'), getClubBallPickerInvitationsHandler);
+clubCoachesRouter.post('/:id/ball-picker-invitations',          authenticate, requireRole('venue_admin'), sendBallPickerInvitationHandler);
+clubCoachesRouter.delete('/:id/ball-picker-invitations/:invId', authenticate, requireRole('venue_admin'), cancelBallPickerInvitationHandler);
+
+module.exports = { coachesRouter, clubCoachesRouter, coachInvitationsRouter, ballPickerInvitationsRouter };

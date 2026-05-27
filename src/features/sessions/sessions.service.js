@@ -2,6 +2,7 @@ const sessionsRepo = require('./sessions.repository');
 const bookingsRepo = require('../bookings/bookings.repository');
 const venuesRepo   = require('../venues/venues.repository');
 const clubsRepo    = require('../clubs/clubs.repository');
+const adminRepo    = require('../admin/admin.repository');
 const notificationsService = require('../notifications/notifications.service');
 const { sendBookingCancellation } = require('../../emails/cancellation');
 
@@ -77,6 +78,14 @@ async function updateStatus(sessionId, userId, status) {
 
         await sendBookingCancellation({ booking, session }).catch(() => {});
       }
+
+      // Notify super_admins (fire-and-forget)
+      adminRepo.getSuperAdmins().then((admins) => {
+        const msg = `Session annulée le ${session.date} à ${session.time?.slice(0, 5)} (ID: ${sessionId})`;
+        return Promise.allSettled(
+          admins.map((a) => notificationsService.createNotification(a.id, 'session_cancelled_admin', msg))
+        );
+      }).catch(() => {});
     } catch {
       // Non-fatal
     }

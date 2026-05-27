@@ -158,4 +158,99 @@ async function removeBallPicker(clubId, userOrgId, userId) {
   return clubsRepo.removeBallPicker(userId);
 }
 
-module.exports = { createClub, listClubs, getClub, updateClub, updateLogo, updateCover, getPublicClub, addPhoto, removePhoto, getClubSlots, getBallPickers, createBallPicker, removeBallPicker };
+// ── Favorites ─────────────────────────────────────────────────────────────────
+
+async function toggleFavorite(clubId, userId) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) { const e = new Error('Club introuvable.'); e.status = 404; throw e; }
+  const already = await clubsRepo.isFavorite(userId, clubId);
+  if (already) {
+    await clubsRepo.removeFavorite(userId, clubId);
+    return { favorited: false };
+  }
+  await clubsRepo.addFavorite(userId, clubId);
+  return { favorited: true };
+}
+
+async function getFavoriteClubs(userId) {
+  return clubsRepo.getFavoritesByUser(userId);
+}
+
+async function getClubFavoriteStatus(clubId, userId) {
+  const [favorited, count] = await Promise.all([
+    clubsRepo.isFavorite(userId, clubId),
+    clubsRepo.getFavoritesCount(clubId),
+  ]);
+  return { favorited, favorites_count: count };
+}
+
+// ── Subscriptions ─────────────────────────────────────────────────────────────
+
+async function toggleSubscription(clubId, userId) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) { const e = new Error('Club introuvable.'); e.status = 404; throw e; }
+  const already = await clubsRepo.isSubscribed(userId, clubId);
+  if (already) {
+    await clubsRepo.removeSubscription(userId, clubId);
+    return { subscribed: false };
+  }
+  await clubsRepo.addSubscription(userId, clubId);
+  return { subscribed: true };
+}
+
+async function getClubSubscriptionStatus(clubId, userId) {
+  const [subscribed, count] = await Promise.all([
+    clubsRepo.isSubscribed(userId, clubId),
+    clubsRepo.getSubscribersCount(clubId),
+  ]);
+  return { subscribed, subscribers_count: count };
+}
+
+// ── Posts ─────────────────────────────────────────────────────────────────────
+
+async function createClubPost(clubId, userOrgId, { content, photos }) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) { const e = new Error('Club introuvable.'); e.status = 404; throw e; }
+  if (club.id !== userOrgId) { const e = new Error('Accès refusé.'); e.status = 403; throw e; }
+
+  const post = await clubsRepo.createPost({
+    organization_id: club.id,
+    content,
+    photos: JSON.stringify(Array.isArray(photos) ? photos : []),
+  });
+
+  // Notify subscribers (fire-and-forget)
+  notifySubscribers(club, post).catch(() => {});
+
+  return post;
+}
+
+async function notifySubscribers(club, post) {
+  const notificationsService = require('../notifications/notifications.service');
+  const subscriberIds = await clubsRepo.getSubscriberIds(club.id);
+  const msg = `${club.name} a publié un nouveau post.`;
+  await Promise.allSettled(
+    subscriberIds.map((uid) => notificationsService.createNotification(uid, 'club_post', msg))
+  );
+}
+
+async function getClubPosts(clubId) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) { const e = new Error('Club introuvable.'); e.status = 404; throw e; }
+  return clubsRepo.getPostsByOrg(clubId);
+}
+
+async function deleteClubPost(clubId, postId, userOrgId) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) { const e = new Error('Club introuvable.'); e.status = 404; throw e; }
+  if (club.id !== userOrgId) { const e = new Error('Accès refusé.'); e.status = 403; throw e; }
+  await clubsRepo.deletePost(postId, clubId);
+}
+
+module.exports = {
+  createClub, listClubs, getClub, updateClub, updateLogo, updateCover, getPublicClub, addPhoto, removePhoto,
+  getClubSlots, getBallPickers, createBallPicker, removeBallPicker,
+  toggleFavorite, getFavoriteClubs, getClubFavoriteStatus,
+  toggleSubscription, getClubSubscriptionStatus,
+  createClubPost, getClubPosts, deleteClubPost,
+};

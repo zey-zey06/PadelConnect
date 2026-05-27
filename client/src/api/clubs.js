@@ -24,3 +24,17 @@ export const getPublicClub = (id) => client.get(`/clubs/${id}/public`);
 /** GET /api/clubs/:id/slots?date=YYYY-MM-DD → { date, venues: [{ id, name, slots }] } */
 export const getClubSlots = (id, date) =>
   client.get(`/clubs/${id}/slots${date ? `?date=${date}` : ''}`);
+
+// ── Favorites ────────────────────────────────────────────────────────────────
+export const getMyFavoriteClubs   = ()   => client.get('/clubs/my/favorites');
+export const getClubFavoriteStatus = (id) => client.get(`/clubs/${id}/favorite`);
+export const toggleClubFavorite   = (id) => client.post(`/clubs/${id}/favorite`);
+
+// ── Subscriptions ────────────────────────────────────────────────────────────
+export const getClubSubscriptionStatus = (id) => client.get(`/clubs/${id}/subscription`);
+export const toggleClubSubscription    = (id) => client.post(`/clubs/${id}/subscription`);
+
+// ── Posts ────────────────────────────────────────────────────────────────────
+export const getClubPosts   = (id)             => client.get(`/clubs/${id}/posts`);
+export const createClubPost = (id, data)       => client.post(`/clubs/${id}/posts`, data);
+export const deleteClubPost = (id, postId)     => client.delete(`/clubs/${id}/posts/${postId}`);

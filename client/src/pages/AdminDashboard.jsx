@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, Layers, Building2, BookOpen,
   ShieldAlert, AlertCircle, ChevronDown, Trash2, CheckCircle,
   Ban, XCircle, Search, Calendar, Filter, Activity,
-  UserCheck, Clock, LogOut, Settings, CreditCard,
+  UserCheck, Clock, LogOut, Settings, CreditCard, RefreshCw,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, usePlayerPanel } from '@/App';
@@ -197,13 +197,15 @@ function UsersTab() {
   const [roleF,    setRoleF]    = useState('');
   const [statusF,  setStatusF]  = useState('');
 
-  useEffect(() => {
+  function load() {
     setLoading(true);
+    setError(null);
     listUsers()
       .then(({ users: u }) => setUsers(u ?? []))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }
+  useEffect(load, []);
 
   const handleStatus = useCallback(async (id, status) => {
     await updateUserStatus(id, status);
@@ -254,6 +256,14 @@ function UsersTab() {
           <option value="suspended">Suspendu</option>
           <option value="banned">Banni</option>
         </select>
+        <button
+          onClick={load}
+          disabled={loading}
+          className="h-9 w-9 flex items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors disabled:opacity-40"
+          title="Actualiser"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {loading ? <Skeleton /> : error ? <ErrorBanner message={error} /> : (
@@ -1053,7 +1063,7 @@ export default function AdminDashboard() {
       {/* ── Main content ───────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 space-y-6">
 
-        {/* Mobile tab bar */}
+        {/* Mobile horizontal tab bar (small scroll) */}
         <div className="lg:hidden flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
           {NAV.map(({ key, label, icon: Icon }) => (
             <button
@@ -1086,9 +1096,33 @@ export default function AdminDashboard() {
 
         {error && <ErrorBanner message={error} />}
 
-        {/* Tab content */}
-        {ActiveTab}
+        {/* Tab content — extra bottom padding on mobile for fixed bottom nav */}
+        <div className="pb-20 lg:pb-0">
+          {ActiveTab}
+        </div>
       </div>
+
+      {/* ── Mobile bottom nav ────────────────────────────────────────────── */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 flex items-center justify-around px-2 pb-safe">
+        {[
+          { key: 'overview',       label: 'Dashboard',   icon: LayoutDashboard },
+          { key: 'users',          label: 'Utilisateurs', icon: Users           },
+          { key: 'sessions',       label: 'Sessions',     icon: Layers          },
+          { key: 'clubs',          label: 'Clubs',        icon: Building2       },
+          { key: 'subscriptions',  label: 'Abonnements',  icon: CreditCard      },
+        ].map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 transition-colors ${
+              tab === key ? 'text-amber-600' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Icon className="h-5 w-5 shrink-0" />
+            <span className="text-[10px] font-medium truncate">{label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

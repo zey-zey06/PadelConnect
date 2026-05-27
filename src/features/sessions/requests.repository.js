@@ -60,6 +60,15 @@ async function updateStatus(requestId, status) {
   return row;
 }
 
+async function getSessionIdsByPlayer(playerId) {
+  const rows = await db('session_requests')
+    .where({ player_id: playerId })
+    .whereIn('status', ['pending', 'accepted'])
+    .whereNull('deleted_at')
+    .select('session_id');
+  return rows.map((r) => r.session_id);
+}
+
 module.exports = {
   create,
   findBySessionAndPlayer,
@@ -67,4 +76,5 @@ module.exports = {
   getAcceptedBySession,
   getById,
   updateStatus,
+  getSessionIdsByPlayer,
 };

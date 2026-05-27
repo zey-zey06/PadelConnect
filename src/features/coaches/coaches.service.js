@@ -216,4 +216,71 @@ async function respondToInvitation(invitationId, coachUserId, status) {
   return { ok: true, status };
 }
 
-module.exports = { listAvailableCoaches, getCoach, getMyCoachProfile, updateAvailability, getClubCoaches, addCoachToClub, removeCoachFromClub, getCoachSessions, sendClubInvitation, getPendingInvitations, getClubPendingInvitations, cancelInvitation, respondToInvitation };
+// ── Ball-picker invitations ───────────────────────────────────────────────────
+
+async function sendBallPickerInvitation(clubId, userOrgId, invitedByUserId, email) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) { const e = new Error('Club introuvable.'); e.status = 404; throw e; }
+  if (club.id !== userOrgId) { const e = new Error('Accès refusé.'); e.status = 403; throw e; }
+
+  const user = await coachesRepo.getUserByEmail(email);
+  if (!user) {
+    const e = new Error("Aucun utilisateur trouvé avec cet email.");
+    e.status = 404; throw e;
+  }
+
+  const alreadyPending = await coachesRepo.hasPendingInvitation(club.id, user.id);
+  if (alreadyPending) {
+    const e = new Error('Une invitation est déjà en attente pour cet utilisateur.');
+    e.status = 409; throw e;
+  }
+
+  const invitation = await coachesRepo.createInvitation({
+    organization_id: club.id,
+    coach_user_id:   user.id,
+    invited_by:      invitedByUserId,
+    role:            'ball_picker',
+  });
+
+  notificationsService
+    .createNotification(user.id, 'ball_picker_invitation', `Le club « ${club.name} » vous invite à rejoindre leur équipe en tant que ramasseur.`)
+    .catch(() => {});
+
+  return invitation;
+}
+
+async function getPendingBallPickerInvitations(userId) {
+  return coachesRepo.getPendingBallPickerInvitations(userId);
+}
+
+async function getClubPendingBallPickerInvitations(clubId, userOrgId) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) { const e = new Error('Club introuvable.'); e.status = 404; throw e; }
+  if (club.id !== userOrgId) { const e = new Error('Accès refusé.'); e.status = 403; throw e; }
+  return coachesRepo.getPendingBallPickerInvitationsByOrg(club.id);
+}
+
+async function respondToBallPickerInvitation(invitationId, userId, status) {
+  const invitation = await coachesRepo.getInvitationById(invitationId);
+  if (!invitation) { const e = new Error('Invitation introuvable.'); e.status = 404; throw e; }
+  if (invitation.coach_user_id !== userId) { const e = new Error('Accès refusé.'); e.status = 403; throw e; }
+  if (invitation.status !== 'pending') { const e = new Error('Cette invitation a déjà été traitée.'); e.status = 409; throw e; }
+
+  await coachesRepo.updateInvitationStatus(invitationId, status);
+
+  if (status === 'accepted') {
+    const db = require('../../db');
+    await db('users')
+      .where({ id: userId })
+      .update({ organization_id: invitation.organization_id, role: 'ball_picker', updated_at: new Date() });
+  }
+
+  return { ok: true, status };
+}
+
+module.exports = {
+  listAvailableCoaches, getCoach, getMyCoachProfile, updateAvailability, getClubCoaches,
+  addCoachToClub, removeCoachFromClub, getCoachSessions,
+  sendClubInvitation, getPendingInvitations, getClubPendingInvitations, cancelInvitation, respondToInvitation,
+  sendBallPickerInvitation, getPendingBallPickerInvitations, getClubPendingBallPickerInvitations, respondToBallPickerInvitation,
+};

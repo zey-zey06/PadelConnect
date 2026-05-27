@@ -12,7 +12,10 @@ import {
   removeCoachFromClub, addBallPickerToClub, removeBallPickerFromClub,
 } from '@/api/manager';
 import { getClubCoaches, getClubBallPickers } from '@/api/clubs';
-import { sendClubInvitation, getClubPendingInvitations, cancelClubInvitation } from '@/api/coaches';
+import {
+  sendClubInvitation, getClubPendingInvitations, cancelClubInvitation,
+  sendBallPickerInvitation, getClubBallPickerInvitations, cancelBallPickerInvitation,
+} from '@/api/coaches';
 import { getMySubscription, getSubscriptionHistory, paySubscription } from '@/api/subscriptions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -421,6 +424,86 @@ function AddBallPickerModal({ clubId, onClose, onAdded }) {
   );
 }
 
+// ── Invite ball picker modal (invitation flow) ────────────────────────────────
+function AddBallPickerInviteModal({ clubId, onClose, onInvited }) {
+  const [email,   setEmail]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+  const [done,    setDone]    = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!email.trim()) { setError('L\'email est obligatoire.'); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const { invitation } = await sendBallPickerInvitation(clubId, email.trim().toLowerCase());
+      setDone(true);
+      setTimeout(() => { onInvited(invitation); onClose(); }, 1800);
+    } catch (err) {
+      setError(err.message || 'Erreur lors de l\'envoi.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Inviter un ramasseur</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Une invitation sera envoyée par notification.</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {done ? (
+          <div className="p-6 flex flex-col items-center gap-3 text-center">
+            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+              <UserCheck className="h-6 w-6 text-green-600" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">Invitation envoyée !</p>
+            <p className="text-xs text-muted-foreground">Le ramasseur recevra une notification pour accepter ou refuser.</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />{error}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="bp-invite-email">Email du ramasseur</Label>
+              <Input
+                id="bp-invite-email"
+                type="email"
+                autoFocus
+                placeholder="ramasseur@example.com"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError(null); }}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                L'utilisateur doit déjà avoir un compte sur PadelConnect.
+              </p>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <Button type="button" variant="outline" onClick={onClose} className="flex-1">Annuler</Button>
+              <Button type="submit" disabled={loading} className="flex-1">
+                {loading ? 'Envoi…' : 'Envoyer l\'invitation'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Staff member row ──────────────────────────────────────────────────────────
 function StaffRow({ member, onRemove, removing }) {
   const { openPlayerPanel } = usePlayerPanel();
@@ -661,14 +744,17 @@ export default function ManagerDashboard() {
   const [showModal,    setShowModal]    = useState(false);
 
   // Staff state
-  const [coaches,           setCoaches]           = useState([]);
-  const [ballPickers,       setBallPickers]        = useState([]);
-  const [pendingInvitations,setPendingInvitations] = useState([]);
-  const [loadingStaff,      setLoadingStaff]      = useState(false);
-  const [showAddCoach,      setShowAddCoach]      = useState(false);
-  const [showAddBallPicker, setShowAddBallPicker] = useState(false);
-  const [removingId,        setRemovingId]        = useState(null);
-  const [cancellingInvId,   setCancellingInvId]   = useState(null);
+  const [coaches,                 setCoaches]                 = useState([]);
+  const [ballPickers,             setBallPickers]             = useState([]);
+  const [pendingInvitations,      setPendingInvitations]      = useState([]);
+  const [pendingBpInvitations,    setPendingBpInvitations]    = useState([]);
+  const [loadingStaff,            setLoadingStaff]            = useState(false);
+  const [showAddCoach,            setShowAddCoach]            = useState(false);
+  const [showAddBallPicker,       setShowAddBallPicker]       = useState(false);
+  const [showInviteBallPicker,    setShowInviteBallPicker]    = useState(false);
+  const [removingId,              setRemovingId]              = useState(null);
+  const [cancellingInvId,         setCancellingInvId]         = useState(null);
+  const [cancellingBpInvId,       setCancellingBpInvId]       = useState(null);
 
   // Subscription state
   const [subscription,  setSubscription]  = useState(null);
@@ -679,14 +765,16 @@ export default function ManagerDashboard() {
     if (!clubId) return;
     setLoadingStaff(true);
     try {
-      const [{ coaches: c }, { ballPickers: b }, { invitations: inv }] = await Promise.all([
+      const [{ coaches: c }, { ballPickers: b }, { invitations: inv }, { invitations: bpInv }] = await Promise.all([
         getClubCoaches(clubId),
         getClubBallPickers(clubId),
         getClubPendingInvitations(clubId).catch(() => ({ invitations: [] })),
+        getClubBallPickerInvitations(clubId).catch(() => ({ invitations: [] })),
       ]);
       setCoaches(c ?? []);
       setBallPickers(b ?? []);
       setPendingInvitations(inv ?? []);
+      setPendingBpInvitations(bpInv ?? []);
     } catch {
       // non-fatal
     } finally {
@@ -742,6 +830,18 @@ export default function ManagerDashboard() {
       // ignore — keep the list as is
     } finally {
       setRemovingId(null);
+    }
+  }
+
+  async function handleCancelBpInvitation(invId) {
+    setCancellingBpInvId(invId);
+    try {
+      await cancelBallPickerInvitation(user.organization_id, invId);
+      setPendingBpInvitations((prev) => prev.filter((i) => i.id !== invId));
+    } catch {
+      // non-fatal
+    } finally {
+      setCancellingBpInvId(null);
     }
   }
 
@@ -960,12 +1060,17 @@ export default function ManagerDashboard() {
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-primary" />
                     <p className="text-sm font-semibold text-foreground">
-                      Ramasseurs <span className="text-muted-foreground font-normal">({ballPickers.length})</span>
+                      Ramasseurs <span className="text-muted-foreground font-normal">({ballPickers.length}{pendingBpInvitations.length > 0 ? ` + ${pendingBpInvitations.length} en attente` : ''})</span>
                     </p>
                   </div>
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowAddBallPicker(true)}>
-                    <Plus className="h-3 w-3" />Ajouter
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-primary" onClick={() => setShowInviteBallPicker(true)}>
+                      <Plus className="h-3 w-3" />Inviter
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowAddBallPicker(true)}>
+                      <Plus className="h-3 w-3" />Ajouter
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="px-4 divide-y divide-border/50">
@@ -973,20 +1078,49 @@ export default function ManagerDashboard() {
                     <div className="py-4 space-y-3">
                       {[1].map((i) => <div key={i} className="h-9 rounded-lg bg-muted animate-pulse" />)}
                     </div>
-                  ) : ballPickers.length === 0 ? (
+                  ) : ballPickers.length === 0 && pendingBpInvitations.length === 0 ? (
                     <div className="py-6 text-center">
                       <Users className="h-6 w-6 text-muted-foreground mx-auto mb-1.5" />
                       <p className="text-xs text-muted-foreground">Aucun ramasseur rattaché.</p>
                     </div>
                   ) : (
-                    ballPickers.map((b) => (
-                      <StaffRow
-                        key={b.user_id}
-                        member={b}
-                        removing={removingId === b.user_id}
-                        onRemove={() => handleRemoveBallPicker(b.user_id)}
-                      />
-                    ))
+                    <>
+                      {ballPickers.map((b) => (
+                        <StaffRow
+                          key={b.user_id}
+                          member={b}
+                          removing={removingId === b.user_id}
+                          onRemove={() => handleRemoveBallPicker(b.user_id)}
+                        />
+                      ))}
+                      {pendingBpInvitations.map((inv) => (
+                        <div key={inv.id} className="flex items-center gap-3 py-2.5 px-1">
+                          <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                            <span className="text-xs font-bold text-amber-700 select-none">
+                              {(inv.coach_first_name?.[0] ?? inv.coach_email?.[0] ?? '?').toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">
+                              {[inv.coach_first_name, inv.coach_last_name].filter(Boolean).join(' ') || inv.coach_email}
+                            </p>
+                            <p className="text-xs text-amber-600">Invitation en attente</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={cancellingBpInvId === inv.id}
+                            onClick={() => handleCancelBpInvitation(inv.id)}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                            title="Annuler l'invitation"
+                          >
+                            {cancellingBpInvId === inv.id
+                              ? <span className="w-3.5 h-3.5 border border-current/40 border-t-transparent rounded-full animate-spin" />
+                              : <X className="h-3.5 w-3.5" />
+                            }
+                          </button>
+                        </div>
+                      ))}
+                    </>
                   )}
                 </div>
               </div>
@@ -1025,6 +1159,14 @@ export default function ManagerDashboard() {
             setBallPickers((prev) => [...prev, bp]);
             setShowAddBallPicker(false);
           }}
+        />
+      )}
+
+      {showInviteBallPicker && (
+        <AddBallPickerInviteModal
+          clubId={user.organization_id}
+          onClose={() => setShowInviteBallPicker(false)}
+          onInvited={(inv) => setPendingBpInvitations((prev) => [inv, ...prev])}
         />
       )}
 

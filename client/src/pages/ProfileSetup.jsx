@@ -34,18 +34,39 @@ const YEARS_OPTIONS = [
 
 const STEP_LABELS = ['Informations', 'Entretien IA', 'Votre profil', 'Photo & fin'];
 
-// PIA interview questions (Q1–Q7)
-const QUESTIONS = [
-  'Depuis combien de temps jouez-vous au padel ?',
-  'Comment décririez-vous votre niveau ? (débutant, intermédiaire, avancé)',
-  'Quel est votre style de jeu favori ? (défensif, attaquant, polyvalent)',
-  'Quels sont vos points forts ? (smash, volée, service, régularité…)',
-  'Quels aspects souhaitez-vous améliorer ?',
-  "Préférez-vous jouer le matin, l'après-midi ou le soir ?",
-  "Dernière question — qu'est-ce qui vous a amené à rejoindre PadelConnect ? (trouver des partenaires, découvrir des clubs, progresser, autre…)",
+// PIA interview — QCM version (each question has preset chips + "Autre" option)
+const QUESTIONS_QCM = [
+  {
+    text:    'Depuis combien de temps jouez-vous au padel ?',
+    options: ['Moins de 6 mois', '6 mois – 1 an', '1 – 3 ans', 'Plus de 3 ans'],
+  },
+  {
+    text:    'Comment décririez-vous votre niveau actuel ?',
+    options: ['Débutant', 'Intermédiaire', 'Avancé', 'Expert'],
+  },
+  {
+    text:    'Quel est votre style de jeu favori ?',
+    options: ['Défensif', 'Attaquant', 'Polyvalent', 'Je ne sais pas encore'],
+  },
+  {
+    text:    'Quels sont vos points forts ?',
+    options: ['Service', 'Volée', 'Smash', 'Régularité'],
+  },
+  {
+    text:    'Quels aspects souhaitez-vous améliorer ?',
+    options: ['Puissance', 'Constance', 'Positionnement', 'Tactique'],
+  },
+  {
+    text:    'Quand préférez-vous jouer ?',
+    options: ["Le matin", "L'après-midi", 'Le soir', "N'importe quand"],
+  },
+  {
+    text:    "Qu'est-ce qui vous a amené à rejoindre PadelConnect ?",
+    options: ['Trouver des partenaires', 'Découvrir des clubs', 'Progresser', 'Recommandé par un ami'],
+  },
 ];
 
-// PIA's response after each answer (index matches the question index answered)
+// PIA's encouragement after each answer
 const ENCOURAGEMENTS = [
   'Super, merci ! 🎾',
   'Parfait !',
@@ -134,14 +155,15 @@ export default function ProfileSetup() {
   const [birthDate,   setBirthDate]   = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  // ── Step 2: PIA interview ─────────────────────────────────────────────────
+  // ── Step 2: PIA interview (QCM) ───────────────────────────────────────────
   const [chatMsgs,    setChatMsgs]    = useState([]);
-  const [chatInput,   setChatInput]   = useState('');
-  const [chatBusy,    setChatBusy]    = useState(false); // PIA "thinking"
+  const [chatBusy,    setChatBusy]    = useState(false);
   const [qIndex,      setQIndex]      = useState(0);
-  const [qaAnswers,   setQaAnswers]   = useState([]);    // collected Q&A
+  const [qaAnswers,   setQaAnswers]   = useState([]);
   const [motivation,  setMotivation]  = useState('');
   const [generating,  setGenerating]  = useState(false);
+  const [autreMode,   setAutreMode]   = useState(false); // "Autre" text input visible
+  const [autreText,   setAutreText]   = useState('');
 
   // ── Step 3: profile review ────────────────────────────────────────────────
   const [generatedProfile, setGeneratedProfile] = useState(null);
@@ -166,12 +188,13 @@ export default function ProfileSetup() {
   useEffect(() => {
     if (step === 2) {
       const greeting = firstName
-        ? `Bonjour ${firstName} ! Je suis PIA. Je vais vous poser quelques questions pour créer votre profil de joueur. 🎾\n\n${QUESTIONS[0]}`
-        : `Bonjour ! Je suis PIA. Je vais vous poser quelques questions pour créer votre profil de joueur. 🎾\n\n${QUESTIONS[0]}`;
+        ? `Bonjour ${firstName} ! Je suis PIA. Répondez aux questions pour créer votre profil de joueur. 🎾\n\n${QUESTIONS_QCM[0].text}`
+        : `Bonjour ! Je suis PIA. Répondez aux questions pour créer votre profil de joueur. 🎾\n\n${QUESTIONS_QCM[0].text}`;
       setChatMsgs([{ role: 'model', text: greeting }]);
       setQIndex(0);
       setQaAnswers([]);
-      setTimeout(() => chatInputRef.current?.focus(), 50);
+      setAutreMode(false);
+      setAutreText('');
     }
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -185,46 +208,46 @@ export default function ProfileSetup() {
     setStep(2);
   }
 
-  // ── Interview: submit answer ──────────────────────────────────────────────
-  function handleChatSubmit() {
-    const answer = chatInput.trim();
+  // ── Interview: QCM answer selection ──────────────────────────────────────
+  function handlePickAnswer(answer) {
+    if (chatBusy || generating) return;
+    setAutreMode(false);
+    setAutreText('');
+    submitAnswer(answer);
+  }
+
+  function handleAutreSubmit() {
+    const answer = autreText.trim();
     if (!answer || chatBusy || generating) return;
+    setAutreMode(false);
+    setAutreText('');
+    submitAnswer(answer);
+  }
 
-    setChatInput('');
+  function submitAnswer(answer) {
     setChatBusy(true);
-
-    const newAnswers = [...qaAnswers, { question: QUESTIONS[qIndex], answer }];
+    const newAnswers = [...qaAnswers, { question: QUESTIONS_QCM[qIndex].text, answer }];
     setQaAnswers(newAnswers);
     setChatMsgs((prev) => [...prev, { role: 'user', text: answer }]);
 
     if (qIndex === 6) {
-      // Q7 answered → motivation captured, then generate profile
       setMotivation(answer);
       setTimeout(() => {
-        setChatMsgs((prev) => [
-          ...prev,
-          { role: 'model', text: ENCOURAGEMENTS[6] },
-        ]);
+        setChatMsgs((prev) => [...prev, { role: 'model', text: ENCOURAGEMENTS[6] }]);
         setTimeout(() => {
-          setChatMsgs((prev) => [
-            ...prev,
-            { role: 'model', text: 'Je génère votre profil maintenant… ✨' },
-          ]);
-          // Trigger async generation without blocking the setState chain
+          setChatMsgs((prev) => [...prev, { role: 'model', text: 'Je génère votre profil maintenant… ✨' }]);
           runGeneration(newAnswers, answer);
         }, 700);
       }, 600);
     } else {
-      const nextIndex     = qIndex + 1;
-      const encouragement = ENCOURAGEMENTS[qIndex] ?? 'Noté !';
+      const nextIndex = qIndex + 1;
       setTimeout(() => {
         setChatMsgs((prev) => [
           ...prev,
-          { role: 'model', text: `${encouragement}\n\n${QUESTIONS[nextIndex]}` },
+          { role: 'model', text: `${ENCOURAGEMENTS[qIndex]}\n\n${QUESTIONS_QCM[nextIndex].text}` },
         ]);
         setQIndex(nextIndex);
         setChatBusy(false);
-        setTimeout(() => chatInputRef.current?.focus(), 50);
       }, 600);
     }
   }
@@ -391,7 +414,7 @@ export default function ProfileSetup() {
             </div>
           )}
 
-          {/* ── STEP 2 — PIA interview ────────────────────────────────── */}
+          {/* ── STEP 2 — PIA interview (QCM) ─────────────────────────── */}
           {step === 2 && (
             <div className="space-y-4">
               <div>
@@ -400,19 +423,16 @@ export default function ProfileSetup() {
                   Entretien avec PIA
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Répondez aux questions — PIA génère votre profil à partir de vos réponses.
+                  Choisissez une réponse — PIA génère votre profil à partir de vos réponses.
                 </p>
               </div>
 
-              {/* Chat area */}
+              {/* Chat transcript */}
               <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
-                {/* Messages */}
-                <div className="h-80 overflow-y-auto p-4 space-y-3 no-scrollbar">
+                <div className="h-56 overflow-y-auto p-4 space-y-3 no-scrollbar">
                   {chatMsgs.map((msg, i) => (
                     <ChatBubble key={i} role={msg.role} text={msg.text} />
                   ))}
-
-                  {/* Typing indicator while chatBusy or generating */}
                   {(chatBusy || generating) && (
                     <div className="flex justify-start items-center">
                       <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-primary flex items-center justify-center mr-2 shrink-0">
@@ -421,11 +441,7 @@ export default function ProfileSetup() {
                       <div className="bg-muted rounded-2xl rounded-bl-sm px-3.5 py-2.5 flex items-center gap-2">
                         <div className="flex gap-1">
                           {[0, 150, 300].map((d) => (
-                            <span
-                              key={d}
-                              className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce"
-                              style={{ animationDelay: `${d}ms` }}
-                            />
+                            <span key={d} className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: `${d}ms` }} />
                           ))}
                         </div>
                         <span className="text-xs text-muted-foreground">
@@ -437,44 +453,63 @@ export default function ProfileSetup() {
                   <div ref={chatBottomRef} />
                 </div>
 
-                {/* Input */}
-                <div className="border-t border-border px-3 py-3 bg-background/50">
-                  <div className="flex items-end gap-2">
-                    <textarea
-                      ref={chatInputRef}
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      onKeyDown={handleChatKeyDown}
-                      placeholder="Votre réponse…"
-                      rows={1}
-                      disabled={chatBusy || generating}
-                      className="flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm
-                        placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20
-                        disabled:opacity-50 overflow-y-auto no-scrollbar"
-                      style={{ minHeight: '38px', maxHeight: '80px' }}
-                    />
-                    <button
-                      onClick={handleChatSubmit}
-                      disabled={!chatInput.trim() || chatBusy || generating}
-                      className="shrink-0 w-9 h-9 rounded-xl bg-primary hover:bg-primary/90
-                        disabled:opacity-40 disabled:cursor-not-allowed
-                        text-white flex items-center justify-center transition-colors"
-                      aria-label="Envoyer"
-                    >
-                      <Send className="h-4 w-4" />
-                    </button>
+                {/* QCM answer chips */}
+                {!chatBusy && !generating && qIndex < QUESTIONS_QCM.length && (
+                  <div className="border-t border-border px-4 py-4 bg-background/50 space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      {QUESTIONS_QCM[qIndex].options.map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => handlePickAnswer(opt)}
+                          className="px-3.5 py-2 rounded-xl border border-border bg-card text-sm font-medium text-foreground hover:bg-primary hover:text-white hover:border-primary transition-all"
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => { setAutreMode(true); setAutreText(''); }}
+                        className={cn(
+                          'px-3.5 py-2 rounded-xl border text-sm font-medium transition-all',
+                          autreMode
+                            ? 'border-primary bg-primary text-white'
+                            : 'border-dashed border-border bg-card text-muted-foreground hover:border-primary/60 hover:text-foreground'
+                        )}
+                      >
+                        Autre…
+                      </button>
+                    </div>
+
+                    {/* "Autre" text input */}
+                    {autreMode && (
+                      <div className="flex gap-2">
+                        <input
+                          autoFocus
+                          value={autreText}
+                          onChange={(e) => setAutreText(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleAutreSubmit(); }}
+                          placeholder="Précisez…"
+                          className="flex-1 h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                        <button
+                          onClick={handleAutreSubmit}
+                          disabled={!autreText.trim()}
+                          className="h-9 px-4 rounded-xl bg-primary text-white text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors"
+                        >
+                          <Send className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    <p className="text-[10px] text-muted-foreground text-center">
+                      Question {Math.min(qIndex + 1, 7)} / {QUESTIONS_QCM.length}
+                    </p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground text-center mt-1.5">
-                    Question {Math.min(qIndex + 1, 7)} / {QUESTIONS.length}
-                  </p>
-                </div>
+                )}
               </div>
 
-              <Button
-                variant="outline"
-                onClick={() => { setStep(1); setError(null); }}
-                className="gap-1"
-              >
+              <Button variant="outline" onClick={() => { setStep(1); setError(null); }} className="gap-1">
                 <ChevronLeft className="h-4 w-4" /> Retour
               </Button>
             </div>

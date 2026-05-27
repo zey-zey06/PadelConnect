@@ -111,4 +111,81 @@ async function removeBallPicker(userId) {
   return row;
 }
 
-module.exports = { create, list, listWithStats, getUserById, getAdminByOrg, getById, linkUserToOrg, update, getBallPickersByOrg, createBallPicker, removeBallPicker };
+// ── Favorites ─────────────────────────────────────────────────────────────────
+
+async function addFavorite(userId, orgId) {
+  await db('club_favorites').insert({ user_id: userId, organization_id: orgId }).onConflict(['user_id', 'organization_id']).ignore();
+}
+
+async function removeFavorite(userId, orgId) {
+  await db('club_favorites').where({ user_id: userId, organization_id: orgId }).delete();
+}
+
+async function isFavorite(userId, orgId) {
+  const row = await db('club_favorites').where({ user_id: userId, organization_id: orgId }).first();
+  return !!row;
+}
+
+async function getFavoritesByUser(userId) {
+  return db('club_favorites')
+    .join('organizations', 'club_favorites.organization_id', 'organizations.id')
+    .where({ 'club_favorites.user_id': userId })
+    .whereNull('organizations.deleted_at')
+    .select('organizations.*', 'club_favorites.created_at as favorited_at');
+}
+
+async function getFavoritesCount(orgId) {
+  const [{ count }] = await db('club_favorites').where({ organization_id: orgId }).count('id as count');
+  return parseInt(count, 10);
+}
+
+// ── Subscriptions ─────────────────────────────────────────────────────────────
+
+async function addSubscription(userId, orgId) {
+  await db('club_subscriptions').insert({ user_id: userId, organization_id: orgId }).onConflict(['user_id', 'organization_id']).ignore();
+}
+
+async function removeSubscription(userId, orgId) {
+  await db('club_subscriptions').where({ user_id: userId, organization_id: orgId }).delete();
+}
+
+async function isSubscribed(userId, orgId) {
+  const row = await db('club_subscriptions').where({ user_id: userId, organization_id: orgId }).first();
+  return !!row;
+}
+
+async function getSubscribersCount(orgId) {
+  const [{ count }] = await db('club_subscriptions').where({ organization_id: orgId }).count('id as count');
+  return parseInt(count, 10);
+}
+
+async function getSubscriberIds(orgId) {
+  const rows = await db('club_subscriptions').where({ organization_id: orgId }).select('user_id');
+  return rows.map((r) => r.user_id);
+}
+
+// ── Posts ─────────────────────────────────────────────────────────────────────
+
+async function createPost(data) {
+  const [row] = await db('club_posts').insert(data).returning('*');
+  return row;
+}
+
+async function getPostsByOrg(orgId) {
+  return db('club_posts')
+    .where({ organization_id: orgId })
+    .orderBy('created_at', 'desc')
+    .select();
+}
+
+async function deletePost(postId, orgId) {
+  await db('club_posts').where({ id: postId, organization_id: orgId }).delete();
+}
+
+module.exports = {
+  create, list, listWithStats, getUserById, getAdminByOrg, getById, linkUserToOrg, update,
+  getBallPickersByOrg, createBallPicker, removeBallPicker,
+  addFavorite, removeFavorite, isFavorite, getFavoritesByUser, getFavoritesCount,
+  addSubscription, removeSubscription, isSubscribed, getSubscribersCount, getSubscriberIds,
+  createPost, getPostsByOrg, deletePost,
+};

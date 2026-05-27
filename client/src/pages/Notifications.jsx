@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getNotifications, markAsRead } from '@/api/notifications';
 import { acceptFriendRequest, refuseFriendRequest } from '@/api/friends';
 import { getMySessions, invitePlayer } from '@/api/sessions';
+import { respondToBallPickerInvitation } from '@/api/coaches';
 import { Button } from '@/components/ui/button';
 import { Bell, CheckCircle2, AlertCircle, UserCheck, UserX, Users, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -22,9 +23,10 @@ const TYPE_LABELS = {
   booking_confirmed: 'Réservation confirmée',
   booking_cancelled: 'Réservation annulée',
   slot_cancelled:    'Créneau annulé',
-  // Coaches
-  coach_invite:      'Invitation coach',
-  club_invitation:   'Invitation au club',
+  // Coaches / staff
+  coach_invite:           'Invitation coach',
+  club_invitation:        'Invitation au club',
+  ball_picker_invitation: 'Invitation ramasseur',
   // Sanctions
   late_cancel:       'Annulation tardive',
   no_show:           'No-show enregistré',
@@ -35,8 +37,12 @@ const TYPE_LABELS = {
   friend_request:    'Demande d\'ami',
   friend_accepted:   'Demande acceptée',
   // System
-  welcome:           'Bienvenue',
-  new_user:          'Nouveau joueur',
+  welcome:                   'Bienvenue',
+  new_user:                  'Nouveau joueur',
+  session_cancelled_admin:   'Session annulée',
+  contact_form:              'Message de contact',
+  // Club
+  club_new_post:             'Nouvelle publication',
 };
 
 // ── Invite to session modal ────────────────────────────────────────────────────
@@ -198,6 +204,18 @@ export default function Notifications() {
   }
 
   const [friendActionLoading, setFriendActionLoading] = useState({});
+  const [bpActionLoading, setBpActionLoading] = useState({});
+
+  async function handleBallPickerAction(notifId, invitationId, action) {
+    setBpActionLoading((prev) => ({ ...prev, [notifId]: action }));
+    try {
+      await respondToBallPickerInvitation(invitationId, action);
+      setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+    } catch { /* non-fatal */ }
+    finally {
+      setBpActionLoading((prev) => { const next = { ...prev }; delete next[notifId]; return next; });
+    }
+  }
 
   async function handleFriendAction(notifId, actorId, actorName, action) {
     setFriendActionLoading((prev) => ({ ...prev, [notifId]: action }));
@@ -341,7 +359,37 @@ export default function Notifications() {
                       </Button>
                     </div>
                   )}
-                  {!n.read && n.type !== 'friend_request' && (
+                  {n.type === 'ball_picker_invitation' && (
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="text-xs h-7 px-2 gap-1 bg-green-600 hover:bg-green-700"
+                        disabled={!!bpActionLoading[n.id]}
+                        onClick={() => handleBallPickerAction(n.id, n.metadata?.invitation_id ?? n.id, 'accepted')}
+                      >
+                        {bpActionLoading[n.id] === 'accepted'
+                          ? <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin" />
+                          : <UserCheck className="h-3 w-3" />
+                        }
+                        Accepter
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 px-2 gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                        disabled={!!bpActionLoading[n.id]}
+                        onClick={() => handleBallPickerAction(n.id, n.metadata?.invitation_id ?? n.id, 'refused')}
+                      >
+                        {bpActionLoading[n.id] === 'refused'
+                          ? <span className="w-3 h-3 border border-red-400/50 border-t-transparent rounded-full animate-spin" />
+                          : <UserX className="h-3 w-3" />
+                        }
+                        Refuser
+                      </Button>
+                    </div>
+                  )}
+                  {!n.read && n.type !== 'friend_request' && n.type !== 'ball_picker_invitation' && (
                     <Button
                       size="sm"
                       variant="ghost"

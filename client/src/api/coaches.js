@@ -58,3 +58,25 @@ export const getClubPendingInvitations = (clubId) =>
  */
 export const cancelClubInvitation = (clubId, invitationId) =>
   client.delete(`/clubs/${clubId}/coach-invitations/${invitationId}`);
+
+// ── Ball-picker invitations ───────────────────────────────────────────────────
+
+/** POST /api/clubs/:id/ball-picker-invitations { email } → { invitation } */
+export const sendBallPickerInvitation = (clubId, email) =>
+  client.post(`/clubs/${clubId}/ball-picker-invitations`, { email });
+
+/** GET /api/clubs/:id/ball-picker-invitations → { invitations } */
+export const getClubBallPickerInvitations = (clubId) =>
+  client.get(`/clubs/${clubId}/ball-picker-invitations`);
+
+/** DELETE /api/clubs/:id/ball-picker-invitations/:invId → { ok } */
+export const cancelBallPickerInvitation = (clubId, invId) =>
+  client.delete(`/clubs/${clubId}/ball-picker-invitations/${invId}`);
+
+/** GET /api/ball-picker-invitations/pending → { invitations } */
+export const getMyBallPickerInvitations = () =>
+  client.get('/ball-picker-invitations/pending');
+
+/** PATCH /api/ball-picker-invitations/:id { status } → { ok, status } */
+export const respondToBallPickerInvitation = (id, status) =>
+  client.patch(`/ball-picker-invitations/${id}`, { status });

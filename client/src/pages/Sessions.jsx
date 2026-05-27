@@ -4,6 +4,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import {
   listSessions, createSession, requestJoin, getMySessions,
   getSessionRequests, respondToRequest, cancelSession, inviteCoach, invitePlayer,
+  getMySessionRequests,
 } from '@/api/sessions';
 import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
 import { listClubs, getClubSlots, getClubCoaches, getClubBallPickers } from '@/api/clubs';
@@ -2384,7 +2385,7 @@ export default function Sessions() {
   const [genderFilter, setGenderFilter] = useState('');
   const [visibleCount, setVisibleCount] = useState(8);
 
-  // Persist requested session IDs in sessionStorage so optimistic state survives re-render
+  // Persist requested session IDs — seeded from API on load, then kept in sessionStorage
   const [requestedIds, setRequestedIds] = useState(() => {
     try {
       const stored = sessionStorage.getItem('padelconnect_requested_sessions');
@@ -2399,15 +2400,16 @@ export default function Sessions() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setVisibleCount(8); // reset pagination on new filter
+    setVisibleCount(8);
     try {
       const params = { status: 'open' };
       if (dateFilter)   params.date      = dateFilter;
       if (levelFilter)  params.level_min = levelFilter;
       if (genderFilter) params.gender    = genderFilter;
-      const [{ sessions: s }, { bookings: b }] = await Promise.all([
+      const [{ sessions: s }, { bookings: b }, { sessionIds: reqIds }] = await Promise.all([
         listSessions(params),
         getMyBookings(),
+        getMySessionRequests(),
       ]);
       setSessions(s ?? []);
       const map = {};
@@ -2415,6 +2417,12 @@ export default function Sessions() {
         if (bk.status !== 'cancelled') map[bk.session_id] = bk;
       }
       setBookingMap(map);
+      // Merge server-side requests with any locally-optimistic ones
+      setRequestedIds((prev) => {
+        const merged = new Set([...prev, ...(reqIds ?? [])]);
+        try { sessionStorage.setItem('padelconnect_requested_sessions', JSON.stringify([...merged])); } catch { /* noop */ }
+        return merged;
+      });
     } catch (e) {
       setError(e.message);
     } finally {

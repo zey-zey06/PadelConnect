@@ -218,6 +218,72 @@ async function removeBallPickerHandler(req, res, next) {
   }
 }
 
+// ── Favorites ──────────────────────────────────────────────────────────────────
+async function toggleFavoriteHandler(req, res, next) {
+  try {
+    const result = await clubsService.toggleFavorite(req.params.id, req.user.sub);
+    return res.json(result);
+  } catch (err) { next(err); }
+}
+
+async function favoriteStatusHandler(req, res, next) {
+  try {
+    const result = await clubsService.getClubFavoriteStatus(req.params.id, req.user.sub);
+    return res.json(result);
+  } catch (err) { next(err); }
+}
+
+async function myFavoritesHandler(req, res, next) {
+  try {
+    const clubs = await clubsService.getFavoriteClubs(req.user.sub);
+    return res.json({ clubs });
+  } catch (err) { next(err); }
+}
+
+// ── Subscriptions ─────────────────────────────────────────────────────────────
+async function toggleSubscriptionHandler(req, res, next) {
+  try {
+    const result = await clubsService.toggleSubscription(req.params.id, req.user.sub);
+    return res.json(result);
+  } catch (err) { next(err); }
+}
+
+async function subscriptionStatusHandler(req, res, next) {
+  try {
+    const result = await clubsService.getClubSubscriptionStatus(req.params.id, req.user.sub);
+    return res.json(result);
+  } catch (err) { next(err); }
+}
+
+// ── Posts ─────────────────────────────────────────────────────────────────────
+const createPostSchema = Joi.object({
+  content: Joi.string().min(1).max(2000).required(),
+  photos:  Joi.array().items(Joi.string()).max(9).optional().default([]),
+});
+
+async function createPostHandler(req, res, next) {
+  try {
+    const { error, value } = createPostSchema.validate(req.body);
+    if (error) return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    const post = await clubsService.createClubPost(req.params.id, req.user.organization_id, value);
+    return res.status(201).json({ post });
+  } catch (err) { next(err); }
+}
+
+async function getPostsHandler(req, res, next) {
+  try {
+    const posts = await clubsService.getClubPosts(req.params.id);
+    return res.json({ posts });
+  } catch (err) { next(err); }
+}
+
+async function deletePostHandler(req, res, next) {
+  try {
+    await clubsService.deleteClubPost(req.params.id, req.params.postId, req.user.organization_id);
+    return res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 const router = Router();
 router.get('/featured',       listClubsHandler); // public — no auth required
@@ -234,5 +300,19 @@ router.post('/:id/logo',      authenticate, validateId, requireRole('venue_admin
 router.post('/:id/cover',     authenticate, validateId, requireRole('venue_admin'), uploadImage.single('cover'), coverHandler);
 router.post('/:id/photos',    authenticate, validateId, requireRole('venue_admin'), uploadImage.single('photo'), addPhotoHandler);
 router.delete('/:id/photos',  authenticate, validateId, requireRole('venue_admin'), removePhotoHandler);
+
+// Favorites
+router.get('/my/favorites',        authenticate, myFavoritesHandler);
+router.get('/:id/favorite',        authenticate, validateId, favoriteStatusHandler);
+router.post('/:id/favorite',       authenticate, validateId, toggleFavoriteHandler);
+
+// Subscriptions
+router.get('/:id/subscription',    authenticate, validateId, subscriptionStatusHandler);
+router.post('/:id/subscription',   authenticate, validateId, toggleSubscriptionHandler);
+
+// Posts
+router.get('/:id/posts',           authenticate, validateId, getPostsHandler);
+router.post('/:id/posts',          authenticate, validateId, requireRole('venue_admin'), createPostHandler);
+router.delete('/:id/posts/:postId', authenticate, validateId, requireRole('venue_admin'), deletePostHandler);
 
 module.exports = router;

@@ -1,5 +1,7 @@
 const { Router } = require('express');
 const { Resend } = require('resend');
+const adminRepo            = require('../admin/admin.repository');
+const notificationsService = require('../notifications/notifications.service');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM   = process.env.EMAIL_FROM || 'onboarding@resend.dev';
@@ -43,6 +45,14 @@ router.post('/', async (req, res, next) => {
         <p style="margin-top:24px;color:#999;font-size:12px">PadelConnect — formulaire de contact. Répondre directement à cet email.</p>
       `,
     });
+
+    // Notify super_admins in-app (fire-and-forget)
+    adminRepo.getSuperAdmins().then((admins) => {
+      const msg = `Nouveau message de contact de ${name} (${email}) — sujet: ${subject}`;
+      return Promise.allSettled(
+        admins.map((a) => notificationsService.createNotification(a.id, 'contact_form', msg))
+      );
+    }).catch(() => {});
 
     return res.json({ ok: true });
   } catch (err) {
