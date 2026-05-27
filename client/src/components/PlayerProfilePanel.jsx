@@ -189,9 +189,9 @@ export default function PlayerProfilePanel({ userId, onClose }) {
             </div>
           ) : (
             <>
-              {/* Cover photo */}
+              {/* Cover photo (full width, extends to panel edges) */}
               <div className={cn(
-                'h-28 w-full bg-gradient-to-br relative',
+                'h-28 w-[calc(100%+2rem)] -ml-4 bg-gradient-to-br relative',
                 !coverUrl && coverGradient(userId),
               )}>
                 {coverUrl && (

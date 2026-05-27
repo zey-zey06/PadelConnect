@@ -342,9 +342,9 @@ export default function PlayerProfile() {
   }
 
   return (
-    <div className="space-y-0 -mx-4">
-      {/* ── Cover photo ─────────────────────────────────────────────── */}
-      <div className="relative">
+    <div className="space-y-0">
+      {/* ── Cover photo (full width, extends to edges) ─────────────────── */}
+      <div className="relative -mx-4 sm:-mx-6 md:-mx-8 lg:-mx-12 -mt-4">
         {/* Back button */}
         <button
           onClick={() => navigate(-1)}
@@ -355,7 +355,7 @@ export default function PlayerProfile() {
 
         {/* Cover */}
         <div className={cn(
-          'h-40 w-full bg-gradient-to-br',
+          'h-40 w-[calc(100%+2rem)] sm:w-[calc(100%+3rem)] md:w-[calc(100%+4rem)] lg:w-[calc(100%+6rem)] bg-gradient-to-br',
           !coverUrl && coverGradient(userId),
         )}>
           {coverUrl && (
