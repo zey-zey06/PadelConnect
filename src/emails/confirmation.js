@@ -1,7 +1,4 @@
-const { Resend } = require('resend');
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM   = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+const { sendEmail, FROM } = require('./mailer');
 
 function devTo(recipients) {
   // In dev, always send to EMAIL_FROM to avoid Resend unverified-domain errors
@@ -31,7 +28,7 @@ async function sendBookingConfirmation({ booking, session, slot, venue, players 
   const slotStart    = slot?.start_time?.slice(0, 5) ?? session.time;
   const slotEnd      = slot?.end_time?.slice(0, 5) ?? '';
 
-  await resend.emails.send({
+  await sendEmail({
     from:    FROM,
     to:      devTo(recipients),
     subject: 'Votre réservation PadelConnect est confirmée',
@@ -53,7 +50,7 @@ async function sendManagerBookingNotification({ booking, session, slot, venue, b
   const slotStart    = slot?.start_time?.slice(0, 5) ?? session.time;
   const slotEnd      = slot?.end_time?.slice(0, 5) ?? '';
 
-  await resend.emails.send({
+  await sendEmail({
     from:    FROM,
     to:      devTo([managerEmail]),
     subject: `Nouvelle réservation — ${venue?.name ?? 'Terrain'}`,
@@ -75,7 +72,7 @@ async function sendManagerBookingNotification({ booking, session, slot, venue, b
  * Non-blocking — caller should .catch(() => {}) this.
  */
 async function sendNewUserAdminNotification({ displayName, email, motivation, adminEmail, date }) {
-  await resend.emails.send({
+  await sendEmail({
     from:    FROM,
     to:      devTo([adminEmail]),
     subject: `Nouvel inscrit PadelConnect — ${displayName}`,

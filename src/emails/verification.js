@@ -1,13 +1,11 @@
-const { Resend } = require('resend');
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+const { sendEmail, FROM } = require('./mailer');
 
 async function sendVerificationEmail(email, token) {
   const url = `${process.env.CORS_ORIGIN || 'http://localhost:5173'}/verify-email?token=${token}`;
 
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
-    to: email,
+  await sendEmail({
+    from:    FROM,
+    to:      email,
     subject: 'Vérifiez votre adresse email — PadelConnect',
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px 24px">

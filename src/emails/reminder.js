@@ -1,6 +1,4 @@
-const { Resend } = require('resend');
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+const { sendEmail, FROM } = require('./mailer');
 
 /**
  * Send a session reminder email to a player.
@@ -13,9 +11,9 @@ const resend = new Resend(process.env.RESEND_API_KEY);
  * @param {string|null} params.coachEmail - Coach email if a coach is booked, null otherwise
  */
 async function sendSessionReminder({ userEmail, session, venue, playerCount, coachEmail }) {
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
-    to: userEmail,
+  await sendEmail({
+    from:    FROM,
+    to:      userEmail,
     subject: 'Rappel : votre session padel demain 🎾',
     html: `
       <h1>Rappel de session</h1>

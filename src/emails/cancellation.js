@@ -1,11 +1,9 @@
-const { Resend } = require('resend');
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+const { sendEmail, FROM } = require('./mailer');
 
 async function sendBookingCancellation({ booking, session }) {
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
-    to: process.env.EMAIL_FROM || 'onboarding@resend.dev',
+  await sendEmail({
+    from:    FROM,
+    to:      FROM,
     subject: 'Votre réservation PadelConnect a été annulée',
     html: `
       <h1>Réservation annulée</h1>
