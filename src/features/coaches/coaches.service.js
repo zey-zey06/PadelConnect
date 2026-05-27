@@ -153,6 +153,41 @@ async function getPendingInvitations(coachUserId) {
   return coachesRepo.getPendingInvitationsByCoach(coachUserId);
 }
 
+async function getClubPendingInvitations(clubId, userOrgId) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) {
+    const err = new Error('Club introuvable.');
+    err.status = 404;
+    throw err;
+  }
+  if (club.id !== userOrgId) {
+    const err = new Error('Accès refusé.');
+    err.status = 403;
+    throw err;
+  }
+  return coachesRepo.getPendingInvitationsByOrg(club.id);
+}
+
+async function cancelInvitation(invitationId, userOrgId) {
+  const invitation = await coachesRepo.getInvitationById(invitationId);
+  if (!invitation) {
+    const err = new Error('Invitation introuvable.');
+    err.status = 404;
+    throw err;
+  }
+  if (invitation.organization_id !== userOrgId) {
+    const err = new Error('Accès refusé.');
+    err.status = 403;
+    throw err;
+  }
+  if (invitation.status !== 'pending') {
+    const err = new Error('Cette invitation a déjà été traitée.');
+    err.status = 409;
+    throw err;
+  }
+  await coachesRepo.deleteInvitation(invitationId, userOrgId);
+}
+
 async function respondToInvitation(invitationId, coachUserId, status) {
   const invitation = await coachesRepo.getInvitationById(invitationId);
   if (!invitation) {
@@ -181,4 +216,4 @@ async function respondToInvitation(invitationId, coachUserId, status) {
   return { ok: true, status };
 }
 
-module.exports = { listAvailableCoaches, getCoach, getMyCoachProfile, updateAvailability, getClubCoaches, addCoachToClub, removeCoachFromClub, getCoachSessions, sendClubInvitation, getPendingInvitations, respondToInvitation };
+module.exports = { listAvailableCoaches, getCoach, getMyCoachProfile, updateAvailability, getClubCoaches, addCoachToClub, removeCoachFromClub, getCoachSessions, sendClubInvitation, getPendingInvitations, getClubPendingInvitations, cancelInvitation, respondToInvitation };

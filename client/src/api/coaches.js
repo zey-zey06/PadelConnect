@@ -42,3 +42,19 @@ export const getMyInvitations = () => client.get('/coach-invitations/pending');
  */
 export const respondToInvitation = (id, status) =>
   client.patch(`/coach-invitations/${id}`, { status });
+
+/**
+ * GET /api/clubs/:id/coach-invitations
+ * Manager fetches pending coach invitations for their club.
+ * → { invitations: [...] }
+ */
+export const getClubPendingInvitations = (clubId) =>
+  client.get(`/clubs/${clubId}/coach-invitations`);
+
+/**
+ * DELETE /api/clubs/:id/coach-invitations/:invId
+ * Manager cancels a pending coach invitation.
+ * → { ok: true }
+ */
+export const cancelClubInvitation = (clubId, invitationId) =>
+  client.delete(`/clubs/${clubId}/coach-invitations/${invitationId}`);

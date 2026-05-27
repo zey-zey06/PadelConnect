@@ -72,12 +72,13 @@ export default function ShareContactPicker({ shareType, metadata, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pt-4 pb-20 sm:p-4"
       style={{ background: 'rgba(0,0,0,0.48)', backdropFilter: 'blur(2px)' }}
       onClick={onClose}
     >
       <div
         className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden"
+        style={{ maxHeight: 'calc(100dvh - 6rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ──────────────────────────────────────────────── */}

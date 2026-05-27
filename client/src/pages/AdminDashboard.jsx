@@ -6,7 +6,7 @@ import {
   UserCheck, Clock, LogOut, Settings, CreditCard,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/App';
+import { useAuth, usePlayerPanel } from '@/App';
 import { logout } from '@/api/auth';
 import {
   getDashboard, getAdminActivity,
@@ -259,8 +259,8 @@ function UsersTab() {
       {loading ? <Skeleton /> : error ? <ErrorBanner message={error} /> : (
         <>
           <p className="text-xs text-slate-400">{filtered.length} utilisateur{filtered.length !== 1 ? 's' : ''}</p>
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-            <table className="w-full text-sm">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nom</th>
@@ -289,6 +289,7 @@ function UsersTab() {
 }
 
 function UserRow({ user: u, onStatusChange }) {
+  const { openPlayerPanel } = usePlayerPanel();
   const [open,   setOpen]   = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -306,10 +307,13 @@ function UserRow({ user: u, onStatusChange }) {
   return (
     <tr className="hover:bg-slate-50/60 transition-colors">
       <td className="px-4 py-3">
-        <Link to={`/players/${u.id}`} className="font-medium text-slate-700 hover:text-amber-600 transition-colors block">
+        <button
+          onClick={() => openPlayerPanel(u.id)}
+          className="font-medium text-slate-700 hover:text-amber-600 transition-colors text-left"
+        >
           <span className="truncate max-w-[180px] block">{fullName ?? u.email.split('@')[0]}</span>
           {fullName && <span className="text-xs text-slate-400 truncate max-w-[180px] block lg:hidden">{u.email}</span>}
-        </Link>
+        </button>
       </td>
       <td className="px-4 py-3 text-slate-500 text-sm hidden lg:table-cell truncate max-w-[200px]">{u.email}</td>
       <td className="px-4 py-3 text-slate-500">{ROLE_LABEL[u.role] ?? u.role}</td>

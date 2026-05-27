@@ -87,7 +87,7 @@ app.use('/api/search', searchRouter);
 app.use('/api/contact',       contactRouter);
 app.use('/api/messages',      messagesRouter);
 app.use('/api/subscriptions', subscriptionsRouter);
-app.use('/api/admin',         adminSubsRouter);
+app.use('/api/admin/subscriptions', adminSubsRouter);
 app.use('/api/friends',       friendshipsRouter);
 
 app.get('/healthz', async (req, res) => {

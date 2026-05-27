@@ -103,6 +103,24 @@ async function getCoachSessionsHandler(req, res, next) {
 
 // ─── Invitation handlers ─────────────────────────────────────────────────────
 
+async function getClubInvitationsHandler(req, res, next) {
+  try {
+    const invitations = await coachesService.getClubPendingInvitations(req.params.id, req.user.organization_id);
+    return res.json({ invitations });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function cancelInvitationHandler(req, res, next) {
+  try {
+    await coachesService.cancelInvitation(req.params.invId, req.user.organization_id);
+    return res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function sendInvitationHandler(req, res, next) {
   try {
     const { error, value } = invitationSchema.validate(req.body);
@@ -167,7 +185,9 @@ const clubCoachesRouter = Router();
 clubCoachesRouter.get('/:id/coaches', authenticate, listClubCoachesHandler);
 clubCoachesRouter.post('/:id/coaches', authenticate, requireRole('venue_admin'), addCoachToClubHandler);
 // Invitation-based flow: manager sends invite → coach accepts/refuses
+clubCoachesRouter.get('/:id/coach-invitations', authenticate, requireRole('venue_admin'), getClubInvitationsHandler);
 clubCoachesRouter.post('/:id/coach-invitations', authenticate, requireRole('venue_admin'), sendInvitationHandler);
+clubCoachesRouter.delete('/:id/coach-invitations/:invId', authenticate, requireRole('venue_admin'), cancelInvitationHandler);
 clubCoachesRouter.delete('/:id/coaches/:userId', authenticate, requireRole('venue_admin'), removeCoachFromClubHandler);
 
 // /api/coach-invitations routes (coach role)

@@ -9,9 +9,10 @@ import {
 import { useAuth } from '@/App';
 import {
   getManagerDashboard, getMyClub, getMyVenues, addVenue, getVenueSlots,
-  addCoachToClub, removeCoachFromClub, addBallPickerToClub, removeBallPickerFromClub,
+  removeCoachFromClub, addBallPickerToClub, removeBallPickerFromClub,
 } from '@/api/manager';
 import { getClubCoaches, getClubBallPickers } from '@/api/clubs';
+import { sendClubInvitation, getClubPendingInvitations, cancelClubInvitation } from '@/api/coaches';
 import { getMySubscription, getSubscriptionHistory, paySubscription } from '@/api/subscriptions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -237,11 +238,12 @@ function VenueCardSkeleton() {
   );
 }
 
-// ── Add coach modal (by email) ────────────────────────────────────────────────
-function AddCoachModal({ clubId, onClose, onAdded }) {
+// ── Add coach modal (invitation flow) ────────────────────────────────────────
+function AddCoachModal({ clubId, onClose, onInvited }) {
   const [email,   setEmail]   = useState('');
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
+  const [done,    setDone]    = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -249,10 +251,11 @@ function AddCoachModal({ clubId, onClose, onAdded }) {
     setLoading(true);
     setError(null);
     try {
-      const { coach } = await addCoachToClub(clubId, email.trim().toLowerCase());
-      onAdded(coach);
+      const { invitation } = await sendClubInvitation(clubId, email.trim().toLowerCase());
+      setDone(true);
+      setTimeout(() => { onInvited(invitation); onClose(); }, 1800);
     } catch (err) {
-      setError(err.message || 'Erreur lors de l\'ajout.');
+      setError(err.message || 'Erreur lors de l\'envoi.');
     } finally {
       setLoading(false);
     }
@@ -266,40 +269,50 @@ function AddCoachModal({ clubId, onClose, onAdded }) {
       <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Ajouter un coach</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Le compte coach doit déjà exister.</p>
+            <h2 className="text-lg font-semibold text-foreground">Inviter un coach</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Une invitation sera envoyée au coach par notification.</p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
             <X className="h-5 w-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              <AlertCircle className="h-4 w-4 shrink-0" />{error}
+        {done ? (
+          <div className="p-6 flex flex-col items-center gap-3 text-center">
+            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+              <UserCheck className="h-6 w-6 text-green-600" />
             </div>
-          )}
-          <div className="space-y-1.5">
-            <Label htmlFor="coach-email">Email du coach</Label>
-            <Input
-              id="coach-email"
-              type="email"
-              autoFocus
-              placeholder="coach@example.com"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setError(null); }}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              L'utilisateur doit avoir le rôle "coach" sur PadelConnect.
-            </p>
+            <p className="text-sm font-semibold text-foreground">Invitation envoyée !</p>
+            <p className="text-xs text-muted-foreground">Le coach recevra une notification pour accepter ou refuser.</p>
           </div>
-          <div className="flex gap-3 pt-1">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">Annuler</Button>
-            <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? 'Ajout…' : 'Ajouter le coach'}
-            </Button>
-          </div>
-        </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />{error}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="coach-email">Email du coach</Label>
+              <Input
+                id="coach-email"
+                type="email"
+                autoFocus
+                placeholder="coach@example.com"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError(null); }}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                L'utilisateur doit avoir le rôle "coach" sur PadelConnect.
+              </p>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <Button type="button" variant="outline" onClick={onClose} className="flex-1">Annuler</Button>
+              <Button type="submit" disabled={loading} className="flex-1">
+                {loading ? 'Envoi…' : 'Envoyer l\'invitation'}
+              </Button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
@@ -410,6 +423,7 @@ function AddBallPickerModal({ clubId, onClose, onAdded }) {
 
 // ── Staff member row ──────────────────────────────────────────────────────────
 function StaffRow({ member, onRemove, removing }) {
+  const { openPlayerPanel } = usePlayerPanel();
   const name = [member.user_first_name, member.user_last_name].filter(Boolean).join(' ')
     || member.user_email?.split('@')[0]
     || '—';
@@ -425,7 +439,13 @@ function StaffRow({ member, onRemove, removing }) {
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-foreground truncate">{name}</p>
+        <button
+          type="button"
+          onClick={() => member.user_id && openPlayerPanel(member.user_id)}
+          className="text-sm font-semibold text-foreground truncate hover:text-primary transition-colors text-left"
+        >
+          {name}
+        </button>
         {member.user_phone ? (
           <p className="text-xs text-muted-foreground truncate">+225 {member.user_phone}</p>
         ) : member.specialty ? (
@@ -641,12 +661,14 @@ export default function ManagerDashboard() {
   const [showModal,    setShowModal]    = useState(false);
 
   // Staff state
-  const [coaches,          setCoaches]          = useState([]);
-  const [ballPickers,      setBallPickers]       = useState([]);
-  const [loadingStaff,     setLoadingStaff]     = useState(false);
-  const [showAddCoach,     setShowAddCoach]     = useState(false);
-  const [showAddBallPicker,setShowAddBallPicker]= useState(false);
-  const [removingId,       setRemovingId]       = useState(null); // userId being removed
+  const [coaches,           setCoaches]           = useState([]);
+  const [ballPickers,       setBallPickers]        = useState([]);
+  const [pendingInvitations,setPendingInvitations] = useState([]);
+  const [loadingStaff,      setLoadingStaff]      = useState(false);
+  const [showAddCoach,      setShowAddCoach]      = useState(false);
+  const [showAddBallPicker, setShowAddBallPicker] = useState(false);
+  const [removingId,        setRemovingId]        = useState(null);
+  const [cancellingInvId,   setCancellingInvId]   = useState(null);
 
   // Subscription state
   const [subscription,  setSubscription]  = useState(null);
@@ -657,12 +679,14 @@ export default function ManagerDashboard() {
     if (!clubId) return;
     setLoadingStaff(true);
     try {
-      const [{ coaches: c }, { ballPickers: b }] = await Promise.all([
+      const [{ coaches: c }, { ballPickers: b }, { invitations: inv }] = await Promise.all([
         getClubCoaches(clubId),
         getClubBallPickers(clubId),
+        getClubPendingInvitations(clubId).catch(() => ({ invitations: [] })),
       ]);
       setCoaches(c ?? []);
       setBallPickers(b ?? []);
+      setPendingInvitations(inv ?? []);
     } catch {
       // non-fatal
     } finally {
@@ -696,6 +720,18 @@ export default function ManagerDashboard() {
     }
     load();
   }, [user?.organization_id, loadStaff]);
+
+  async function handleCancelInvitation(invId) {
+    setCancellingInvId(invId);
+    try {
+      await cancelClubInvitation(user.organization_id, invId);
+      setPendingInvitations((prev) => prev.filter((i) => i.id !== invId));
+    } catch {
+      // non-fatal
+    } finally {
+      setCancellingInvId(null);
+    }
+  }
 
   async function handleRemoveCoach(userId) {
     setRemovingId(userId);
@@ -858,7 +894,7 @@ export default function ManagerDashboard() {
                   <div className="flex items-center gap-2">
                     <UserCheck className="h-4 w-4 text-primary" />
                     <p className="text-sm font-semibold text-foreground">
-                      Coachs <span className="text-muted-foreground font-normal">({coaches.length})</span>
+                      Coachs <span className="text-muted-foreground font-normal">({coaches.length}{pendingInvitations.length > 0 ? ` + ${pendingInvitations.length} en attente` : ''})</span>
                     </p>
                   </div>
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowAddCoach(true)}>
@@ -871,20 +907,49 @@ export default function ManagerDashboard() {
                     <div className="py-4 space-y-3">
                       {[1, 2].map((i) => <div key={i} className="h-9 rounded-lg bg-muted animate-pulse" />)}
                     </div>
-                  ) : coaches.length === 0 ? (
+                  ) : coaches.length === 0 && pendingInvitations.length === 0 ? (
                     <div className="py-6 text-center">
                       <Users className="h-6 w-6 text-muted-foreground mx-auto mb-1.5" />
                       <p className="text-xs text-muted-foreground">Aucun coach rattaché.</p>
                     </div>
                   ) : (
-                    coaches.map((c) => (
-                      <StaffRow
-                        key={c.user_id}
-                        member={c}
-                        removing={removingId === c.user_id}
-                        onRemove={() => handleRemoveCoach(c.user_id)}
-                      />
-                    ))
+                    <>
+                      {coaches.map((c) => (
+                        <StaffRow
+                          key={c.user_id}
+                          member={c}
+                          removing={removingId === c.user_id}
+                          onRemove={() => handleRemoveCoach(c.user_id)}
+                        />
+                      ))}
+                      {pendingInvitations.map((inv) => (
+                        <div key={inv.id} className="flex items-center gap-3 py-2.5 px-1">
+                          <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                            <span className="text-xs font-bold text-amber-700 select-none">
+                              {(inv.coach_first_name?.[0] ?? inv.coach_email?.[0] ?? '?').toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">
+                              {[inv.coach_first_name, inv.coach_last_name].filter(Boolean).join(' ') || inv.coach_email}
+                            </p>
+                            <p className="text-xs text-amber-600">Invitation en attente</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={cancellingInvId === inv.id}
+                            onClick={() => handleCancelInvitation(inv.id)}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                            title="Annuler l'invitation"
+                          >
+                            {cancellingInvId === inv.id
+                              ? <span className="w-3.5 h-3.5 border border-current/40 border-t-transparent rounded-full animate-spin" />
+                              : <X className="h-3.5 w-3.5" />
+                            }
+                          </button>
+                        </div>
+                      ))}
+                    </>
                   )}
                 </div>
               </div>
@@ -946,10 +1011,8 @@ export default function ManagerDashboard() {
         <AddCoachModal
           clubId={user.organization_id}
           onClose={() => setShowAddCoach(false)}
-          onAdded={(coach) => {
-            // Reload full list so we get all joined fields
-            loadStaff(user.organization_id);
-            setShowAddCoach(false);
+          onInvited={(inv) => {
+            setPendingInvitations((prev) => [inv, ...prev]);
           }}
         />
       )}

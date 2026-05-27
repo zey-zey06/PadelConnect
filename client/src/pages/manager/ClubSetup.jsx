@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, AlertCircle } from 'lucide-react';
+import { Building2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/App';
-import { createClub } from '@/api/manager';
+import { createClub, addVenue } from '@/api/manager';
 import { me } from '@/api/auth';
 import { Button } from '@/components/ui/button';
 import { Input }  from '@/components/ui/input';
@@ -54,14 +54,61 @@ export function AmenitiesToggle({ value = {}, onChange }) {
   );
 }
 
+// ── Court count picker ────────────────────────────────────────────────────────
+function CourtCountPicker({ value, onChange }) {
+  const PRICE_PER_COURT = 3000;
+  const monthly = value * PRICE_PER_COURT;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-4 justify-center">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(1, value - 1))}
+          disabled={value <= 1}
+          className="h-10 w-10 rounded-full border border-border text-foreground/70 hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+
+        <div className="text-center min-w-[5rem]">
+          <span className="text-4xl font-extrabold text-primary">{value}</span>
+          <p className="text-xs text-muted-foreground mt-0.5">terrain{value > 1 ? 's' : ''}</p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(20, value + 1))}
+          disabled={value >= 20}
+          className="h-10 w-10 rounded-full border border-border text-foreground/70 hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
+
+      {/* Pricing preview */}
+      <div className="rounded-xl border border-primary/20 bg-primary/[0.03] px-4 py-3 text-center">
+        <p className="text-xs text-muted-foreground">Abonnement mensuel estimé</p>
+        <p className="text-lg font-bold text-primary mt-0.5">
+          {value} × 3 000 FCFA = {monthly.toLocaleString('fr-FR')} FCFA/mois
+        </p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          Essai gratuit 30 jours — pas de carte requise
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function ClubSetup() {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
 
-  const [form,      setForm]      = useState({ name: '', description: '', address: '', phone: '' });
-  const [amenities, setAmenities] = useState({});
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState(null);
+  const [form,        setForm]        = useState({ name: '', description: '', address: '', phone: '' });
+  const [amenities,   setAmenities]   = useState({});
+  const [courtsCount, setCourtsCount] = useState(2);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState(null);
 
   useEffect(() => {
     if (user?.organization_id) navigate('/manager/dashboard', { replace: true });
@@ -79,7 +126,7 @@ export default function ClubSetup() {
     setError(null);
     try {
       const hasAmenities = Object.values(amenities).some(Boolean);
-      await createClub({
+      const { club } = await createClub({
         name:        form.name.trim(),
         slug:        toSlug(form.name.trim()),
         description: form.description.trim() || null,
@@ -87,6 +134,16 @@ export default function ClubSetup() {
         phone:       form.phone.trim()        || null,
         amenities:   hasAmenities ? amenities : null,
       });
+
+      // Auto-create venues (Court 1, Court 2, …) in parallel
+      if (club?.id && courtsCount > 0) {
+        await Promise.allSettled(
+          Array.from({ length: courtsCount }, (_, i) =>
+            addVenue(club.id, { name: `Court ${i + 1}`, description: null })
+          )
+        );
+      }
+
       const { user: fresh } = await me();
       setUser(fresh);
       navigate('/manager/dashboard', { replace: true });
@@ -145,6 +202,15 @@ export default function ClubSetup() {
             <Input id="c-phone" type="tel" placeholder="ex: +225 07 00 00 00 00" value={form.phone} onChange={set('phone')} />
           </div>
 
+          {/* ── Court count ─────────────────────────────────────────────── */}
+          <div className="space-y-2">
+            <Label>Combien de terrains avez-vous ?</Label>
+            <CourtCountPicker value={courtsCount} onChange={setCourtsCount} />
+            <p className="text-xs text-muted-foreground text-center">
+              Les terrains seront créés automatiquement (Court 1, Court 2…)
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label>Équipements <span className="font-normal text-muted-foreground">(optionnel)</span></Label>
             <AmenitiesToggle value={amenities} onChange={setAmenities} />
@@ -156,7 +222,7 @@ export default function ClubSetup() {
                 <span className="h-4 w-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />
                 Création…
               </>
-            ) : 'Créer mon club'}
+            ) : `Créer mon club avec ${courtsCount} terrain${courtsCount > 1 ? 's' : ''}`}
           </Button>
         </form>
       </div>

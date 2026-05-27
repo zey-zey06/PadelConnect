@@ -139,4 +139,28 @@ async function hasPendingInvitation(organization_id, coach_user_id) {
   return !!row;
 }
 
-module.exports = { listAvailable, getById, getByUserId, updateAvailability, getByOrg, getCoachUser, getCoachUserByEmail, attachToClub, detachFromClub, getSessionsByCoach, createInvitation, getPendingInvitationsByCoach, getInvitationById, updateInvitationStatus, hasPendingInvitation };
+async function getPendingInvitationsByOrg(organizationId) {
+  return db('club_invitations')
+    .join('users as coach', 'club_invitations.coach_user_id', 'coach.id')
+    .leftJoin('player_profiles', 'coach.id', 'player_profiles.user_id')
+    .where({ 'club_invitations.organization_id': organizationId, 'club_invitations.status': 'pending' })
+    .orderBy('club_invitations.created_at', 'desc')
+    .select(
+      'club_invitations.id',
+      'club_invitations.coach_user_id',
+      'club_invitations.status',
+      'club_invitations.created_at',
+      'coach.first_name as coach_first_name',
+      'coach.last_name  as coach_last_name',
+      'coach.email      as coach_email',
+      'player_profiles.photo_url as coach_photo_url',
+    );
+}
+
+async function deleteInvitation(id, organizationId) {
+  await db('club_invitations')
+    .where({ id, organization_id: organizationId, status: 'pending' })
+    .delete();
+}
+
+module.exports = { listAvailable, getById, getByUserId, updateAvailability, getByOrg, getCoachUser, getCoachUserByEmail, attachToClub, detachFromClub, getSessionsByCoach, createInvitation, getPendingInvitationsByCoach, getPendingInvitationsByOrg, getInvitationById, updateInvitationStatus, hasPendingInvitation, deleteInvitation };

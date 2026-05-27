@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Building2, MapPin, Phone, Clock,
   AlertCircle, X, CreditCard, Banknote,
@@ -510,18 +510,26 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
 
 // ── ClubProfile page ──────────────────────────────────────────────────────────
 export default function ClubProfile() {
-  const { id }   = useParams();
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const isAdmin  = user?.role === 'super_admin';
+  const { id }           = useParams();
+  const navigate         = useNavigate();
+  const { user }         = useAuth();
+  const isAdmin          = user?.role === 'super_admin';
+  const [searchParams]   = useSearchParams();
+
+  // Deep-link: ?date=YYYY-MM-DD&slotId=<uuid>
+  const urlDate   = searchParams.get('date')   || null;
+  const urlSlotId = searchParams.get('slotId') || null;
 
   const [club,         setClub]         = useState(null);
   const [clubLoading,  setClubLoading]  = useState(true);
   const [clubError,    setClubError]    = useState(null);
 
-  const [selectedDate, setSelectedDate] = useState(todayISO);
+  const [selectedDate, setSelectedDate] = useState(() => urlDate || todayISO());
   const [slotsData,    setSlotsData]    = useState(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
+
+  // When a slotId is passed via URL, store it and open the modal once slotsData is ready
+  const [pendingSlotId, setPendingSlotId] = useState(urlSlotId);
 
   const [booking,   setBooking]   = useState(null);  // { slot, venueName } — opens booking modal
   const [myBooking, setMyBooking] = useState(null);  // booking just made in this session
@@ -541,10 +549,25 @@ export default function ClubProfile() {
     setSlotsLoading(true);
     setSlotsData(null);
     getClubSlots(id, selectedDate)
-      .then((data) => setSlotsData(data))
+      .then((data) => {
+        setSlotsData(data);
+        // Deep-link: auto-open the booking modal for the linked slot
+        if (pendingSlotId && data?.venues) {
+          for (const venue of (data.venues ?? [])) {
+            const targetSlot = venue.slots?.find((s) => s.id === pendingSlotId && s.status === 'available');
+            if (targetSlot) {
+              setBooking({ slot: targetSlot, venueName: venue.name });
+              setPendingSlotId(null);
+              break;
+            }
+          }
+          // If slot not found (booked/cancelled), clear pending anyway
+          if (pendingSlotId) setPendingSlotId(null);
+        }
+      })
       .catch(() => setSlotsData({ date: selectedDate, venues: [] }))
       .finally(() => setSlotsLoading(false));
-  }, [id, selectedDate]);
+  }, [id, selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const amenityKeys = club?.amenities
     ? Object.keys(club.amenities).filter((k) => club.amenities[k])
@@ -856,6 +879,7 @@ export default function ClubProfile() {
             start_time: shareSlot.slot.start_time?.slice(0, 5),
             end_time:   shareSlot.slot.end_time?.slice(0, 5),
             price:      shareSlot.slot.price,
+            slot_id:    shareSlot.slot.id,
           }}
           onClose={() => setShareSlot(null)}
         />

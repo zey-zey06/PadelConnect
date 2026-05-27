@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getNotifications, markAsRead } from '@/api/notifications';
 import { acceptFriendRequest, refuseFriendRequest } from '@/api/friends';
+import { getMySessions, invitePlayer } from '@/api/sessions';
 import { Button } from '@/components/ui/button';
-import { Bell, CheckCircle2, AlertCircle, UserCheck, UserX } from 'lucide-react';
+import { Bell, CheckCircle2, AlertCircle, UserCheck, UserX, Users, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PageSkeleton from '@/components/PageSkeleton';
+import usePullToRefresh from '@/hooks/usePullToRefresh';
 
 const TYPE_LABELS = {
   // Sessions
@@ -37,22 +39,152 @@ const TYPE_LABELS = {
   new_user:          'Nouveau joueur',
 };
 
+// ── Invite to session modal ────────────────────────────────────────────────────
+function InviteToSessionModal({ actorId, actorName, onClose }) {
+  const [sessions,   setSessions]   = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [selectedId, setSelectedId] = useState('');
+  const [sending,    setSending]    = useState(false);
+  const [done,       setDone]       = useState(false);
+
+  useEffect(() => {
+    getMySessions()
+      .then(({ sessions: s }) => {
+        const open = (s ?? []).filter((x) => x.status === 'open');
+        setSessions(open);
+        if (open.length === 1) setSelectedId(open[0].id);
+      })
+      .catch(() => setSessions([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleInvite() {
+    if (!selectedId || sending) return;
+    setSending(true);
+    try {
+      await invitePlayer(selectedId, actorId);
+      setDone(true);
+      setTimeout(onClose, 1500);
+    } catch {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4 pb-20 sm:pb-4"
+      style={{ background: 'rgba(0,0,0,0.48)', backdropFilter: 'blur(2px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Users className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <h2 className="text-sm font-semibold text-foreground">Inviter à une session</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 space-y-4">
+          {done ? (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm font-medium text-green-700">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              Invitation envoyée à {actorName} !
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-foreground">
+                Inviter <span className="font-semibold">{actorName}</span> à rejoindre une de vos sessions ?
+              </p>
+
+              {loading ? (
+                <div className="h-10 rounded-lg bg-muted animate-pulse" />
+              ) : sessions.length === 0 ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                  Vous n'avez aucune session ouverte.{' '}
+                  <Link to="/sessions" className="font-medium underline" onClick={onClose}>
+                    Créez une session
+                  </Link>{' '}
+                  d'abord.
+                </div>
+              ) : (
+                <select
+                  value={selectedId}
+                  onChange={(e) => setSelectedId(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="">Choisir une session…</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {String(s.date).slice(0, 10)} à {String(s.time).slice(0, 5)} — {s.current_players}/{s.max_players} joueurs
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <div className="flex gap-3 pt-1">
+                <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+                  Non merci
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleInvite}
+                  disabled={!selectedId || sending || sessions.length === 0}
+                  className="flex-1 bg-green-600 hover:bg-green-700 border-0 text-white"
+                >
+                  {sending ? (
+                    <span className="w-4 h-4 border-2 border-white/40 border-t-transparent rounded-full animate-spin" />
+                  ) : 'Oui, inviter'}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Pull refresh spinner ───────────────────────────────────────────────────────
+function PullSpinner() {
+  return (
+    <div className="flex items-center justify-center py-3">
+      <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+    </div>
+  );
+}
+
 export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState(null);
+  // After accepting friend request — invite to session
+  const [inviteModal, setInviteModal] = useState(null); // { actorId, actorName } | null
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const data = await getNotifications();
+      setNotifications(data.notifications ?? []);
+    } catch (e) {
+      setError(e.message);
+    }
+  }, []);
 
   useEffect(() => {
     setLoading(true);
-    getNotifications()
-      .then((data) => {
-        setNotifications(data.notifications ?? []);
-      })
-      .catch((e) => {
-        setError(e.message);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    fetchNotifications().finally(() => setLoading(false));
+  }, [fetchNotifications]);
+
+  const { refreshing } = usePullToRefresh(fetchNotifications);
 
   async function handleMarkRead(id) {
     try {
@@ -67,16 +199,19 @@ export default function Notifications() {
 
   const [friendActionLoading, setFriendActionLoading] = useState({});
 
-  async function handleFriendAction(notifId, actorId, action) {
+  async function handleFriendAction(notifId, actorId, actorName, action) {
     setFriendActionLoading((prev) => ({ ...prev, [notifId]: action }));
     try {
       if (action === 'accept') {
         await acceptFriendRequest(actorId);
+        // Remove notification
+        setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+        // Offer to invite to session
+        setInviteModal({ actorId, actorName });
       } else {
         await refuseFriendRequest(actorId);
+        setNotifications((prev) => prev.filter((n) => n.id !== notifId));
       }
-      // Remove notification after action
-      setNotifications((prev) => prev.filter((n) => n.id !== notifId));
     } catch {
       // non-fatal
     } finally {
@@ -94,6 +229,9 @@ export default function Notifications() {
 
   return (
     <div className="space-y-6">
+      {/* Pull-to-refresh indicator */}
+      {refreshing && <PullSpinner />}
+
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
@@ -124,96 +262,109 @@ export default function Notifications() {
         </div>
       ) : (
         <div className="space-y-2">
-          {notifications.map((n) => (
-            <div
-              key={n.id}
-              className={cn(
-                'flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5 transition-all',
-                !n.read && 'border-primary/20 bg-primary/[0.03]'
-              )}
-            >
-              {/* Indicator */}
-              <div className="mt-0.5 shrink-0">
-                {n.read
-                  ? <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                  : <span className="block w-2 h-2 rounded-full bg-primary mt-1" />
-                }
-              </div>
+          {notifications.map((n) => {
+            // Try to extract actor name from notification message
+            const actorName = n.message?.split(' ')[0] ?? 'Ce joueur';
+            return (
+              <div
+                key={n.id}
+                className={cn(
+                  'flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5 transition-all',
+                  !n.read && 'border-primary/20 bg-primary/[0.03]'
+                )}
+              >
+                {/* Indicator */}
+                <div className="mt-0.5 shrink-0">
+                  {n.read
+                    ? <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                    : <span className="block w-2 h-2 rounded-full bg-primary mt-1" />
+                  }
+                </div>
 
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                {n.type && (
-                  <p className="text-xs font-medium text-primary mb-0.5">
-                    {TYPE_LABELS[n.type] ?? n.type}
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  {n.type && (
+                    <p className="text-xs font-medium text-primary mb-0.5">
+                      {TYPE_LABELS[n.type] ?? n.type}
+                    </p>
+                  )}
+                  <p className={cn(
+                    'text-sm',
+                    n.read ? 'text-muted-foreground' : 'text-foreground font-medium'
+                  )}>
+                    {n.message}
                   </p>
-                )}
-                <p className={cn(
-                  'text-sm',
-                  n.read ? 'text-muted-foreground' : 'text-foreground font-medium'
-                )}>
-                  {n.message}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {new Date(n.created_at).toLocaleDateString('fr-FR', {
-                    day: 'numeric', month: 'short',
-                    hour: '2-digit', minute: '2-digit',
-                  })}
-                </p>
-              </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {new Date(n.created_at).toLocaleDateString('fr-FR', {
+                      day: 'numeric', month: 'short',
+                      hour: '2-digit', minute: '2-digit',
+                    })}
+                  </p>
+                </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-1 shrink-0">
-                {n.type === 'session_request' && (
-                  <Link to="/sessions?tab=mine">
-                    <Button size="sm" variant="outline" className="text-xs h-7 px-2">
-                      Gérer
-                    </Button>
-                  </Link>
-                )}
-                {n.type === 'friend_request' && n.actor_id && (
-                  <div className="flex gap-1">
+                {/* Actions */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {n.type === 'session_request' && (
+                    <Link to="/sessions?tab=mine">
+                      <Button size="sm" variant="outline" className="text-xs h-7 px-2">
+                        Gérer
+                      </Button>
+                    </Link>
+                  )}
+                  {n.type === 'friend_request' && n.actor_id && (
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="text-xs h-7 px-2 gap-1 bg-green-600 hover:bg-green-700"
+                        disabled={!!friendActionLoading[n.id]}
+                        onClick={() => handleFriendAction(n.id, n.actor_id, actorName, 'accept')}
+                      >
+                        {friendActionLoading[n.id] === 'accept'
+                          ? <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin" />
+                          : <UserCheck className="h-3 w-3" />
+                        }
+                        Accepter
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 px-2 gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                        disabled={!!friendActionLoading[n.id]}
+                        onClick={() => handleFriendAction(n.id, n.actor_id, actorName, 'refuse')}
+                      >
+                        {friendActionLoading[n.id] === 'refuse'
+                          ? <span className="w-3 h-3 border border-red-400/50 border-t-transparent rounded-full animate-spin" />
+                          : <UserX className="h-3 w-3" />
+                        }
+                        Refuser
+                      </Button>
+                    </div>
+                  )}
+                  {!n.read && n.type !== 'friend_request' && (
                     <Button
                       size="sm"
-                      variant="default"
-                      className="text-xs h-7 px-2 gap-1 bg-green-600 hover:bg-green-700"
-                      disabled={!!friendActionLoading[n.id]}
-                      onClick={() => handleFriendAction(n.id, n.actor_id, 'accept')}
+                      variant="ghost"
+                      onClick={() => handleMarkRead(n.id)}
+                      className="text-xs text-muted-foreground"
                     >
-                      {friendActionLoading[n.id] === 'accept'
-                        ? <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin" />
-                        : <UserCheck className="h-3 w-3" />
-                      }
-                      Accepter
+                      Lire
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs h-7 px-2 gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                      disabled={!!friendActionLoading[n.id]}
-                      onClick={() => handleFriendAction(n.id, n.actor_id, 'refuse')}
-                    >
-                      {friendActionLoading[n.id] === 'refuse'
-                        ? <span className="w-3 h-3 border border-red-400/50 border-t-transparent rounded-full animate-spin" />
-                        : <UserX className="h-3 w-3" />
-                      }
-                      Refuser
-                    </Button>
-                  </div>
-                )}
-                {!n.read && n.type !== 'friend_request' && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleMarkRead(n.id)}
-                    className="text-xs text-muted-foreground"
-                  >
-                    Lire
-                  </Button>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+      )}
+
+      {/* Invite to session modal (shown after accepting friend request) */}
+      {inviteModal && (
+        <InviteToSessionModal
+          actorId={inviteModal.actorId}
+          actorName={inviteModal.actorName}
+          onClose={() => setInviteModal(null)}
+        />
       )}
     </div>
   );

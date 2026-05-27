@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft, AlertCircle, Smile, Calendar, Clock, Building2 } from 'lucide-react';
+import usePullToRefresh from '@/hooks/usePullToRefresh';
 import EmojiPicker from 'emoji-picker-react';
 import { getConversations, getMessages, sendMessage, markAsRead } from '@/api/messages';
 import { getUserProfile } from '@/api/profile';
@@ -202,7 +203,14 @@ function SlotShareCard({ msg }) {
           </p>
         )}
         <button
-          onClick={() => m.club_id && navigate(`/clubs/${m.club_id}`)}
+          onClick={() => {
+            if (!m.club_id) return;
+            const params = new URLSearchParams();
+            if (m.date) params.set('date', m.date.slice(0, 10));
+            if (m.slot_id) params.set('slotId', m.slot_id);
+            const qs = params.toString();
+            navigate(`/clubs/${m.club_id}${qs ? '?' + qs : ''}`);
+          }}
           className="block w-full mt-1.5 py-1.5 rounded-lg text-xs font-semibold text-center text-white transition-opacity"
           style={{ background: '#1d4ed8' }}
           onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
@@ -346,11 +354,25 @@ export default function Messages() {
 
   const showChatPanel = !!selectedUserId;
 
+  // Pull-to-refresh: reload conversations list
+  const refreshConvs = useCallback(async () => {
+    try {
+      const { conversations: c } = await getConversations();
+      setConversations(c ?? []);
+    } catch { /* non-fatal */ }
+  }, []);
+  const { refreshing: convRefreshing } = usePullToRefresh(refreshConvs);
+
   return (
+    <>
+    {convRefreshing && !showChatPanel && (
+      <div className="flex items-center justify-center py-2">
+        <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    )}
     <div
-      className="flex overflow-hidden"
+      className="flex overflow-hidden h-[calc(100dvh-16rem)] md:h-[calc(100dvh-14rem)]"
       style={{
-        height: 'calc(100dvh - 14rem)',
         borderRadius: '20px',
         boxShadow: '0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)',
         border: '1px solid rgba(0,0,0,0.07)',
@@ -653,5 +675,6 @@ export default function Messages() {
         )}
       </div>
     </div>
+    </>
   );
 }

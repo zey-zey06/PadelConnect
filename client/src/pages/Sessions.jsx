@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import usePullToRefresh from '@/hooks/usePullToRefresh';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   listSessions, createSession, requestJoin, getMySessions,
@@ -187,10 +188,11 @@ const GENDER_PREFS = [
 const GENDER_DISPLAY = { mixed: 'Mixte', women: 'Femmes', men: 'Hommes' };
 const GENDER_ICON    = { mixed: '⚧', women: '♀', men: '♂' };
 
-function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked }) {
+function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, alreadyRequested = false }) {
   const { user } = useAuth();
   const { openPlayerPanel } = usePlayerPanel();
-  const [state, setState] = useState('idle'); // idle | loading | done | error
+  // Initialise with 'done' if user already sent a request (from sessionStorage or parent)
+  const [state, setState] = useState(alreadyRequested ? 'done' : 'idle'); // idle | loading | done | error
   const [msg,   setMsg]   = useState('');
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [showSharePicker,   setShowSharePicker]   = useState(false);
@@ -2382,6 +2384,16 @@ export default function Sessions() {
   const [genderFilter, setGenderFilter] = useState('');
   const [visibleCount, setVisibleCount] = useState(8);
 
+  // Persist requested session IDs in sessionStorage so optimistic state survives re-render
+  const [requestedIds, setRequestedIds] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem('padelconnect_requested_sessions');
+      return new Set(JSON.parse(stored) ?? []);
+    } catch {
+      return new Set();
+    }
+  });
+
   const hasFilters = !!(dateFilter || levelFilter || genderFilter);
 
   const load = useCallback(async () => {
@@ -2412,8 +2424,16 @@ export default function Sessions() {
 
   useEffect(() => { load(); }, [load]);
 
+  const { refreshing } = usePullToRefresh(load);
+
   async function handleJoin(sessionId) {
     await requestJoin(sessionId);
+    // Persist optimistic state so button stays "Demande envoyée" on reload
+    setRequestedIds((prev) => {
+      const next = new Set([...prev, sessionId]);
+      try { sessionStorage.setItem('padelconnect_requested_sessions', JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
     load();
   }
 
@@ -2425,6 +2445,13 @@ export default function Sessions() {
 
   return (
     <div className="space-y-6">
+      {/* Pull-to-refresh indicator */}
+      {refreshing && (
+        <div className="flex items-center justify-center py-2">
+          <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
+      )}
+
       {showCreate && (
         <CreateSessionModal
           onClose={(s) => { setShowCreate(false); if (s) load(); }}
@@ -2515,6 +2542,7 @@ export default function Sessions() {
                   onJoin={handleJoin}
                   hasBooking={!!bookingMap[s.id]}
                   onBooked={load}
+                  alreadyRequested={requestedIds.has(s.id)}
                 />
               ))}
 

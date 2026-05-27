@@ -371,6 +371,10 @@ async function chatHandler(req, res, next) {
     const systemInstruction = buildSystemPrompt(role, context);
 
     // Call Gemini
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('[PIA] GEMINI_API_KEY manquante — configurez la variable d\'environnement.');
+      return res.json({ response: 'PIA est temporairement indisponible. Contactez l\'administrateur. 🎾', conversation_id: conversation.id });
+    }
     const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model  = genAI.getGenerativeModel({ model: 'gemini-1.5-flash', systemInstruction });
     const chat   = model.startChat({ history });
@@ -386,10 +390,7 @@ async function chatHandler(req, res, next) {
 
     return res.json({ response, conversation_id: conversation.id });
   } catch (err) {
-    console.error('[PIA] Gemini error:', err?.message ?? err, 'status:', err?.status ?? 'unknown');
-    if (!process.env.GEMINI_API_KEY) {
-      console.error('[PIA] GEMINI_API_KEY is not set — check environment variables.');
-    }
+    console.error(JSON.stringify({ level: 'error', event: 'pia_error', message: err?.message ?? String(err), status: err?.status ?? 'unknown' }));
     if (!res.headersSent) {
       return res.json({
         response: 'Désolée, je rencontre des difficultés techniques. Veuillez réessayer dans un instant. 🎾',
