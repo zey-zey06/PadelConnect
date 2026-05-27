@@ -343,6 +343,9 @@ const chatSchema = Joi.object({
 // ── Handlers ──────────────────────────────────────────────────────────────────
 async function chatHandler(req, res, next) {
   try {
+    console.log('[PIA DEBUG] Key exists:', !!process.env.GEMINI_API_KEY);
+    console.log('[PIA DEBUG] Key prefix:', process.env.GEMINI_API_KEY?.substring(0, 10));
+
     const { error, value } = chatSchema.validate(req.body);
     if (error) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
@@ -375,10 +378,18 @@ async function chatHandler(req, res, next) {
       console.error('[PIA] GEMINI_API_KEY manquante — configurez la variable d\'environnement.');
       return res.json({ response: 'PIA est temporairement indisponible. Contactez l\'administrateur. 🎾', conversation_id: conversation.id });
     }
+
+    console.log('[PIA] Initializing Gemini API...');
     const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model  = genAI.getGenerativeModel({ model: 'gemini-1.5-flash', systemInstruction });
+
+    console.log('[PIA] Starting chat with history length:', history?.length ?? 0);
     const chat   = model.startChat({ history });
+
+    console.log('[PIA] Sending message to Gemini...');
     const result = await chat.sendMessage(message);
+
+    console.log('[PIA] Received response from Gemini');
     const response = result.response.text();
 
     // Persist both messages to DB
@@ -390,7 +401,14 @@ async function chatHandler(req, res, next) {
 
     return res.json({ response, conversation_id: conversation.id });
   } catch (err) {
-    console.error(JSON.stringify({ level: 'error', event: 'pia_error', message: err?.message ?? String(err), status: err?.status ?? 'unknown' }));
+    console.error('[PIA ERROR]', {
+      message: err?.message ?? String(err),
+      status: err?.status ?? 'unknown',
+      stack: err?.stack,
+      code: err?.code,
+      apiKey: `${!!process.env.GEMINI_API_KEY}`,
+    });
+    console.error(JSON.stringify({ level: 'error', event: 'pia_error', message: err?.message ?? String(err), status: err?.status ?? 'unknown', code: err?.code }));
     if (!res.headersSent) {
       return res.json({
         response: 'Désolée, je rencontre des difficultés techniques. Veuillez réessayer dans un instant. 🎾',
