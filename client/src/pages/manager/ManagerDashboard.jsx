@@ -6,7 +6,7 @@ import {
   ShowerHead, ParkingSquare, Wifi, Utensils, ShoppingBag, Lightbulb, Shirt,
   Trash2, CreditCard,
 } from 'lucide-react';
-import { useAuth } from '@/App';
+import { useAuth, usePlayerPanel } from '@/App';
 import {
   getManagerDashboard, getMyClub, getMyVenues, addVenue, getVenueSlots,
   removeCoachFromClub, addBallPickerToClub, removeBallPickerFromClub,

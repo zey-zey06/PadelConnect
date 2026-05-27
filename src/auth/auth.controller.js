@@ -3,6 +3,8 @@ const { signupSchema, loginSchema } = require('./auth.validation');
 const { signup, login, verifyEmail, getUserById, updateName, changePassword, softDeleteAccount } = require('./auth.service');
 const { signToken } = require('./jwt');
 const authenticate = require('../middleware/authenticate');
+const notificationsService = require('../features/notifications/notifications.service');
+const db = require('../db');
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -147,12 +149,20 @@ router.patch('/password', authenticate, changePasswordHandler);
 
 async function deleteAccountHandler(req, res, next) {
   try {
+    const user = await getUserById(req.user.sub);
     await softDeleteAccount(req.user.sub);
     res.clearCookie('token', {
       httpOnly: true,
       secure: process.env.COOKIE_SECURE === 'true',
       sameSite: 'lax',
     });
+    // Notify super_admins of account deletion (fire-and-forget)
+    const name = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.email || 'Utilisateur';
+    db('users').where({ role: 'super_admin' }).select('id')
+      .then((admins) => Promise.allSettled(
+        admins.map((a) => notificationsService.createNotification(a.id, 'account_deleted', `${name} a supprimé son compte`))
+      ))
+      .catch(() => {});
     return res.json({ ok: true });
   } catch (err) {
     next(err);

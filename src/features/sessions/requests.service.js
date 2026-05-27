@@ -4,6 +4,13 @@ const requestsRepo = require('./requests.repository');
 const profileRepo = require('../profiles/profile.repository');
 const notificationsService = require('../notifications/notifications.service');
 
+function fmtDateFr(dateVal) {
+  const iso = String(dateVal ?? '').slice(0, 10);
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
 /**
  * Create a player join request OR a creator-initiated coach invite.
  *
@@ -49,7 +56,7 @@ async function createRequest(sessionId, userId, { role = 'player', coachUserId =
     await notificationsService.createNotification(
       coachUserId,
       'coach_invite',
-      `Vous avez été invité à coacher une session du ${session.date} à ${session.time?.slice(0, 5)}.`
+      `Vous avez été invité à coacher une session du ${fmtDateFr(session.date)} à ${session.time?.slice(0, 5)}.`
     );
     return sessionRequest;
   }
@@ -99,7 +106,7 @@ async function createRequest(sessionId, userId, { role = 'player', coachUserId =
   await notificationsService.createNotification(
     session.creator_id,
     'session_request',
-    `Nouvelle demande pour rejoindre votre session du ${session.date}.`
+    `Nouvelle demande pour rejoindre votre session du ${fmtDateFr(session.date)}.`
   );
 
   return sessionRequest;
@@ -199,13 +206,12 @@ async function invitePlayer(sessionId, creatorId, playerUserId) {
     ? ([creator.first_name, creator.last_name].filter(Boolean).join(' ') || creator.email?.split('@')[0])
     : 'Un joueur';
 
-  const dateStr = (session.date ?? '').toString().slice(0, 10);
   const timeStr = session.time?.slice(0, 5) ?? '';
 
   await notificationsService.createNotification(
     playerUserId,
     'session_invite',
-    `${creatorName} vous invite à rejoindre sa session du ${dateStr} à ${timeStr}.`
+    `${creatorName} vous invite à rejoindre sa session du ${fmtDateFr(session.date)} à ${timeStr}.`
   );
 
   return { invited: true };

@@ -9,6 +9,7 @@ async function create(data) {
     created_at: new Date(),
   };
   if (data.actor_id) row.actor_id = data.actor_id;
+  if (data.metadata) row.metadata = JSON.stringify(data.metadata);
   const [result] = await db('notifications').insert(row).returning('*');
   return result;
 }

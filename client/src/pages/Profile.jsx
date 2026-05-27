@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe } from 'lucide-react';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe, Menu, MessageSquare, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { setLanguage } from '@/i18n/i18n';
 import { useAuth } from '@/App';
@@ -8,7 +8,7 @@ import { getProfile, updateProfile, uploadPhoto, uploadCoverPhoto, updateUsernam
 import { updateMe, logout, changePassword, deleteAccount } from '@/api/auth';
 import { getMyBookings } from '@/api/bookings';
 import { getMyPenalties, payPenalty } from '@/api/penalties';
-import { getFriendRequests, acceptFriendRequest, refuseFriendRequest } from '@/api/friends';
+import { getFriendRequests, acceptFriendRequest, refuseFriendRequest, getFriends } from '@/api/friends';
 import { Button }       from '@/components/ui/button';
 import { Input }        from '@/components/ui/input';
 import { Label }        from '@/components/ui/label';
@@ -175,7 +175,7 @@ function FootballCard({ profile, name, onEditClick }) {
 }
 
 // ── Stats bar ─────────────────────────────────────────────────────────────────
-function StatsBar({ bookingsCount }) {
+function StatsBar({ bookingsCount, friendsCount }) {
   return (
     <div className="w-full max-w-sm mx-auto mt-4">
       <div className="rounded-xl border border-border bg-card px-5 py-3 flex items-center justify-around">
@@ -185,10 +185,15 @@ function StatsBar({ bookingsCount }) {
         </div>
         <div className="w-px h-8 bg-border" />
         <div className="text-center">
+          <p className="text-xl font-bold text-foreground">{friendsCount ?? '—'}</p>
+          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mt-0.5">Amis</p>
+        </div>
+        <div className="w-px h-8 bg-border" />
+        <div className="text-center">
           <p className="text-xl font-bold text-foreground">
             <Sparkles className="h-5 w-5 text-primary inline-block" />
           </p>
-          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mt-0.5">IA activée</p>
+          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mt-0.5">IA</p>
         </div>
       </div>
     </div>
@@ -873,6 +878,142 @@ function LanguageSelector() {
   );
 }
 
+// ── Hamburger slide-out menu ──────────────────────────────────────────────────
+function HamburgerMenu({ open, onClose, onPassword, onDelete, onLogout }) {
+  return (
+    <>
+      {/* Backdrop */}
+      {open && (
+        <div className="fixed inset-0 z-[70] bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      )}
+      {/* Panel */}
+      <div className={cn(
+        'fixed top-0 right-0 z-[80] h-full w-72 bg-card border-l border-border shadow-2xl transition-transform duration-300 ease-out',
+        open ? 'translate-x-0' : 'translate-x-full',
+      )}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border">
+          <h2 className="text-base font-semibold text-foreground">Paramètres</h2>
+          <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-muted transition-colors">
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+        <div className="px-3 py-2 space-y-0.5">
+          <LanguageSelector />
+          <button
+            onClick={() => { onClose(); onPassword(); }}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-foreground hover:bg-muted transition-colors text-left"
+          >
+            <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+            Changer le mot de passe
+          </button>
+          <Link
+            to="/privacy"
+            onClick={onClose}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-foreground hover:bg-muted transition-colors"
+          >
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+            Politique de confidentialité
+          </Link>
+          <button
+            onClick={() => { onClose(); onLogout(); }}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-left"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            Se déconnecter
+          </button>
+          <button
+            onClick={() => { onClose(); onDelete(); }}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
+          >
+            <Trash2 className="h-4 w-4 shrink-0" />
+            Supprimer mon compte
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Friends row (horizontal avatar strip) ────────────────────────────────────
+function FriendsRow({ friends, onViewAll }) {
+  if (!friends.length) return null;
+  return (
+    <div className="w-full max-w-sm mx-auto">
+      <div className="rounded-xl border border-border bg-card px-4 py-3">
+        <button onClick={onViewAll} className="flex items-center gap-2 mb-2.5 group">
+          <Users className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-semibold text-foreground">{friends.length} ami{friends.length > 1 ? 's' : ''}</span>
+          <span className="text-xs text-primary group-hover:underline ml-auto">Voir tout</span>
+        </button>
+        <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
+          {friends.slice(0, 10).map((f) => (
+            <Link key={f.id} to={`/player/${f.id}`} className="flex flex-col items-center shrink-0 w-14">
+              <div className="h-12 w-12 rounded-full overflow-hidden border-2 border-primary/20 bg-muted">
+                {f.photo_url ? (
+                  <img src={f.photo_url} alt={f.name} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center">
+                    <User className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+              <span className="text-[10px] text-muted-foreground mt-1 truncate w-full text-center">
+                {f.first_name || f.name?.split(' ')[0] || '?'}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Friends list modal ───────────────────────────────────────────────────────
+function FriendsListModal({ friends, onClose }) {
+  const navigate = useNavigate();
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/20 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-xl max-h-[70dvh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h2 className="text-base font-semibold text-foreground">Mes amis ({friends.length})</h2>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 divide-y divide-border">
+          {friends.map((f) => (
+            <div key={f.id} className="flex items-center gap-3 px-5 py-3">
+              <div className="h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0 border border-border">
+                {f.photo_url ? (
+                  <img src={f.photo_url} alt={f.name} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center"><User className="h-5 w-5 text-muted-foreground" /></div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <Link to={`/player/${f.id}`} onClick={onClose} className="text-sm font-medium text-foreground hover:underline truncate block">
+                  {f.name || `${f.first_name ?? ''} ${f.last_name ?? ''}`.trim() || 'Joueur'}
+                </Link>
+                {f.level && <p className="text-xs text-muted-foreground">{LEVEL_LABELS[f.level] ?? `Niveau ${f.level}`}</p>}
+              </div>
+              <button
+                onClick={() => { onClose(); navigate(`/messages?to=${f.id}`); }}
+                className="h-8 w-8 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors shrink-0"
+              >
+                <MessageSquare className="h-3.5 w-3.5 text-primary" />
+              </button>
+            </div>
+          ))}
+          {!friends.length && (
+            <p className="text-sm text-muted-foreground text-center py-8">Aucun ami pour le moment</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Profile page ──────────────────────────────────────────────────────────────
 export default function Profile() {
   const { user, setUser, profile: ctxProfile, setProfile } = useAuth();
@@ -882,6 +1023,7 @@ export default function Profile() {
   const [bookings,       setBookings]       = useState([]);
   const [penalties,      setPenalties]      = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
+  const [friends,        setFriends]        = useState([]);
   const [loading,        setLoading]        = useState(profile === undefined);
   const [error,          setError]          = useState(null);
   const [editing,        setEditing]        = useState(false);
@@ -889,6 +1031,8 @@ export default function Profile() {
   const [showRechargeModal,  setShowRechargeModal]  = useState(false);
   const [showPasswordModal,  setShowPasswordModal]  = useState(false);
   const [showDeleteModal,    setShowDeleteModal]     = useState(false);
+  const [menuOpen,           setMenuOpen]            = useState(false);
+  const [showFriendsModal,   setShowFriendsModal]    = useState(false);
 
   async function handleLogout() {
     try { await logout(); } catch { /* non-fatal */ }
@@ -904,23 +1048,24 @@ export default function Profile() {
   useEffect(() => {
     async function load() {
       try {
-        const [{ profile: p }, { bookings: b }, penResult, reqResult] = await Promise.all([
+        const [{ profile: p }, { bookings: b }, penResult, reqResult, friendsResult] = await Promise.all([
           getProfile(),
           getMyBookings().catch(() => ({ bookings: [] })),
           getMyPenalties().catch(() => ({ penalties: [] })),
           getFriendRequests().catch(() => ({ requests: [] })),
+          getFriends().catch(() => ({ friends: [] })),
         ]);
         setLocal(p ?? null);
         setBookings(b ?? []);
         setPenalties(penResult.penalties ?? []);
         setFriendRequests(reqResult.requests ?? []);
+        setFriends(friendsResult.friends ?? []);
       } catch (err) {
         setError(err.message || 'Erreur de chargement.');
       } finally {
         setLoading(false);
       }
     }
-    // Only fetch if we don't already have profile data from context
     if (profile === undefined) {
       load();
     } else {
@@ -928,10 +1073,12 @@ export default function Profile() {
         getMyBookings(),
         getMyPenalties(),
         getFriendRequests(),
-      ]).then(([bkRes, penRes, reqRes]) => {
+        getFriends(),
+      ]).then(([bkRes, penRes, reqRes, frRes]) => {
         if (bkRes.status  === 'fulfilled') setBookings(bkRes.value.bookings   ?? []);
         if (penRes.status === 'fulfilled') setPenalties(penRes.value.penalties ?? []);
         if (reqRes.status === 'fulfilled') setFriendRequests(reqRes.value.requests ?? []);
+        if (frRes.status  === 'fulfilled') setFriends(frRes.value.friends     ?? []);
       });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -966,12 +1113,20 @@ export default function Profile() {
             {LEVEL_LABELS[profile?.level] ?? 'Profil non configuré'}
           </p>
         </div>
-        {!editing && (
-          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-            <Pencil className="h-3.5 w-3.5" />
-            Modifier
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {!editing && (
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Pencil className="h-3.5 w-3.5" />
+              Modifier
+            </Button>
+          )}
+          <button
+            onClick={() => setMenuOpen(true)}
+            className="h-9 w-9 rounded-xl border border-border bg-card hover:bg-muted flex items-center justify-center transition-colors"
+          >
+            <Menu className="h-4.5 w-4.5 text-foreground" />
+          </button>
+        </div>
       </div>
 
       {/* Two-column layout on larger screens */}
@@ -986,7 +1141,10 @@ export default function Profile() {
             name={name}
             onEditClick={() => setEditing(true)}
           />
-          <StatsBar bookingsCount={bookings.length} />
+          <StatsBar bookingsCount={bookings.length} friendsCount={friends.length} />
+
+          {/* Friends row */}
+          <FriendsRow friends={friends} onViewAll={() => setShowFriendsModal(true)} />
 
           {/* Balance card */}
           <div className="w-full max-w-sm mx-auto">
@@ -1065,47 +1223,17 @@ export default function Profile() {
         </div>
       )}
 
-      {/* Settings */}
-      <div className="pt-4 border-t border-border space-y-0.5">
-        <h2 className="text-sm font-semibold text-foreground mb-3 px-1">Paramètres</h2>
-
-        {/* Language selector */}
-        <LanguageSelector />
-
-        <button
-          onClick={() => setShowPasswordModal(true)}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-foreground hover:bg-muted transition-colors text-left"
-        >
-          <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-          Changer le mot de passe
-        </button>
-
-        <Link
-          to="/privacy"
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-foreground hover:bg-muted transition-colors"
-        >
-          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-          Politique de confidentialité
-        </Link>
-
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-left"
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          Se déconnecter
-        </button>
-
-        <button
-          onClick={() => setShowDeleteModal(true)}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
-        >
-          <Trash2 className="h-4 w-4 shrink-0" />
-          Supprimer mon compte
-        </button>
-      </div>
+      {/* Hamburger menu */}
+      <HamburgerMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onPassword={() => setShowPasswordModal(true)}
+        onDelete={() => setShowDeleteModal(true)}
+        onLogout={handleLogout}
+      />
 
       {/* Modals */}
+      {showFriendsModal && <FriendsListModal friends={friends} onClose={() => setShowFriendsModal(false)} />}
       {showRechargeModal && <RechargeModal onClose={() => setShowRechargeModal(false)} />}
       {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
       {showDeleteModal && (

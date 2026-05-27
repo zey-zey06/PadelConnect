@@ -9,6 +9,13 @@ const notificationsService = require('../notifications/notifications.service');
 const { sendBookingConfirmation, sendManagerBookingNotification } = require('../../emails/confirmation');
 const { sendBookingCancellation } = require('../../emails/cancellation');
 
+function fmtDateFr(dateVal) {
+  const iso = String(dateVal ?? '').slice(0, 10);
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
 function makeError(status, message) {
   const err = new Error(message);
   err.status = status;
@@ -80,7 +87,7 @@ async function createBooking(userId, { session_id, venue_slot_id, payment_method
       await notificationsService.createNotification(
         venueAdmin.id,
         'new_booking',
-        `Nouvelle réservation — ${venue.name} · ${slot.date} · ${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}`
+        `Nouvelle réservation — ${venue.name} · ${fmtDateFr(slot.date)} · ${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}`
       );
       await sendManagerBookingNotification({
         booking, session, slot, venue,
@@ -97,7 +104,7 @@ async function createBooking(userId, { session_id, venue_slot_id, payment_method
   await notificationsService.createNotification(
     userId,
     'booking_confirmed',
-    `Votre réservation pour la session du ${session.date} est confirmée.`
+    `Votre réservation pour la session du ${fmtDateFr(session.date)} est confirmée.`
   );
 
   return booking;

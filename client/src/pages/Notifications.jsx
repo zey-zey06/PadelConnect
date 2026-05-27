@@ -41,6 +41,7 @@ const TYPE_LABELS = {
   new_user:                  'Nouveau joueur',
   session_cancelled_admin:   'Session annulée',
   contact_form:              'Message de contact',
+  account_deleted:           'Compte supprimé',
   // Club
   club_new_post:             'Nouvelle publication',
 };

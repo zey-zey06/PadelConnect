@@ -1103,24 +1103,35 @@ export default function AdminDashboard() {
       </div>
 
       {/* ── Mobile bottom nav ────────────────────────────────────────────── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 flex items-center justify-around px-2 pb-safe">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 flex items-center justify-around px-2" style={{ paddingBottom: 'env(safe-area-inset-bottom)', height: '64px' }}>
         {[
-          { key: 'overview',       label: 'Dashboard',   icon: LayoutDashboard },
+          { key: 'overview',       label: 'Dashboard',    icon: LayoutDashboard },
           { key: 'users',          label: 'Utilisateurs', icon: Users           },
           { key: 'sessions',       label: 'Sessions',     icon: Layers          },
           { key: 'clubs',          label: 'Clubs',        icon: Building2       },
-          { key: 'subscriptions',  label: 'Abonnements',  icon: CreditCard      },
+          { key: 'profile',        label: 'Profil',       icon: Settings        },
         ].map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 transition-colors ${
-              tab === key ? 'text-amber-600' : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <Icon className="h-5 w-5 shrink-0" />
-            <span className="text-[10px] font-medium truncate">{label}</span>
-          </button>
+          key === 'profile' ? (
+            <Link
+              key={key}
+              to="/admin/profile"
+              className="flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 transition-colors text-slate-400 hover:text-slate-600"
+            >
+              <Icon className="h-5 w-5 shrink-0" />
+              <span className="text-[10px] font-medium truncate">{label}</span>
+            </Link>
+          ) : (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 transition-colors ${
+                tab === key ? 'text-amber-600' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Icon className="h-5 w-5 shrink-0" />
+              <span className="text-[10px] font-medium truncate">{label}</span>
+            </button>
+          )
         ))}
       </nav>
     </div>

@@ -243,7 +243,7 @@ async function sendBallPickerInvitation(clubId, userOrgId, invitedByUserId, emai
   });
 
   notificationsService
-    .createNotification(user.id, 'ball_picker_invitation', `Le club « ${club.name} » vous invite à rejoindre leur équipe en tant que ramasseur.`)
+    .createNotification(user.id, 'ball_picker_invitation', `Le club « ${club.name} » vous invite à rejoindre leur équipe en tant que ramasseur.`, null, { invitation_id: invitation.id })
     .catch(() => {});
 
   return invitation;

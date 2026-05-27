@@ -6,6 +6,13 @@ const adminRepo    = require('../admin/admin.repository');
 const notificationsService = require('../notifications/notifications.service');
 const { sendBookingCancellation } = require('../../emails/cancellation');
 
+function fmtDateFr(dateVal) {
+  const iso = String(dateVal ?? '').slice(0, 10);
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 async function create(userId, data) {
   return sessionsRepo.create({
     creator_id: userId,
@@ -64,7 +71,7 @@ async function updateStatus(sessionId, userId, status) {
           await notificationsService.createNotification(
             player.id,
             'session_cancelled',
-            `La session du ${session.date} à ${session.time?.slice(0, 5)} a été annulée.`
+            `La session du ${fmtDateFr(session.date)} à ${session.time?.slice(0, 5)} a été annulée.`
           ).catch(() => {});
         }
 
@@ -72,7 +79,7 @@ async function updateStatus(sessionId, userId, status) {
           await notificationsService.createNotification(
             venueAdmin.id,
             'booking_cancelled',
-            `La réservation pour ${venue?.name} du ${slot?.date} a été annulée par le joueur.`
+            `La réservation pour ${venue?.name} du ${fmtDateFr(slot?.date)} a été annulée par le joueur.`
           ).catch(() => {});
         }
 
@@ -81,7 +88,7 @@ async function updateStatus(sessionId, userId, status) {
 
       // Notify super_admins (fire-and-forget)
       adminRepo.getSuperAdmins().then((admins) => {
-        const msg = `Session annulée le ${session.date} à ${session.time?.slice(0, 5)} (ID: ${sessionId})`;
+        const msg = `Session annulée le ${fmtDateFr(session.date)} à ${session.time?.slice(0, 5)}`;
         return Promise.allSettled(
           admins.map((a) => notificationsService.createNotification(a.id, 'session_cancelled_admin', msg))
         );

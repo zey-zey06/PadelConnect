@@ -371,7 +371,7 @@ export default function Messages() {
       </div>
     )}
     <div
-      className="flex overflow-hidden h-[calc(100dvh-16rem)] md:h-[calc(100dvh-14rem)]"
+      className="flex overflow-hidden h-[calc(100dvh-16rem-64px)] md:h-[calc(100dvh-14rem)]"
       style={{
         borderRadius: '20px',
         boxShadow: '0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)',
@@ -601,7 +601,7 @@ export default function Messages() {
               {showEmoji && (
                 <div
                   ref={emojiRef}
-                  className="absolute bottom-[70px] left-4 z-50"
+                  className="absolute bottom-[70px] left-4 z-50 md:bottom-[70px]"
                 >
                   <EmojiPicker
                     onEmojiClick={handleEmojiClick}
