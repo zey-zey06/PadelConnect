@@ -105,4 +105,8 @@ async function listMySessions(userId) {
   return sessionsRepo.listByCreator(userId);
 }
 
-module.exports = { create, list, listMySessions, getById, updateStatus };
+async function getMyRequests(userId) {
+  return sessionsRepo.getMyRequests(userId);
+}
+
+module.exports = { create, list, listMySessions, getMyRequests, getById, updateStatus };

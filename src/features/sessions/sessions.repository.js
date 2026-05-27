@@ -90,4 +90,12 @@ async function getUserById(userId) {
   return db('users').where({ id: userId }).first();
 }
 
-module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers, getSessionPlayers, getUserById };
+async function getMyRequests(userId) {
+  return db('session_requests')
+    .where({ player_id: userId })
+    .whereNull('deleted_at')
+    .orderBy('created_at', 'desc')
+    .select();
+}
+
+module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers, getSessionPlayers, getUserById, getMyRequests };
