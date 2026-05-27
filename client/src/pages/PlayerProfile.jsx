@@ -342,7 +342,7 @@ export default function PlayerProfile() {
   }
 
   return (
-    <div className="space-y-0 -mx-4 -mt-8">
+    <div className="space-y-0 -mx-4">
       {/* ── Cover photo ─────────────────────────────────────────────── */}
       <div className="relative">
         {/* Back button */}
