@@ -52,5 +52,8 @@ export const inviteCoach = (sessionId, coachUserId) =>
 export const invitePlayer = (sessionId, playerUserId) =>
   client.post(`/sessions/${sessionId}/invite-player`, { player_user_id: playerUserId });
 
-/** GET /api/sessions/my-requests → { sessionIds: [...] } */
+/** GET /api/sessions/my-requests → { requests: [{ session_id, status }] } */
 export const getMySessionRequests = () => client.get('/sessions/my-requests');
+
+/** GET /api/sessions/history → { sessions: [...] } — all sessions user created or requested */
+export const getSessionHistory = () => client.get('/sessions/history');

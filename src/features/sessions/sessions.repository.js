@@ -98,4 +98,62 @@ async function getMyRequests(userId) {
     .select();
 }
 
-module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers, getSessionPlayers, getUserById, getMyRequests };
+/**
+ * Returns all sessions where userId is creator OR has a request (any status),
+ * sorted date DESC.  Each row includes request_status and optional booking info.
+ */
+async function getHistory(userId) {
+  const sessions = await db('sessions as s')
+    .join('users as u', 's.creator_id', 'u.id')
+    .leftJoin('player_profiles as pp', 'pp.user_id', 'u.id')
+    .leftJoin('session_requests as sr', function () {
+      this.on('sr.session_id', '=', 's.id')
+        .andOn('sr.player_id', '=', db.raw('?', [userId]))
+        .andOnNull('sr.deleted_at');
+    })
+    .whereNull('s.deleted_at')
+    .where(function () {
+      this.where('s.creator_id', userId).orWhereNotNull('sr.id');
+    })
+    .orderBy('s.date', 'desc')
+    .orderBy('s.time', 'desc')
+    .select(
+      's.id', 's.date', 's.time', 's.end_time',
+      's.max_players', 's.current_players', 's.status',
+      's.creator_id', 's.preferences', 's.created_at',
+      'u.first_name as creator_first_name',
+      'u.last_name  as creator_last_name',
+      'pp.photo_url as creator_photo_url',
+      'pp.level     as creator_level',
+      'sr.status    as request_status',
+    );
+
+  if (!sessions.length) return [];
+
+  // For sessions the user created, load one active booking to show venue info
+  const creatorSessionIds = sessions
+    .filter((s) => s.creator_id === userId)
+    .map((s) => s.id);
+
+  const bookingMap = {};
+  if (creatorSessionIds.length) {
+    const bks = await db('bookings as b')
+      .join('venue_slots as vs', 'vs.id', 'b.venue_slot_id')
+      .join('venues as v', 'v.id', 'vs.venue_id')
+      .join('organizations as org', 'org.id', 'v.organization_id')
+      .whereIn('b.session_id', creatorSessionIds)
+      .whereNull('b.deleted_at')
+      .whereNot('b.status', 'cancelled')
+      .orderBy('b.created_at', 'asc')
+      .select('b.session_id', 'v.name as venue_name', 'org.name as club_name');
+    for (const bk of bks) {
+      if (!bookingMap[bk.session_id]) {
+        bookingMap[bk.session_id] = { venue_name: bk.venue_name, club_name: bk.club_name };
+      }
+    }
+  }
+
+  return sessions.map((s) => ({ ...s, booking: bookingMap[s.id] ?? null }));
+}
+
+module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers, getSessionPlayers, getUserById, getMyRequests, getHistory };

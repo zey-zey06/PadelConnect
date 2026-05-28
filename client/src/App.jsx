@@ -20,6 +20,7 @@ import ClubProfile      from '@/pages/ClubProfile';
 import AdminDashboard   from '@/pages/AdminDashboard';
 import AdminProfile     from '@/pages/AdminProfile';
 import History          from '@/pages/History';
+import SessionHistory   from '@/pages/SessionHistory';
 import Landing          from '@/pages/Landing';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
@@ -210,7 +211,8 @@ export default function App() {
           <Route path="/dashboard" element={<DefaultRedirect />} />
           <Route path="/sessions"  element={<PlayerRoute><Layout><Sessions /></Layout></PlayerRoute>} />
           <Route path="/calendar"  element={<PlayerRoute><Layout><Calendar /></Layout></PlayerRoute>} />
-          <Route path="/history"   element={<PlayerRoute><Layout><History /></Layout></PlayerRoute>} />
+          <Route path="/history"          element={<PlayerRoute><Layout><History /></Layout></PlayerRoute>} />
+          <Route path="/history/sessions" element={<PlayerRoute><Layout><SessionHistory /></Layout></PlayerRoute>} />
           <Route path="/clubs"     element={<PlayerRoute><Layout><Clubs /></Layout></PlayerRoute>} />
           <Route path="/clubs/:id" element={<PlayerRoute><Layout><ClubProfile /></Layout></PlayerRoute>} />
           <Route path="/profile"   element={<PlayerRoute><Layout><Profile /></Layout></PlayerRoute>} />

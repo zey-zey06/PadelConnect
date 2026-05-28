@@ -203,10 +203,13 @@ function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditC
 
         {/* Stats row — Sessions + Amis */}
         <div className="flex border border-border rounded-xl overflow-hidden mb-3">
-          <div className="flex-1 text-center py-2.5">
+          <Link
+            to="/history/sessions"
+            className="flex-1 text-center py-2.5 hover:bg-muted/50 transition-colors"
+          >
             <p className="text-lg font-bold text-foreground">{bookingsCount ?? 0}</p>
             <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wide">Sessions</p>
-          </div>
+          </Link>
           <div className="w-px bg-border" />
           <button
             onClick={onFriendsClick}
