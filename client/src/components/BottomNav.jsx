@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Home, Building2, Plus, MessageSquare, User } from 'lucide-react';
 
 const PRIMARY = '#1A3D2B';
@@ -11,13 +12,14 @@ function isActive(pathname, path) {
 export default function BottomNav({ unreadMsgCount = 0 }) {
   const { pathname } = useLocation();
   const navigate     = useNavigate();
+  const { t }        = useTranslation();
 
   const items = [
-    { to: '/sessions', Icon: Home,           label: 'Accueil'  },
-    { to: '/clubs',    Icon: Building2,      label: 'Clubs'    },
+    { to: '/sessions', Icon: Home,          labelKey: 'nav.home'     },
+    { to: '/clubs',    Icon: Building2,     labelKey: 'nav.clubs'    },
     null, // centre "+"
-    { to: '/messages', Icon: MessageSquare,  label: 'Messages', badge: unreadMsgCount },
-    { to: '/profile',  Icon: User,           label: 'Profil'   },
+    { to: '/messages', Icon: MessageSquare, labelKey: 'nav.messages', badge: unreadMsgCount },
+    { to: '/profile',  Icon: User,          labelKey: 'nav.profile'  },
   ];
 
   return (
@@ -34,7 +36,7 @@ export default function BottomNav({ unreadMsgCount = 0 }) {
                 key="create"
                 onClick={() => navigate('/sessions?create=1')}
                 className="flex flex-col items-center justify-center flex-1 outline-none"
-                aria-label="Créer une session"
+                aria-label={t('sessions.create', 'Créer une session')}
               >
                 <div
                   className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
@@ -73,7 +75,7 @@ export default function BottomNav({ unreadMsgCount = 0 }) {
                 className="text-[10px] font-medium leading-none"
                 style={{ color: active ? PRIMARY : GREY }}
               >
-                {item.label}
+                {t(item.labelKey)}
               </span>
             </Link>
           );
