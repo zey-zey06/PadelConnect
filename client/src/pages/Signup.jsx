@@ -92,12 +92,11 @@ export default function Signup() {
         last_name:      form.lastName.trim(),
         is_ball_picker: selectedRole === 'coach' ? isBallPicker : false,
       });
-      setUser(data.user);
-      const dest =
-        data.user.role === 'player' ? '/profile/setup' :
-        data.user.role === 'coach'  ? '/coach/setup'   :
-        homeFor(data.user);
-      navigate(dest, { replace: true });
+      // Navigate to email verification page — user must verify email before login
+      navigate('/verify-email', {
+        replace: true,
+        state: { email: form.email },
+      });
     } catch (err) {
       setError(err.message || 'Erreur lors de la création du compte.');
     } finally {
