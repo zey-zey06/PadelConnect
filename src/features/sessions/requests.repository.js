@@ -69,6 +69,15 @@ async function getSessionIdsByPlayer(playerId) {
   return rows.map((r) => r.session_id);
 }
 
+/** Returns [{ session_id, status }] for all non-deleted requests by this player. */
+async function getRequestsByPlayer(playerId) {
+  const rows = await db('session_requests')
+    .where({ player_id: playerId })
+    .whereNull('deleted_at')
+    .select('session_id', 'status');
+  return rows;
+}
+
 module.exports = {
   create,
   findBySessionAndPlayer,
@@ -77,4 +86,5 @@ module.exports = {
   getById,
   updateStatus,
   getSessionIdsByPlayer,
+  getRequestsByPlayer,
 };

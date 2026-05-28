@@ -8,7 +8,7 @@ const router = Router();
 
 const sendSchema = Joi.object({
   content: Joi.string().trim().min(1).max(2000).required(),
-  type:     Joi.string().valid('text', 'session_share', 'slot_share').default('text'),
+  type:     Joi.string().valid('text', 'session_share', 'slot_share', 'profile_share').default('text'),
   metadata: Joi.object().unknown(true).optional(),
 });
 

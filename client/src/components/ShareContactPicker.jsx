@@ -23,10 +23,10 @@ function FriendAvatar({ name, photo }) {
 }
 
 /**
- * Modal contact-picker for sharing a session or venue slot in chat.
+ * Modal contact-picker for sharing a session, venue slot, or player profile in chat.
  *
  * Props:
- *   shareType  – 'session_share' | 'slot_share'
+ *   shareType  – 'session_share' | 'slot_share' | 'profile_share'
  *   metadata   – object with the share payload
  *   onClose    – () => void
  */
@@ -68,7 +68,12 @@ export default function ShareContactPicker({ shareType, metadata, onClose }) {
     setTimeout(onClose, 1400);
   }
 
-  const isSession = shareType === 'session_share';
+  const headerConfig = {
+    session_share: { label: 'Partager la session',  color: '#1A3D2B', bg: 'rgba(26,61,43,0.12)'   },
+    slot_share:    { label: 'Partager ce créneau',  color: '#1d4ed8', bg: 'rgba(29,78,216,0.12)'  },
+    profile_share: { label: 'Partager ce profil',   color: '#7c3aed', bg: 'rgba(124,58,237,0.12)' },
+  };
+  const hCfg = headerConfig[shareType] ?? headerConfig.session_share;
 
   return (
     <div
@@ -86,12 +91,12 @@ export default function ShareContactPicker({ shareType, metadata, onClose }) {
           <div className="flex items-center gap-2">
             <div
               className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: isSession ? 'rgba(26,61,43,0.12)' : 'rgba(29,78,216,0.12)' }}
+              style={{ background: hCfg.bg }}
             >
-              <Users className="h-3.5 w-3.5" style={{ color: isSession ? '#1A3D2B' : '#1d4ed8' }} />
+              <Users className="h-3.5 w-3.5" style={{ color: hCfg.color }} />
             </div>
             <h2 className="text-sm font-semibold text-foreground">
-              {isSession ? 'Partager la session' : 'Partager ce créneau'}
+              {hCfg.label}
             </h2>
           </div>
           <button

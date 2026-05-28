@@ -189,11 +189,16 @@ const GENDER_PREFS = [
 const GENDER_DISPLAY = { mixed: 'Mixte', women: 'Femmes', men: 'Hommes' };
 const GENDER_ICON    = { mixed: '⚧', women: '♀', men: '♂' };
 
-function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, alreadyRequested = false }) {
+function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, requestStatus = null }) {
   const { user } = useAuth();
   const { openPlayerPanel } = usePlayerPanel();
-  // Initialise with 'done' if user already sent a request (from sessionStorage or parent)
-  const [state, setState] = useState(alreadyRequested ? 'done' : 'idle'); // idle | loading | done | error
+  // Derive initial state from the server-side request status
+  const initialState =
+    requestStatus === 'accepted' ? 'accepted' :
+    requestStatus === 'refused'  ? 'refused'  :
+    requestStatus === 'pending'  ? 'pending'  :
+    'idle';
+  const [state, setState] = useState(initialState); // idle | loading | pending | accepted | refused | error
   const [msg,   setMsg]   = useState('');
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [showSharePicker,   setShowSharePicker]   = useState(false);
@@ -218,7 +223,7 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, alread
     setMsg('');
     try {
       await onJoin(session.id);
-      setState('done');
+      setState('pending');
     } catch (e) {
       setMsg(e.message || 'Erreur lors de la demande.');
       setState('error');
@@ -362,7 +367,17 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, alread
                 Réserver un terrain
               </Button>
             )
-          ) : state === 'done' ? (
+          ) : state === 'accepted' ? (
+            <p className="text-xs text-green-700 flex items-center justify-center gap-1.5 py-2 font-semibold">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              Confirmé — vous faites partie de la session !
+            </p>
+          ) : state === 'refused' ? (
+            <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5 py-2 font-medium">
+              <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+              Demande refusée.
+            </p>
+          ) : state === 'pending' ? (
             <p className="text-xs text-green-600 flex items-center justify-center gap-1 py-2 font-medium">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
               Demande envoyée — en attente de confirmation.
@@ -2385,13 +2400,14 @@ export default function Sessions() {
   const [genderFilter, setGenderFilter] = useState('');
   const [visibleCount, setVisibleCount] = useState(8);
 
-  // Persist requested session IDs — seeded from API on load, then kept in sessionStorage
-  const [requestedIds, setRequestedIds] = useState(() => {
+  // Persist request statuses — seeded from API on load, then kept in sessionStorage
+  // Format: { [session_id]: 'pending' | 'accepted' | 'refused' }
+  const [requestStatusMap, setRequestStatusMap] = useState(() => {
     try {
-      const stored = sessionStorage.getItem('padelconnect_requested_sessions');
-      return new Set(JSON.parse(stored) ?? []);
+      const stored = sessionStorage.getItem('padelconnect_session_statuses_v2');
+      return JSON.parse(stored) ?? {};
     } catch {
-      return new Set();
+      return {};
     }
   });
 
@@ -2406,7 +2422,7 @@ export default function Sessions() {
       if (dateFilter)   params.date      = dateFilter;
       if (levelFilter)  params.level_min = levelFilter;
       if (genderFilter) params.gender    = genderFilter;
-      const [{ sessions: s }, { bookings: b }, { sessionIds: reqIds }] = await Promise.all([
+      const [{ sessions: s }, { bookings: b }, { requests: myReqs }] = await Promise.all([
         listSessions(params),
         getMyBookings(),
         getMySessionRequests(),
@@ -2417,10 +2433,12 @@ export default function Sessions() {
         if (bk.status !== 'cancelled') map[bk.session_id] = bk;
       }
       setBookingMap(map);
-      // Merge server-side requests with any locally-optimistic ones
-      setRequestedIds((prev) => {
-        const merged = new Set([...prev, ...(reqIds ?? [])]);
-        try { sessionStorage.setItem('padelconnect_requested_sessions', JSON.stringify([...merged])); } catch { /* noop */ }
+      // Merge server-side request statuses with optimistic ones (server wins)
+      setRequestStatusMap((prev) => {
+        const serverMap = {};
+        for (const req of (myReqs ?? [])) serverMap[req.session_id] = req.status;
+        const merged = { ...prev, ...serverMap };
+        try { sessionStorage.setItem('padelconnect_session_statuses_v2', JSON.stringify(merged)); } catch { /* noop */ }
         return merged;
       });
     } catch (e) {
@@ -2436,10 +2454,10 @@ export default function Sessions() {
 
   async function handleJoin(sessionId) {
     await requestJoin(sessionId);
-    // Persist optimistic state so button stays "Demande envoyée" on reload
-    setRequestedIds((prev) => {
-      const next = new Set([...prev, sessionId]);
-      try { sessionStorage.setItem('padelconnect_requested_sessions', JSON.stringify([...next])); } catch { /* noop */ }
+    // Optimistically mark as pending so the button updates immediately
+    setRequestStatusMap((prev) => {
+      const next = { ...prev, [sessionId]: 'pending' };
+      try { sessionStorage.setItem('padelconnect_session_statuses_v2', JSON.stringify(next)); } catch { /* noop */ }
       return next;
     });
     load();
@@ -2550,7 +2568,7 @@ export default function Sessions() {
                   onJoin={handleJoin}
                   hasBooking={!!bookingMap[s.id]}
                   onBooked={load}
-                  alreadyRequested={requestedIds.has(s.id)}
+                  requestStatus={requestStatusMap[s.id] ?? null}
                 />
               ))}
 

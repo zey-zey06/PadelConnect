@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Send, ArrowLeft, AlertCircle, Smile, Calendar, Clock, Building2 } from 'lucide-react';
+import { Send, ArrowLeft, AlertCircle, Smile, Calendar, Clock, Building2, User } from 'lucide-react';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import EmojiPicker from 'emoji-picker-react';
 import { getConversations, getMessages, sendMessage, markAsRead } from '@/api/messages';
 import { getUserProfile } from '@/api/profile';
-import { useAuth } from '@/App';
+import { useAuth, usePlayerPanel } from '@/App';
 import { cn } from '@/lib/utils';
 
 // ── Grain texture ──────────────────────────────────────────────────────────────
@@ -218,6 +218,72 @@ function SlotShareCard({ msg }) {
         >
           Réserver →
         </button>
+      </div>
+      <div className="bg-white px-3.5 pb-2.5 flex justify-end">
+        <span className="text-[10px]" style={{ color: '#9CA3AF' }}>{formatTime(msg.created_at)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Profile share bubble ───────────────────────────────────────────────────────
+function ProfileShareCard({ msg }) {
+  const { openPlayerPanel } = usePlayerPanel();
+  const m = msg.metadata ?? {};
+
+  const LEVEL_LABELS = {
+    1: 'Débutant', 2: 'Débutant +', 3: 'Intermédiaire',
+    4: 'Inter +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
+  };
+
+  const initials = (m.name ?? 'J').slice(0, 2).toUpperCase();
+  const levelLabel = m.level ? LEVEL_LABELS[m.level] : null;
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden border border-border shadow-sm"
+      style={{ maxWidth: '240px', minWidth: '180px' }}
+    >
+      <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ background: '#7c3aed' }}>
+        <User className="h-3.5 w-3.5 shrink-0 text-white/70" />
+        <span className="text-xs font-semibold text-white">Profil partagé</span>
+      </div>
+      <div className="bg-white px-3.5 py-3 space-y-2">
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-full overflow-hidden shrink-0 border border-border">
+            {m.photo_url ? (
+              <img src={m.photo_url} alt={m.name} className="h-full w-full object-cover" />
+            ) : (
+              <div
+                className="h-full w-full flex items-center justify-center text-xs font-bold"
+                style={{ background: '#e1f5ee', color: '#085041' }}
+              >
+                {initials}
+              </div>
+            )}
+          </div>
+          <div className="min-w-0">
+            {m.name && (
+              <p className="text-xs font-semibold truncate" style={{ color: '#111827' }}>{m.name}</p>
+            )}
+            {levelLabel && (
+              <p className="text-[10px]" style={{ color: '#6B7280' }}>
+                {levelLabel} · Niv. {m.level}/7
+              </p>
+            )}
+          </div>
+        </div>
+        {m.userId && (
+          <button
+            onClick={() => openPlayerPanel(m.userId)}
+            className="block w-full py-1.5 rounded-lg text-xs font-semibold text-center transition-colors"
+            style={{ background: 'rgba(124,58,237,0.12)', color: '#7c3aed' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(124,58,237,0.22)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(124,58,237,0.12)'; }}
+          >
+            Voir le profil →
+          </button>
+        )}
       </div>
       <div className="bg-white px-3.5 pb-2.5 flex justify-end">
         <span className="text-[10px]" style={{ color: '#9CA3AF' }}>{formatTime(msg.created_at)}</span>
@@ -568,6 +634,14 @@ export default function Messages() {
                     return (
                       <div key={msg.id} className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
                         <SlotShareCard msg={msg} />
+                      </div>
+                    );
+                  }
+
+                  if (msg.type === 'profile_share') {
+                    return (
+                      <div key={msg.id} className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
+                        <ProfileShareCard msg={msg} />
                       </div>
                     );
                   }

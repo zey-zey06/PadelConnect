@@ -81,8 +81,8 @@ async function invitePlayerHandler(req, res, next) {
 async function myRequestsHandler(req, res, next) {
   try {
     const requestsRepo = require('./requests.repository');
-    const sessionIds = await requestsRepo.getSessionIdsByPlayer(req.user.sub);
-    return res.json({ sessionIds });
+    const requests = await requestsRepo.getRequestsByPlayer(req.user.sub);
+    return res.json({ requests });
   } catch (err) { next(err); }
 }
 

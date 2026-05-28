@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User, X, AlertCircle, MessageSquare, Zap, Target,
-  UserPlus, UserCheck, UserX, Clock,
+  UserPlus, UserCheck, UserX, Clock, Share2,
 } from 'lucide-react';
 import { useAuth } from '@/App';
 import { getUserProfile } from '@/api/profile';
@@ -14,6 +14,7 @@ import {
 } from '@/api/friends';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import ShareContactPicker from '@/components/ShareContactPicker';
 
 const LEVEL_LABELS = {
   1: 'Débutant', 2: 'Débutant +', 3: 'Intermédiaire',
@@ -76,6 +77,7 @@ export default function PlayerProfilePanel({ userId, onClose }) {
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState(null);
   const [visible,       setVisible]       = useState(false);
+  const [showShare,     setShowShare]     = useState(false);
 
   const isOwnProfile = me?.id === userId;
 
@@ -293,7 +295,7 @@ export default function PlayerProfilePanel({ userId, onClose }) {
 
         {/* Footer actions */}
         {!loading && !error && (
-          <div className="shrink-0 px-4 py-3 border-t border-border">
+          <div className="shrink-0 px-4 py-3 border-t border-border space-y-2">
             {isOwnProfile ? (
               <Button
                 className="w-full"
@@ -304,25 +306,50 @@ export default function PlayerProfilePanel({ userId, onClose }) {
                 Voir mon profil
               </Button>
             ) : (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => { navigate(`/messages?userId=${userId}`); handleClose(); }}
-                >
-                  <MessageSquare className="h-4 w-4 mr-1.5" />
-                  Message
-                </Button>
-                <FriendButton
-                  friendStatus={friendStatus}
-                  targetUserId={userId}
-                  onStatusChange={setFriendStatus}
-                />
-              </div>
+              <>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => { navigate(`/messages?userId=${userId}`); handleClose(); }}
+                  >
+                    <MessageSquare className="h-4 w-4 mr-1.5" />
+                    Message
+                  </Button>
+                  <FriendButton
+                    friendStatus={friendStatus}
+                    targetUserId={userId}
+                    onStatusChange={setFriendStatus}
+                  />
+                </div>
+                {profile && (
+                  <Button
+                    variant="outline"
+                    className="w-full text-[#7c3aed] border-[#7c3aed]/30 hover:bg-[#7c3aed]/5 hover:border-[#7c3aed]/60"
+                    onClick={() => setShowShare(true)}
+                  >
+                    <Share2 className="h-4 w-4 mr-1.5" />
+                    Partager le profil
+                  </Button>
+                )}
+              </>
             )}
           </div>
         )}
       </div>
+
+      {showShare && profile && (
+        <ShareContactPicker
+          shareType="profile_share"
+          metadata={{
+            userId,
+            name:      displayName,
+            photo_url: photoUrl,
+            level,
+          }}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </>
   );
 }
