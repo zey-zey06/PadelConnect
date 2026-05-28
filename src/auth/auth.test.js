@@ -93,9 +93,9 @@ describe('POST /api/auth/signup', () => {
     expect(res.status).toBe(201);
     expect(res.body.user).toMatchObject({ email: 'joueur@test.com', role: 'player' });
     expect(res.body.user.password_hash).toBeUndefined();
-    // JWT cookie issued immediately on signup (email verification disabled)
+    // No JWT cookie on signup — user must verify email first
     const cookie = res.headers['set-cookie'];
-    expect(cookie).toBeDefined();
+    expect(cookie).toBeUndefined();
   });
 
   it('CU-01: signup with role — 201 + role echoed', async () => {

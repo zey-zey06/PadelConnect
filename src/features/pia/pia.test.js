@@ -5,12 +5,18 @@ process.env.GEMINI_API_KEY = 'test-key';
 
 const request = require('supertest');
 
-// ── Mock Google AI with full chat chain ───────────────────────────────────────
+// ── Mock Google AI ─────────────────────────────────────────────────────────────
 const mockSendMessage = jest.fn().mockResolvedValue({
   response: { text: jest.fn().mockReturnValue('Voici votre réponse PIA.') },
 });
-const mockStartChat   = jest.fn().mockReturnValue({ sendMessage: mockSendMessage });
-const mockGetModel    = jest.fn().mockReturnValue({ startChat: mockStartChat });
+const mockStartChat       = jest.fn().mockReturnValue({ sendMessage: mockSendMessage });
+const mockGenerateContent = jest.fn().mockResolvedValue({
+  response: { text: jest.fn().mockReturnValue('Voici votre réponse PIA.') },
+});
+const mockGetModel = jest.fn().mockReturnValue({
+  startChat:       mockStartChat,
+  generateContent: mockGenerateContent,
+});
 
 jest.mock('@google/generative-ai', () => ({
   GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
@@ -111,9 +117,13 @@ function resetQb() {
 
 // ── POST /api/pia/chat ────────────────────────────────────────────────────────
 describe('POST /api/pia/chat', () => {
-  beforeEach(() => { jest.clearAllMocks(); resetQb(); mockSendMessage.mockResolvedValue({
-    response: { text: jest.fn().mockReturnValue('Voici votre réponse PIA.') },
-  }); });
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetQb();
+    const aiResponse = { response: { text: jest.fn().mockReturnValue('Voici votre réponse PIA.') } };
+    mockSendMessage.mockResolvedValue(aiResponse);
+    mockGenerateContent.mockResolvedValue(aiResponse);
+  });
 
   it('CU-17: chat — 200 + AI response', async () => {
     // 1. countUserMessagesThisHour: select([{total:0}])
