@@ -137,8 +137,8 @@ export default function Layout({ children }) {
           {/* Right-side actions — pushed to far right */}
           <div className="flex items-center gap-1 ml-auto">
 
-            {/* PIA button — mobile only, players/coaches (desktop uses floating FAB) */}
-            {showBottomNav && (
+            {/* PIA button — mobile only, all authenticated users (desktop uses floating FAB) */}
+            {user?.sub && (
               <Button
                 variant="ghost"
                 size="icon"
