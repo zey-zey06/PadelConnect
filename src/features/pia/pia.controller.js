@@ -389,6 +389,8 @@ async function chatHandler(req, res, next) {
     console.log('[PIA] Starting chat session, history length:', history?.length ?? 0);
     const chat = model.startChat({ history: history ?? [] });
 
+    // ── Final pre-call checkpoint ──────────────────────────────────────────────
+    console.log('[PIA] Starting call, key exists:', !!process.env.GEMINI_API_KEY);
     console.log('[PIA] Sending message to Gemini:', message.substring(0, 50));
     const result = await chat.sendMessage(message);
 
@@ -405,13 +407,21 @@ async function chatHandler(req, res, next) {
     console.log('[PIA] Returning response successfully');
     return res.json({ response, conversation_id: conversation.id });
   } catch (err) {
-    console.error('[PIA ERROR] Exception caught:', {
-      message: err?.message ?? String(err),
-      status: err?.status ?? 'unknown',
-      code: err?.code,
-      name: err?.name,
-    });
-    console.error('[PIA ERROR] Stack:', err?.stack);
+    // ── Extensive error dump ────────────────────────────────────────────────────
+    console.error('[PIA] Starting call, key exists:', !!process.env.GEMINI_API_KEY);
+    console.error('[PIA] err.message:', err?.message);
+    console.error('[PIA] err.stack:', err?.stack);
+    // JSON.stringify(err) is empty for Error objects — use getOwnPropertyNames to get all fields
+    try {
+      console.error('[PIA] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+    } catch {
+      console.error('[PIA] Full error (raw):', String(err));
+    }
+    console.error('[PIA] err.name:', err?.name);
+    console.error('[PIA] err.code:', err?.code);
+    console.error('[PIA] err.status:', err?.status);
+    console.error('[PIA] err.statusCode:', err?.statusCode);
+    console.error('[PIA] err.errorDetails:', err?.errorDetails);
     if (!res.headersSent) {
       return res.json({
         response: 'Désolée, une erreur technique s\'est produite. Veuillez réessayer. 🎾',
@@ -484,10 +494,54 @@ async function conversationsHandler(req, res, next) {
   }
 }
 
+// ── Minimal Gemini smoke-test — hit GET /api/pia/test-gemini to check the key ─
+async function testGeminiHandler(req, res) {
+  console.log('[PIA TEST] ── Starting minimal Gemini smoke-test ──');
+  console.log('[PIA TEST] Key exists:', !!process.env.GEMINI_API_KEY);
+  if (process.env.GEMINI_API_KEY) {
+    console.log('[PIA TEST] Key prefix:', process.env.GEMINI_API_KEY.substring(0, 10));
+    console.log('[PIA TEST] Key length:', process.env.GEMINI_API_KEY.length);
+  }
+
+  if (!process.env.GEMINI_API_KEY) {
+    console.error('[PIA TEST] FAIL — GEMINI_API_KEY is not set');
+    return res.json({ ok: false, error: 'GEMINI_API_KEY not configured' });
+  }
+
+  try {
+    console.log('[PIA TEST] Initializing GoogleGenerativeAI...');
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    console.log('[PIA TEST] Sending minimal prompt: "Say hello"');
+    const result = await model.generateContent('Say hello in one word.');
+    const text   = result.response.text();
+
+    console.log('[PIA TEST] SUCCESS — response:', text);
+    return res.json({ ok: true, response: text });
+  } catch (err) {
+    console.error('[PIA TEST] FAIL — err.message:', err?.message);
+    console.error('[PIA TEST] FAIL — err.stack:', err?.stack);
+    try {
+      console.error('[PIA TEST] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+    } catch {
+      console.error('[PIA TEST] Full error (raw):', String(err));
+    }
+    return res.json({
+      ok:      false,
+      error:   err?.message ?? String(err),
+      name:    err?.name,
+      code:    err?.code,
+      status:  err?.status,
+    });
+  }
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 const router = Router();
 router.post('/chat',          authenticate, chatHandler);
 router.get('/history',        authenticate, historyHandler);
 router.get('/conversations',  authenticate, conversationsHandler);
+router.get('/test-gemini',    authenticate, testGeminiHandler);
 
 module.exports = router;
