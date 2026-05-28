@@ -247,10 +247,16 @@ async function deleteClubPost(clubId, postId, userOrgId) {
   await clubsRepo.deletePost(postId, clubId);
 }
 
+async function getSubscribers(clubId) {
+  const club = await clubsRepo.getById(clubId);
+  if (!club) { const e = new Error('Club introuvable.'); e.status = 404; throw e; }
+  return clubsRepo.getSubscribers(clubId);
+}
+
 module.exports = {
   createClub, listClubs, getClub, updateClub, updateLogo, updateCover, getPublicClub, addPhoto, removePhoto,
   getClubSlots, getBallPickers, createBallPicker, removeBallPicker,
   toggleFavorite, getFavoriteClubs, getClubFavoriteStatus,
   toggleSubscription, getClubSubscriptionStatus,
-  createClubPost, getClubPosts, deleteClubPost,
+  createClubPost, getClubPosts, deleteClubPost, getSubscribers,
 };

@@ -284,6 +284,13 @@ async function deletePostHandler(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function subscribersHandler(req, res, next) {
+  try {
+    const subscribers = await clubsService.getSubscribers(req.params.id);
+    return res.json({ subscribers });
+  } catch (err) { next(err); }
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 const router = Router();
 router.get('/featured',       listClubsHandler); // public — no auth required
@@ -309,6 +316,7 @@ router.post('/:id/favorite',       authenticate, validateId, toggleFavoriteHandl
 // Subscriptions
 router.get('/:id/subscription',    authenticate, validateId, subscriptionStatusHandler);
 router.post('/:id/subscription',   authenticate, validateId, toggleSubscriptionHandler);
+router.get('/:id/subscribers',     authenticate, validateId, subscribersHandler);
 
 // Posts
 router.get('/:id/posts',           authenticate, validateId, getPostsHandler);

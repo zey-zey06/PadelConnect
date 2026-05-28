@@ -164,6 +164,21 @@ async function getSubscriberIds(orgId) {
   return rows.map((r) => r.user_id);
 }
 
+async function getSubscribers(orgId) {
+  return db('users')
+    .join('club_subscriptions', 'users.id', '=', 'club_subscriptions.user_id')
+    .where({ 'club_subscriptions.organization_id': orgId })
+    .select(
+      'users.id',
+      'users.email',
+      'users.first_name',
+      'users.last_name',
+      'users.photo_url',
+      'club_subscriptions.created_at as subscribed_at'
+    )
+    .orderBy('club_subscriptions.created_at', 'desc');
+}
+
 // ── Posts ─────────────────────────────────────────────────────────────────────
 
 async function createPost(data) {
@@ -186,6 +201,6 @@ module.exports = {
   create, list, listWithStats, getUserById, getAdminByOrg, getById, linkUserToOrg, update,
   getBallPickersByOrg, createBallPicker, removeBallPicker,
   addFavorite, removeFavorite, isFavorite, getFavoritesByUser, getFavoritesCount,
-  addSubscription, removeSubscription, isSubscribed, getSubscribersCount, getSubscriberIds,
+  addSubscription, removeSubscription, isSubscribed, getSubscribersCount, getSubscriberIds, getSubscribers,
   createPost, getPostsByOrg, deletePost,
 };
