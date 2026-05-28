@@ -137,6 +137,18 @@ async function deleteSlotHandler(req, res, next) {
   }
 }
 
+async function deleteVenueHandler(req, res, next) {
+  try {
+    const venue = await venuesService.deleteVenue(
+      req.params.id,
+      req.user.organization_id,
+    );
+    return res.json({ venue });
+  } catch (err) {
+    next(err);
+  }
+}
+
 const clubVenuesRouter = Router();
 clubVenuesRouter.post('/:id/venues', authenticate, requireRole('venue_admin'), addVenueHandler);
 clubVenuesRouter.get('/:id/venues', authenticate, listVenuesHandler);
@@ -148,5 +160,6 @@ venueSlotsRouter.get('/:id/slots', authenticate, listSlotsHandler);
 venueSlotsRouter.patch('/:id/slots/bulk-price', authenticate, requireRole('venue_admin'), bulkSlotPriceHandler);
 venueSlotsRouter.patch('/:id/slots/:slotId', authenticate, requireRole('venue_admin'), updateSlotHandler);
 venueSlotsRouter.delete('/:id/slots/:slotId', authenticate, requireRole('venue_admin'), deleteSlotHandler);
+venueSlotsRouter.delete('/:id', authenticate, requireRole('venue_admin'), deleteVenueHandler);
 
 module.exports = { clubVenuesRouter, venueSlotsRouter };

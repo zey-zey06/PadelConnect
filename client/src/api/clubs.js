@@ -38,3 +38,10 @@ export const toggleClubSubscription    = (id) => client.post(`/clubs/${id}/subsc
 export const getClubPosts   = (id)             => client.get(`/clubs/${id}/posts`);
 export const createClubPost = (id, data)       => client.post(`/clubs/${id}/posts`, data);
 export const deleteClubPost = (id, postId)     => client.delete(`/clubs/${id}/posts/${postId}`);
+
+// ── Subscribers ──────────────────────────────────────────────────────────
+export const getClubSubscribers = (id) => client.get(`/clubs/${id}/subscribers`);
+
+// ── Club Messages ────────────────────────────────────────────────────────
+export const getClubMessages = (id) => client.get(`/clubs/${id}/messages`);
+export const sendClubMessage = (id, data) => client.post(`/clubs/${id}/messages`, data);

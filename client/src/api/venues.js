@@ -19,3 +19,7 @@ export const updateSlot = (venueId, slotId, data) =>
 /** DELETE /api/venues/:id/slots/:slotId → { slot } */
 export const deleteSlot = (venueId, slotId) =>
   client.delete(`/venues/${venueId}/slots/${slotId}`);
+
+/** DELETE /api/venues/:id → { venue } — soft delete venue + cancel all future slots */
+export const deleteVenue = (venueId) =>
+  client.delete(`/venues/${venueId}`);

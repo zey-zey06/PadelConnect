@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Building2, MapPin, Plus, Calendar, AlertCircle, Clock, Trash2 } from 'lucide-react';
 import { useAuth } from '@/App';
 import { getClub, getClubVenues } from '@/api/clubs';
-import { getVenueSlots, addSlot, deleteSlot } from '@/api/venues';
+import { getVenueSlots, addSlot, deleteSlot, deleteVenue } from '@/api/venues';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -96,12 +96,14 @@ function AddSlotForm({ venueId, onAdded }) {
 }
 
 // ── Venue card with slots ─────────────────────────────────────────────────────
-function VenueSection({ venue }) {
+function VenueSection({ venue, onVenueDeleted }) {
   const [slots,       setSlots]       = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState(null);
   const [showForm,    setShowForm]    = useState(false);
   const [deleting,    setDeleting]    = useState(null);
+  const [deletingVenue, setDeletingVenue] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     getVenueSlots(venue.id)
@@ -122,21 +124,46 @@ function VenueSection({ venue }) {
     }
   }
 
+  async function handleDeleteVenue() {
+    setDeletingVenue(true);
+    try {
+      await deleteVenue(venue.id);
+      setShowDeleteModal(false);
+      onVenueDeleted(venue.id);
+    } catch (err) {
+      alert(err.message || 'Erreur lors de la suppression du terrain.');
+    } finally {
+      setDeletingVenue(false);
+    }
+  }
+
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-border">
-        <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-        <div className="flex-1">
-          <p className="font-medium text-foreground">{venue.name}</p>
-          {venue.description && (
-            <p className="text-xs text-muted-foreground">{venue.description}</p>
-          )}
+    <>
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-border">
+          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium text-foreground">{venue.name}</p>
+            {venue.description && (
+              <p className="text-xs text-muted-foreground">{venue.description}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowForm((v) => !v)}>
+              <Plus className="h-3.5 w-3.5" />
+              Créneau
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowDeleteModal(true)}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Supprimer
+            </Button>
+          </div>
         </div>
-        <Button size="sm" variant="outline" onClick={() => setShowForm((v) => !v)}>
-          <Plus className="h-3.5 w-3.5" />
-          Créneau
-        </Button>
-      </div>
 
       <div className="p-4 space-y-3">
         {showForm && (
@@ -192,6 +219,44 @@ function VenueSection({ venue }) {
         )}
       </div>
     </div>
+
+    {/* Delete venue confirmation modal */}
+    {showDeleteModal && (
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="bg-background rounded-lg border border-border shadow-lg max-w-sm w-full p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-foreground">Supprimer le terrain ?</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Êtes-vous sûr ? Tous les créneaux seront annulés et les joueurs seront notifiés.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={deletingVenue}
+            >
+              Annuler
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleDeleteVenue}
+              disabled={deletingVenue}
+            >
+              {deletingVenue ? 'Suppression…' : 'Supprimer'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -203,6 +268,10 @@ export default function ManagerDashboard() {
   const [venues,  setVenues]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
+
+  function handleVenueDeleted(venueId) {
+    setVenues((prev) => prev.filter((v) => v.id !== venueId));
+  }
 
   useEffect(() => {
     if (!user?.organization_id) {
@@ -280,7 +349,7 @@ export default function ManagerDashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              {venues.map((v) => <VenueSection key={v.id} venue={v} />)}
+              {venues.map((v) => <VenueSection key={v.id} venue={v} onVenueDeleted={handleVenueDeleted} />)}
             </div>
           )}
         </>

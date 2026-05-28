@@ -246,4 +246,47 @@ async function fillMissingSlots() {
   return rows.length;
 }
 
-module.exports = { addVenue, listVenuesByClub, addSlot, getAvailableSlots, updateSlot, deleteSlot, bulkUpdateSlotPrice, fillVenueSlots, fillMissingSlots };
+async function deleteVenue(venueId, userOrgId) {
+  const venue = await venuesRepo.getById(venueId);
+  if (!venue) {
+    const err = new Error('Terrain introuvable.');
+    err.status = 404;
+    throw err;
+  }
+  if (venue.organization_id !== userOrgId) {
+    const err = new Error('Accès refusé.');
+    err.status = 403;
+    throw err;
+  }
+
+  // Get all future bookings for this venue to notify players
+  const allSlots = await venuesRepo.getSlots(venueId, {});
+  const bookedSlots = (allSlots || []).filter((s) => s.status === 'booked');
+
+  // Cancel all future slots and their bookings
+  for (const slot of bookedSlots) {
+    const booking = await venuesRepo.getActiveBookingForSlot(slot.id);
+    if (booking) {
+      await venuesRepo.cancelBooking(booking.id);
+      // Notify the player who booked
+      try {
+        const session = await sessionsRepo.getById(booking.session_id);
+        if (session) {
+          await notificationsService.createNotification(
+            session.creator_id,
+            'slot_cancelled',
+            `Le terrain "${venue.name}" a été supprimé. Votre réservation a été annulée.`
+          );
+        }
+      } catch {
+        // Non-fatal
+      }
+    }
+  }
+
+  // Soft delete the venue
+  const deletedVenue = await venuesRepo.softDeleteVenue(venueId);
+  return deletedVenue;
+}
+
+module.exports = { addVenue, listVenuesByClub, addSlot, getAvailableSlots, updateSlot, deleteSlot, bulkUpdateSlotPrice, fillVenueSlots, fillMissingSlots, deleteVenue };

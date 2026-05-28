@@ -124,6 +124,14 @@ async function bulkUpdateSlotPrice(venueId, startTime, endTime, price) {
     .update({ price, updated_at: new Date() });
 }
 
+async function softDeleteVenue(id) {
+  const [row] = await db('venues')
+    .where({ id })
+    .update({ deleted_at: new Date(), updated_at: new Date() })
+    .returning('*');
+  return row;
+}
+
 module.exports = {
   createVenue,
   getAllVenues,
@@ -137,6 +145,7 @@ module.exports = {
   getSlotById,
   updateSlot,
   softDeleteSlot,
+  softDeleteVenue,
   getActiveBookingForSlot,
   cancelBooking,
   bulkUpdateSlotPrice,
