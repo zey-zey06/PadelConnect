@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe, Menu, MessageSquare, Users } from 'lucide-react';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe, Menu, MessageSquare, Users, Camera } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { setLanguage } from '@/i18n/i18n';
 import { useAuth } from '@/App';
@@ -71,7 +71,12 @@ function TagInput({ value = [], onChange, placeholder, colorClass }) {
 }
 
 // ── ProfileCard — unified card matching the design system ─────────────────────
-function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditClick }) {
+function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditClick, onPhotoUploaded }) {
+  const coverInputRef  = useRef(null);
+  const photoInputRef  = useRef(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
   const level      = profile?.level ?? null;
   const levelLabel = LEVEL_LABELS[level] ?? null;
   const photoUrl   = profile?.photo_url ?? null;
@@ -82,29 +87,69 @@ function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditC
   const weaknesses = Array.isArray(profile?.weaknesses) ? profile.weaknesses : [];
   const initials   = name.slice(0, 2).toUpperCase();
 
+  async function handleCoverChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCoverUploading(true);
+    try {
+      const { profile: updated } = await uploadCoverPhoto(file);
+      onPhotoUploaded?.(updated);
+    } catch { /* silent */ }
+    finally { setCoverUploading(false); e.target.value = ''; }
+  }
+
+  async function handlePhotoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const { profile: updated } = await uploadPhoto(file);
+      onPhotoUploaded?.(updated);
+    } catch { /* silent */ }
+    finally { setPhotoUploading(false); e.target.value = ''; }
+  }
+
   return (
-    <div className="w-full max-w-sm mx-auto rounded-xl border border-border bg-card overflow-hidden shadow-sm select-none">
+    // overflow-visible so the absolute avatar that hangs below the cover is not clipped
+    <div className="w-full max-w-sm mx-auto rounded-xl border border-border bg-card shadow-sm select-none">
 
-      {/* Cover — 130px green gradient */}
-      <div
-        className="h-[130px] w-full relative"
-        style={coverUrl ? undefined : COVER_GRADIENT}
-      >
-        {coverUrl && (
-          <img src={coverUrl} alt="Cover" className="h-full w-full object-cover" />
-        )}
+      {/* Cover — z-[1] creates a stacking context so the avatar renders above the body below */}
+      <div className="h-[130px] w-full relative z-[1]">
 
-        {/* Edit button — top-left */}
+        {/* Image / gradient — clipped to top rounded corners of the card */}
+        <div
+          className="absolute inset-0 overflow-hidden rounded-t-xl"
+          style={coverUrl ? undefined : COVER_GRADIENT}
+        >
+          {coverUrl && (
+            <img src={coverUrl} alt="Cover" className="h-full w-full object-cover" />
+          )}
+        </div>
+
+        {/* Edit pencil — top-left */}
         <button
           onClick={onEditClick}
-          className="absolute top-3 left-3 h-7 w-7 rounded-full bg-black/25 hover:bg-black/40 backdrop-blur-sm flex items-center justify-center transition-colors"
+          className="absolute top-3 left-3 z-10 h-7 w-7 rounded-full bg-black/25 hover:bg-black/40 backdrop-blur-sm flex items-center justify-center transition-colors"
         >
           <Pencil className="h-3.5 w-3.5 text-white" />
         </button>
 
-        {/* Level badge — top-right */}
+        {/* Camera button for cover photo — top-right */}
+        <button
+          onClick={() => coverInputRef.current?.click()}
+          disabled={coverUploading}
+          className="absolute top-3 right-3 z-10 h-7 w-7 rounded-full bg-black/25 hover:bg-black/40 backdrop-blur-sm flex items-center justify-center transition-colors disabled:opacity-60"
+          aria-label="Changer la photo de couverture"
+        >
+          {coverUploading
+            ? <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            : <Camera className="h-3.5 w-3.5 text-white" />
+          }
+        </button>
+
+        {/* Level badge — shifted left to clear the camera button */}
         {level && (
-          <div className="absolute top-3 right-3 flex flex-col items-center bg-black/30 backdrop-blur-sm rounded-xl px-2.5 py-1.5 min-w-[44px]">
+          <div className="absolute top-3 right-12 z-10 flex flex-col items-center bg-black/30 backdrop-blur-sm rounded-xl px-2.5 py-1.5 min-w-[44px]">
             <span className="text-xl font-black text-white leading-none">{level}</span>
             {levelLabel && (
               <span className="text-[8px] font-semibold text-white/80 uppercase tracking-wide mt-0.5 whitespace-nowrap">
@@ -113,20 +158,37 @@ function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditC
             )}
           </div>
         )}
-      </div>
 
-      {/* Body */}
-      <div className="px-4 pb-4">
-        {/* Avatar — 84px, -42px overlap, white 3px border */}
-        <div className="-mt-[42px] mb-3">
-          <div className="h-[84px] w-[84px] rounded-full border-[3px] border-white bg-muted overflow-hidden flex items-center justify-center shadow-md">
-            {photoUrl ? (
-              <img src={photoUrl} alt={name} className="h-full w-full object-cover object-top" />
-            ) : (
-              <span className="text-xl font-black text-muted-foreground">{initials}</span>
-            )}
+        {/* Avatar — absolute at bottom of cover, hanging 42px below */}
+        <div className="absolute bottom-[-42px] left-4 z-10">
+          {/* Relative wrapper so the camera icon can be positioned bottom-right of the circle */}
+          <div className="relative h-[84px] w-[84px]">
+            {/* Circle — overflow-hidden clips the avatar image */}
+            <div className="h-full w-full rounded-full border-[3px] border-white bg-muted overflow-hidden flex items-center justify-center shadow-md">
+              {photoUrl ? (
+                <img src={photoUrl} alt={name} className="h-full w-full object-cover object-top" />
+              ) : (
+                <span className="text-xl font-black text-muted-foreground">{initials}</span>
+              )}
+            </div>
+            {/* Camera button — bottom-right of avatar */}
+            <button
+              onClick={() => photoInputRef.current?.click()}
+              disabled={photoUploading}
+              className="absolute bottom-0.5 right-0.5 h-[22px] w-[22px] rounded-full bg-white border border-border shadow flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-60 z-10"
+              aria-label="Changer la photo de profil"
+            >
+              {photoUploading
+                ? <div className="h-3 w-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                : <Camera className="h-3 w-3 text-foreground" />
+              }
+            </button>
           </div>
         </div>
+      </div>
+
+      {/* Body — pt-[50px] ensures content clears the overhanging avatar (42px hang + 8px gap) */}
+      <div className="px-4 pb-4 pt-[50px]">
 
         {/* Name · username · style pill */}
         <div className="space-y-0.5 mb-3">
@@ -184,6 +246,22 @@ function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditC
           <p className="text-sm text-muted-foreground text-center py-2">Profil non renseigné</p>
         )}
       </div>
+
+      {/* Hidden file inputs — separate inputs for cover and profile photo */}
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleCoverChange}
+      />
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handlePhotoChange}
+      />
     </div>
   );
 }
@@ -1131,6 +1209,7 @@ export default function Profile() {
             bookingsCount={bookings.length}
             friendsCount={friends.length}
             onEditClick={() => setEditing(true)}
+            onPhotoUploaded={(updated) => { setLocal(updated); setProfile(updated); }}
           />
 
           {/* Friends row */}
