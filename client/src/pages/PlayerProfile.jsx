@@ -343,9 +343,9 @@ export default function PlayerProfile() {
 
   return (
     <div className="space-y-0">
-      {/* ── Cover photo (full width, extends to edges) ─────────────────── */}
-      <div className="relative -mx-4 sm:-mx-6 md:-mx-8 lg:-mx-12 -mt-4">
-        {/* Back button */}
+      {/* ── Cover photo (full width, starts at top, no margins) ─────────── */}
+      <div className="relative -mx-4 sm:-mx-6 md:-mx-8 lg:-mx-12 w-[calc(100%+2rem)] sm:w-[calc(100%+3rem)] md:w-[calc(100%+4rem)] lg:w-[calc(100%+6rem)]">
+        {/* Back button - floats absolutely over cover */}
         <button
           onClick={() => navigate(-1)}
           className="absolute top-4 left-4 z-10 h-8 w-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-colors"
@@ -353,9 +353,9 @@ export default function PlayerProfile() {
           <ArrowLeft className="h-4 w-4" />
         </button>
 
-        {/* Cover */}
+        {/* Cover - no padding, margin, or bar above */}
         <div className={cn(
-          'h-40 w-[calc(100%+2rem)] sm:w-[calc(100%+3rem)] md:w-[calc(100%+4rem)] lg:w-[calc(100%+6rem)] bg-gradient-to-br',
+          'h-40 w-full bg-gradient-to-br',
           !coverUrl && coverGradient(userId),
         )}>
           {coverUrl && (
@@ -366,7 +366,7 @@ export default function PlayerProfile() {
 
       {/* ── Profile info card ────────────────────────────────────────── */}
       <div className="bg-background px-4 pb-4">
-        {/* Avatar row */}
+        {/* Avatar row - overlaps cover photo at bottom */}
         <div className="flex items-end justify-between -mt-10 mb-3">
           {/* Avatar */}
           <div className="h-20 w-20 rounded-full border-4 border-background bg-muted overflow-hidden flex items-center justify-center shadow-lg shrink-0">

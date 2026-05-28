@@ -150,9 +150,9 @@ async function respondToRequest(sessionId, requestId, userId, status) {
   const updatedRequest = await requestsRepo.updateStatus(requestId, status);
 
   let sessionBecameComplete = false;
-  // Players AND coaches count toward the session headcount.
-  // Only players occupy a session slot. Coaches and ball-pickers are service
-  // providers — they do NOT count toward current_players or trigger session completion.
+  // ONLY players count toward the session headcount.
+  // Coaches and ball-pickers are service providers — they do NOT count toward
+  // current_players or trigger session completion.
   if (status === 'accepted' && sessionRequest.role === 'player') {
     const newCount = session.current_players + 1;
     const updatedSession = await sessionsRepo.updateCurrentPlayers(sessionId, newCount);
@@ -161,6 +161,7 @@ async function respondToRequest(sessionId, requestId, userId, status) {
       sessionBecameComplete = true;
     }
   }
+  // Coaches: do NOT increment current_players
 
   // Notifications AFTER all DB ops
   await notificationsService.createNotification(

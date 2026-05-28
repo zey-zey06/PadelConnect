@@ -343,8 +343,11 @@ const chatSchema = Joi.object({
 // ── Handlers ──────────────────────────────────────────────────────────────────
 async function chatHandler(req, res, next) {
   try {
-    console.log('[PIA DEBUG] Key exists:', !!process.env.GEMINI_API_KEY);
-    console.log('[PIA DEBUG] Key prefix:', process.env.GEMINI_API_KEY?.substring(0, 10));
+    console.log('[PIA] Starting chat handler');
+    console.log('[PIA] Gemini API key exists:', !!process.env.GEMINI_API_KEY);
+    if (process.env.GEMINI_API_KEY) {
+      console.log('[PIA] Key prefix:', process.env.GEMINI_API_KEY.substring(0, 10));
+    }
 
     const { error, value } = chatSchema.validate(req.body);
     if (error) {
@@ -369,27 +372,27 @@ async function chatHandler(req, res, next) {
     // Conversation management
     const conversation = await getOrCreateConversation(userId, inputConvId);
 
-    // Build context + system prompt
-    const context           = await fetchContext(role, userId, orgId);
-    const systemInstruction = buildSystemPrompt(role, context);
+    // Simple system prompt
+    const simpleSystemPrompt = 'Tu es PIA, assistant PadelConnect Abidjan. Réponds en français.';
 
     // Call Gemini
     if (!process.env.GEMINI_API_KEY) {
-      console.error('[PIA] GEMINI_API_KEY manquante — configurez la variable d\'environnement.');
-      return res.json({ response: 'PIA est temporairement indisponible. Contactez l\'administrateur. 🎾', conversation_id: conversation.id });
+      console.error('[PIA ERROR] GEMINI_API_KEY not configured');
+      return res.json({ response: 'PIA est temporairement indisponible. Veuillez réessayer plus tard. 🎾', conversation_id: conversation.id });
     }
 
-    console.log('[PIA] Initializing Gemini API...');
-    const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model  = genAI.getGenerativeModel({ model: 'gemini-1.5-flash', systemInstruction });
+    console.log('[PIA] Initializing Gemini with key (first 10 chars):', process.env.GEMINI_API_KEY.substring(0, 10));
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    console.log('[PIA] Creating generative model');
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash', systemInstruction: simpleSystemPrompt });
 
-    console.log('[PIA] Starting chat with history length:', history?.length ?? 0);
-    const chat   = model.startChat({ history });
+    console.log('[PIA] Starting chat session, history length:', history?.length ?? 0);
+    const chat = model.startChat({ history: history ?? [] });
 
-    console.log('[PIA] Sending message to Gemini...');
+    console.log('[PIA] Sending message to Gemini:', message.substring(0, 50));
     const result = await chat.sendMessage(message);
 
-    console.log('[PIA] Received response from Gemini');
+    console.log('[PIA] Got response from Gemini');
     const response = result.response.text();
 
     // Persist both messages to DB
@@ -399,19 +402,20 @@ async function chatHandler(req, res, next) {
       { role: 'model', text: response, ts: new Date().toISOString() },
     ]);
 
+    console.log('[PIA] Returning response successfully');
     return res.json({ response, conversation_id: conversation.id });
   } catch (err) {
-    console.error('[PIA ERROR]', {
+    console.error('[PIA ERROR] Exception caught:', {
       message: err?.message ?? String(err),
       status: err?.status ?? 'unknown',
-      stack: err?.stack,
       code: err?.code,
-      apiKey: `${!!process.env.GEMINI_API_KEY}`,
+      name: err?.name,
     });
-    console.error(JSON.stringify({ level: 'error', event: 'pia_error', message: err?.message ?? String(err), status: err?.status ?? 'unknown', code: err?.code }));
+    console.error('[PIA ERROR] Stack:', err?.stack);
     if (!res.headersSent) {
       return res.json({
-        response: 'Désolée, je rencontre des difficultés techniques. Veuillez réessayer dans un instant. 🎾',
+        response: 'Désolée, une erreur technique s\'est produite. Veuillez réessayer. 🎾',
+        error: err?.message ?? 'Unknown error',
       });
     }
     next(err);

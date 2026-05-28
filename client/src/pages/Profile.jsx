@@ -1104,7 +1104,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
