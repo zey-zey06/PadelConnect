@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   User, ArrowLeft, AlertCircle, MessageSquare,
   UserPlus, UserCheck, UserX, Clock, X, Pencil,
-  Calendar, Users, ChevronRight,
+  Calendar, Users, ChevronRight, Zap, Target,
 } from 'lucide-react';
 import { useAuth } from '@/App';
 import { getUserProfile, getUserSessions } from '@/api/profile';
@@ -24,19 +24,7 @@ const LEVEL_LABELS = {
   4: 'Intermédiaire +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
 };
 
-const COVER_GRADIENTS = [
-  'from-emerald-800 to-teal-900',
-  'from-slate-700   to-slate-900',
-  'from-green-800   to-emerald-950',
-  'from-teal-700    to-cyan-900',
-];
-
-// Pick a deterministic gradient from the user's ID to avoid flicker
-function coverGradient(userId) {
-  if (!userId) return COVER_GRADIENTS[0];
-  const idx = userId.charCodeAt(0) % COVER_GRADIENTS.length;
-  return COVER_GRADIENTS[idx];
-}
+const COVER_GRADIENT = { background: 'linear-gradient(135deg, #0f6e56, #1d9e75, #5dcaa5)' };
 
 // ── Session detail modal ───────────────────────────────────────────────────────
 function SessionModal({ session, onClose }) {
@@ -228,7 +216,6 @@ function FriendButton({ friendStatus, targetUserId, onStatusChange }) {
         await sendFriendRequest(targetUserId);
         onStatusChange('pending_sent');
       } else if (friendStatus === 'pending_sent') {
-        // Cancel by unfriending (removes the pending request)
         await unfriend(targetUserId);
         onStatusChange('none');
       } else if (friendStatus === 'pending_received') {
@@ -271,7 +258,7 @@ export default function PlayerProfile() {
   const navigate    = useNavigate();
   const { user: me } = useAuth();
 
-  const [profile,      setProfile]      = useState(undefined); // undefined = loading
+  const [profile,      setProfile]      = useState(undefined);
   const [sessions,     setSessions]     = useState([]);
   const [friendStatus, setFriendStatus] = useState('none');
   const [loading,      setLoading]      = useState(true);
@@ -309,20 +296,23 @@ export default function PlayerProfile() {
     (profile?.user_first_name && profile?.user_last_name)
       ? `${profile.user_first_name} ${profile.user_last_name}`
       : profile?.user_first_name ?? profile?.user_email?.split('@')[0] ?? 'Joueur';
-  const username     = profile?.user_username ?? null;
-  const bio          = profile?.bio ?? null;
-  const level        = profile?.level ?? null;
-  const levelLabel   = LEVEL_LABELS[level] ?? null;
-  const photoUrl     = profile?.photo_url ?? null;
-  const coverUrl     = profile?.cover_photo_url ?? null;
+  const username      = profile?.user_username ?? null;
+  const bio           = profile?.bio ?? null;
+  const level         = profile?.level ?? null;
+  const levelLabel    = LEVEL_LABELS[level] ?? null;
+  const photoUrl      = profile?.photo_url ?? null;
+  const coverUrl      = profile?.cover_photo_url ?? null;
+  const style         = profile?.style ?? null;
+  const strengths     = Array.isArray(profile?.strengths)  ? profile.strengths  : [];
+  const weaknesses    = Array.isArray(profile?.weaknesses) ? profile.weaknesses : [];
   const sessionsCount = profile?.sessions_count ?? sessions.length;
   const friendsCount  = profile?.friends_count ?? 0;
-  const initials     = displayName.slice(0, 2).toUpperCase();
+  const initials      = displayName.slice(0, 2).toUpperCase();
 
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-40 rounded-2xl bg-muted animate-pulse" />
+        <div className="h-[130px] rounded-2xl bg-muted animate-pulse" />
         <div className="h-24 rounded-2xl bg-muted animate-pulse" />
         <div className="grid grid-cols-3 gap-2">
           {[...Array(6)].map((_, i) => (
@@ -343,9 +333,11 @@ export default function PlayerProfile() {
 
   return (
     <div className="space-y-0">
-      {/* ── Cover photo (full width, starts at top, no margins) ─────────── */}
+
+      {/* ── Cover — edge-to-edge, starts at top ───────────────────── */}
       <div className="relative -mx-4 sm:-mx-6 md:-mx-8 lg:-mx-12 w-[calc(100%+2rem)] sm:w-[calc(100%+3rem)] md:w-[calc(100%+4rem)] lg:w-[calc(100%+6rem)]">
-        {/* Back button - floats absolutely over cover */}
+
+        {/* Back button */}
         <button
           onClick={() => navigate(-1)}
           className="absolute top-4 left-4 z-10 h-8 w-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-colors"
@@ -353,23 +345,35 @@ export default function PlayerProfile() {
           <ArrowLeft className="h-4 w-4" />
         </button>
 
-        {/* Cover - no padding, margin, or bar above */}
-        <div className={cn(
-          'h-40 w-full bg-gradient-to-br',
-          !coverUrl && coverGradient(userId),
-        )}>
+        {/* Cover */}
+        <div
+          className="h-[130px] w-full relative"
+          style={coverUrl ? undefined : COVER_GRADIENT}
+        >
           {coverUrl && (
             <img src={coverUrl} alt="Cover" className="h-full w-full object-cover" />
+          )}
+          {/* Level badge — top-right (back button is top-left, no conflict) */}
+          {level && (
+            <div className="absolute top-3 right-4 flex flex-col items-center bg-black/30 backdrop-blur-sm rounded-xl px-3 py-1.5 min-w-[44px]">
+              <span className="text-xl font-black text-white leading-none">{level}</span>
+              {levelLabel && (
+                <span className="text-[8px] font-semibold text-white/80 uppercase tracking-wide mt-0.5 whitespace-nowrap">
+                  {levelLabel}
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>
 
-      {/* ── Profile info card ────────────────────────────────────────── */}
+      {/* ── Profile info ──────────────────────────────────────────── */}
       <div className="bg-background px-4 pb-4">
-        {/* Avatar row - overlaps cover photo at bottom */}
-        <div className="flex items-end justify-between -mt-10 mb-3">
-          {/* Avatar */}
-          <div className="h-20 w-20 rounded-full border-4 border-background bg-muted overflow-hidden flex items-center justify-center shadow-lg shrink-0">
+
+        {/* Avatar + action buttons row */}
+        <div className="flex items-end justify-between -mt-[42px] mb-3">
+          {/* Avatar — 84px, white 3px border, -42px overlap */}
+          <div className="h-[84px] w-[84px] rounded-full border-[3px] border-white bg-muted overflow-hidden flex items-center justify-center shadow-lg shrink-0">
             {photoUrl ? (
               <img src={photoUrl} alt={displayName} className="h-full w-full object-cover object-top" />
             ) : (
@@ -377,7 +381,7 @@ export default function PlayerProfile() {
             )}
           </div>
 
-          {/* Action buttons (shown immediately to the right of avatar at the top) */}
+          {/* Action buttons */}
           {isOwnProfile ? (
             <Button
               variant="outline"
@@ -407,30 +411,27 @@ export default function PlayerProfile() {
           )}
         </div>
 
-        {/* Name */}
-        <div className="space-y-0.5 mb-3">
+        {/* Name · username · style pill · bio */}
+        <div className="space-y-1 mb-3">
           {username && (
             <p className="text-xs font-medium text-muted-foreground">@{username}</p>
           )}
           <h1 className="text-lg font-bold text-foreground leading-tight">{displayName}</h1>
-          {level && levelLabel && (
-            <p className="text-xs text-muted-foreground">Niveau {level} — {levelLabel}</p>
+          {style && (
+            <span className="inline-block text-xs font-medium px-2.5 py-0.5 rounded-full bg-[#e6f1fb] text-[#1a6fa8]">
+              {style}
+            </span>
           )}
           {bio && (
             <p className="text-sm text-foreground/80 mt-1.5 leading-relaxed">{bio}</p>
           )}
         </div>
 
-        {/* Stats row */}
+        {/* Stats row — Sessions + Amis */}
         <div className="flex border border-border rounded-xl overflow-hidden">
           <div className="flex-1 text-center py-3 px-2">
             <p className="text-lg font-bold text-foreground">{sessionsCount}</p>
             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Sessions</p>
-          </div>
-          <div className="w-px bg-border" />
-          <div className="flex-1 text-center py-3 px-2">
-            <p className="text-lg font-bold text-foreground">{level ?? '—'}</p>
-            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Niveau</p>
           </div>
           <div className="w-px bg-border" />
           <button
@@ -443,10 +444,55 @@ export default function PlayerProfile() {
         </div>
       </div>
 
-      {/* ── Divider ───────────────────────────────────────────────────── */}
+      {/* ── Strengths & Weaknesses ────────────────────────────────── */}
+      {(strengths.length > 0 || weaknesses.length > 0) && (
+        <>
+          <div className="h-2 bg-muted/40" />
+          <div className="bg-background px-4 py-4 space-y-3">
+            {strengths.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5 text-[#085041]" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Points forts</p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {strengths.map((s) => (
+                    <span
+                      key={s}
+                      className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#e1f5ee] text-[#085041] border border-[#5dcaa5]"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {weaknesses.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Target className="h-3.5 w-3.5 text-[#ef9f27]" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">À travailler</p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {weaknesses.map((w) => (
+                    <span
+                      key={w}
+                      className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#faeeda] text-[#633806] border border-[#ef9f27]"
+                    >
+                      {w}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── Divider ───────────────────────────────────────────────── */}
       <div className="h-2 bg-muted/40" />
 
-      {/* ── Sessions grid ─────────────────────────────────────────────── */}
+      {/* ── Sessions grid ─────────────────────────────────────────── */}
       <div className="bg-background px-4 py-4">
         <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -471,7 +517,7 @@ export default function PlayerProfile() {
         )}
       </div>
 
-      {/* ── Pending request banner (for pending_received) ─────────────── */}
+      {/* ── Pending request banner ────────────────────────────────── */}
       {friendStatus === 'pending_received' && !isOwnProfile && (
         <div className="mx-4 mb-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3">
           <p className="text-sm text-foreground font-medium">Ce joueur vous a envoyé une demande d'ami.</p>
@@ -488,7 +534,7 @@ export default function PlayerProfile() {
         </div>
       )}
 
-      {/* ── Modals ───────────────────────────────────────────────────── */}
+      {/* ── Modals ───────────────────────────────────────────────── */}
       {activeSession && (
         <SessionModal session={activeSession} onClose={() => setActiveSession(null)} />
       )}

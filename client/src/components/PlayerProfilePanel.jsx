@@ -20,18 +20,7 @@ const LEVEL_LABELS = {
   4: 'Intermédiaire +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
 };
 
-const COVER_GRADIENTS = [
-  'from-emerald-800 to-teal-900',
-  'from-slate-700   to-slate-900',
-  'from-green-800   to-emerald-950',
-  'from-teal-700    to-cyan-900',
-];
-
-function coverGradient(userId) {
-  if (!userId) return COVER_GRADIENTS[0];
-  const idx = userId.charCodeAt(0) % COVER_GRADIENTS.length;
-  return COVER_GRADIENTS[idx];
-}
+const COVER_GRADIENT = { background: 'linear-gradient(135deg, #0f6e56, #1d9e75, #5dcaa5)' };
 
 function FriendButton({ friendStatus, targetUserId, onStatusChange }) {
   const [loading, setLoading] = useState(false);
@@ -134,6 +123,7 @@ export default function PlayerProfilePanel({ userId, onClose }) {
   const levelLabel = LEVEL_LABELS[level] ?? null;
   const photoUrl   = profile?.photo_url ?? null;
   const coverUrl   = profile?.cover_photo_url ?? null;
+  const style      = profile?.style ?? null;
   const strengths  = Array.isArray(profile?.strengths)  ? profile.strengths  : [];
   const weaknesses = Array.isArray(profile?.weaknesses) ? profile.weaknesses : [];
   const initials   = displayName.slice(0, 2).toUpperCase();
@@ -157,7 +147,7 @@ export default function PlayerProfilePanel({ userId, onClose }) {
           visible ? 'translate-x-0' : 'translate-x-full',
         )}
       >
-        {/* Close button */}
+        {/* Close button — floats over the cover */}
         <button
           onClick={handleClose}
           className="absolute top-4 right-4 z-10 h-8 w-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-colors"
@@ -169,9 +159,9 @@ export default function PlayerProfilePanel({ userId, onClose }) {
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div>
-              <div className="h-28 bg-muted animate-pulse" />
-              <div className="px-4 py-4 space-y-3">
-                <div className="h-16 rounded-xl bg-muted animate-pulse" />
+              <div className="h-[130px] bg-muted animate-pulse" />
+              <div className="px-4 pt-[54px] pb-4 space-y-3">
+                <div className="h-5 w-32 rounded-lg bg-muted animate-pulse" />
                 <div className="h-10 rounded-xl bg-muted animate-pulse" />
                 <div className="h-20 rounded-xl bg-muted animate-pulse" />
               </div>
@@ -181,7 +171,6 @@ export default function PlayerProfilePanel({ userId, onClose }) {
               <AlertCircle className="h-4 w-4 shrink-0" />{error}
             </div>
           ) : !profile && !loading ? (
-            // No profile yet — show basic user info
             <div className="m-4 rounded-2xl border border-dashed border-border bg-card p-12 text-center space-y-3">
               <User className="h-10 w-10 text-muted-foreground mx-auto" />
               <p className="font-medium text-foreground">Profil non configuré</p>
@@ -189,67 +178,82 @@ export default function PlayerProfilePanel({ userId, onClose }) {
             </div>
           ) : (
             <>
-              {/* Cover photo (full width, extends to panel edges) */}
-              <div className={cn(
-                'h-28 w-[calc(100%+2rem)] -ml-4 bg-gradient-to-br relative',
-                !coverUrl && coverGradient(userId),
-              )}>
+              {/* ── Cover ─────────────────────────────────────── */}
+              <div
+                className="h-[130px] w-full relative"
+                style={coverUrl ? undefined : COVER_GRADIENT}
+              >
                 {coverUrl && (
                   <img src={coverUrl} alt="Cover" className="h-full w-full object-cover" />
                 )}
+                {/* Level badge — top-right, shifted left to clear the X button */}
+                {level && (
+                  <div className="absolute top-3 right-14 flex flex-col items-center bg-black/30 backdrop-blur-sm rounded-xl px-2.5 py-1.5 min-w-[40px]">
+                    <span className="text-xl font-black text-white leading-none">{level}</span>
+                    {levelLabel && (
+                      <span className="text-[8px] font-semibold text-white/80 uppercase tracking-wide mt-0.5 whitespace-nowrap">
+                        {levelLabel}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Profile info */}
+              {/* ── Profile info ───────────────────────────────── */}
               <div className="px-4 pb-4">
-                {/* Avatar row */}
-                <div className="flex items-end justify-between -mt-8 mb-3">
-                  <div className="h-16 w-16 rounded-full border-4 border-background bg-muted overflow-hidden flex items-center justify-center shadow-md shrink-0">
+                {/* Avatar — overlaps cover by half its height */}
+                <div className="-mt-[42px] mb-3">
+                  <div className="h-[84px] w-[84px] rounded-full border-[3px] border-white bg-muted overflow-hidden flex items-center justify-center shadow-md">
                     {photoUrl ? (
                       <img src={photoUrl} alt={displayName} className="h-full w-full object-cover object-top" />
                     ) : (
-                      <span className="text-sm font-black text-muted-foreground">{initials}</span>
+                      <span className="text-base font-black text-muted-foreground">{initials}</span>
                     )}
                   </div>
-                  {level && (
-                    <div className="text-right">
-                      <span className="text-3xl font-black text-foreground">{level}</span>
-                      {levelLabel && <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{levelLabel}</p>}
-                    </div>
-                  )}
                 </div>
 
-                {/* Name & bio */}
-                <div className="space-y-0.5 mb-3">
+                {/* Name · username · style pill · bio */}
+                <div className="space-y-1 mb-3">
                   {username && <p className="text-xs text-muted-foreground">@{username}</p>}
                   <h2 className="text-base font-bold text-foreground">{displayName}</h2>
+                  {style && (
+                    <span className="inline-block text-xs font-medium px-2.5 py-0.5 rounded-full bg-[#e6f1fb] text-[#1a6fa8]">
+                      {style}
+                    </span>
+                  )}
                   {bio && <p className="text-sm text-foreground/80 leading-relaxed mt-1">{bio}</p>}
                 </div>
 
-                {/* Stats */}
+                {/* Stats — Sessions + Amis */}
                 <div className="flex border border-border rounded-xl overflow-hidden mb-3">
                   <div className="flex-1 text-center py-2.5">
-                    <p className="text-base font-bold text-foreground">{profile?.sessions_count ?? 0}</p>
+                    <p className="text-lg font-bold text-foreground">{profile?.sessions_count ?? 0}</p>
                     <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wide">Sessions</p>
                   </div>
                   <div className="w-px bg-border" />
                   <div className="flex-1 text-center py-2.5">
-                    <p className="text-base font-bold text-foreground">{profile?.friends_count ?? 0}</p>
+                    <p className="text-lg font-bold text-foreground">{profile?.friends_count ?? 0}</p>
                     <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wide">Amis</p>
                   </div>
                 </div>
 
                 {/* Strengths & Weaknesses */}
                 {(strengths.length > 0 || weaknesses.length > 0) && (
-                  <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 space-y-3 mb-3">
+                  <div className="rounded-xl border border-border bg-muted/20 px-4 py-3 space-y-3">
                     {strengths.length > 0 && (
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-1.5">
-                          <Zap className="h-3 w-3 text-green-600" />
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Points forts</p>
+                          <Zap className="h-3 w-3 text-[#085041]" />
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            Points forts
+                          </p>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {strengths.map((s) => (
-                            <span key={s} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+                            <span
+                              key={s}
+                              className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#e1f5ee] text-[#085041] border border-[#5dcaa5]"
+                            >
                               {s}
                             </span>
                           ))}
@@ -259,12 +263,17 @@ export default function PlayerProfilePanel({ userId, onClose }) {
                     {weaknesses.length > 0 && (
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-1.5">
-                          <Target className="h-3 w-3 text-orange-500" />
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">À travailler</p>
+                          <Target className="h-3 w-3 text-[#ef9f27]" />
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            À travailler
+                          </p>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {weaknesses.map((w) => (
-                            <span key={w} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                            <span
+                              key={w}
+                              className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#faeeda] text-[#633806] border border-[#ef9f27]"
+                            >
                               {w}
                             </span>
                           ))}

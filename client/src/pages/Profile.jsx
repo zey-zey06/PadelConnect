@@ -22,15 +22,7 @@ const LEVEL_LABELS = {
   4: 'Intermédiaire +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
 };
 
-const LEVEL_COLORS = {
-  1: 'from-slate-600  to-slate-800',
-  2: 'from-stone-600  to-stone-800',
-  3: 'from-emerald-700 to-emerald-900',
-  4: 'from-teal-700   to-teal-900',
-  5: 'from-green-700  to-green-900',
-  6: 'from-[#1A3D2B]  to-[#0f2318]',
-  7: 'from-[#1A3D2B]  to-black',
-};
+const COVER_GRADIENT = { background: 'linear-gradient(135deg, #0f6e56, #1d9e75, #5dcaa5)' };
 
 // ── Tag input — comma-separated list of string badges ─────────────────────────
 function TagInput({ value = [], onChange, placeholder, colorClass }) {
@@ -78,123 +70,119 @@ function TagInput({ value = [], onChange, placeholder, colorClass }) {
   );
 }
 
-// ── Football-style player card ────────────────────────────────────────────────
-function FootballCard({ profile, name, onEditClick }) {
+// ── ProfileCard — unified card matching the design system ─────────────────────
+function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditClick }) {
   const level      = profile?.level ?? null;
-  const levelLabel = LEVEL_LABELS[level] ?? '—';
-  const gradient   = LEVEL_COLORS[level] ?? LEVEL_COLORS[6];
+  const levelLabel = LEVEL_LABELS[level] ?? null;
+  const photoUrl   = profile?.photo_url ?? null;
+  const coverUrl   = profile?.cover_photo_url ?? null;
+  const style      = profile?.style ?? null;
+  const username   = user?.username ?? null;
   const strengths  = Array.isArray(profile?.strengths)  ? profile.strengths  : [];
   const weaknesses = Array.isArray(profile?.weaknesses) ? profile.weaknesses : [];
+  const initials   = name.slice(0, 2).toUpperCase();
 
   return (
-    <div className="w-full max-w-sm mx-auto select-none">
-      {/* Card body */}
-      <div className={cn(
-        'relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10',
-        `bg-gradient-to-b ${gradient}`,
-      )}>
+    <div className="w-full max-w-sm mx-auto rounded-xl border border-border bg-card overflow-hidden shadow-sm select-none">
 
-        {/* Photo + overlay */}
-        <div className="relative h-72 overflow-hidden">
-          {profile?.photo_url ? (
-            <img
-              src={profile.photo_url}
-              alt={name}
-              className="absolute inset-0 h-full w-full object-cover object-top"
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <User className="h-24 w-24 text-white/20" />
-            </div>
-          )}
-          {/* Gradient overlay — fades to card bg color */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+      {/* Cover — 130px green gradient */}
+      <div
+        className="h-[130px] w-full relative"
+        style={coverUrl ? undefined : COVER_GRADIENT}
+      >
+        {coverUrl && (
+          <img src={coverUrl} alt="Cover" className="h-full w-full object-cover" />
+        )}
 
-          {/* Level badge — top-left */}
-          {level && (
-            <div className="absolute top-4 left-4 flex flex-col items-center leading-none">
-              <span className="text-5xl font-black text-white drop-shadow-lg">{level}</span>
-              <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest mt-0.5">
+        {/* Edit button — top-left */}
+        <button
+          onClick={onEditClick}
+          className="absolute top-3 left-3 h-7 w-7 rounded-full bg-black/25 hover:bg-black/40 backdrop-blur-sm flex items-center justify-center transition-colors"
+        >
+          <Pencil className="h-3.5 w-3.5 text-white" />
+        </button>
+
+        {/* Level badge — top-right */}
+        {level && (
+          <div className="absolute top-3 right-3 flex flex-col items-center bg-black/30 backdrop-blur-sm rounded-xl px-2.5 py-1.5 min-w-[44px]">
+            <span className="text-xl font-black text-white leading-none">{level}</span>
+            {levelLabel && (
+              <span className="text-[8px] font-semibold text-white/80 uppercase tracking-wide mt-0.5 whitespace-nowrap">
                 {levelLabel}
               </span>
-            </div>
-          )}
+            )}
+          </div>
+        )}
+      </div>
 
-          {/* Edit button — top-right */}
-          <button
-            onClick={onEditClick}
-            className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/15 hover:bg-white/30 backdrop-blur-sm flex items-center justify-center transition-colors"
-          >
-            <Pencil className="h-3.5 w-3.5 text-white" />
-          </button>
-
-          {/* Name + style — bottom of photo */}
-          <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
-            <p className="text-2xl font-black text-white tracking-tight uppercase drop-shadow-md">
-              {name}
-            </p>
-            {profile?.style && (
-              <p className="text-sm text-white/70 font-medium mt-0.5">{profile.style}</p>
+      {/* Body */}
+      <div className="px-4 pb-4">
+        {/* Avatar — 84px, -42px overlap, white 3px border */}
+        <div className="-mt-[42px] mb-3">
+          <div className="h-[84px] w-[84px] rounded-full border-[3px] border-white bg-muted overflow-hidden flex items-center justify-center shadow-md">
+            {photoUrl ? (
+              <img src={photoUrl} alt={name} className="h-full w-full object-cover object-top" />
+            ) : (
+              <span className="text-xl font-black text-muted-foreground">{initials}</span>
             )}
           </div>
         </div>
 
-        {/* Details section */}
-        <div className="px-5 py-4 space-y-3 bg-white/5 backdrop-blur-sm">
-          {strengths.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Points forts</p>
-              <div className="flex flex-wrap gap-1.5">
-                {strengths.map((s) => (
-                  <span key={s} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30">
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          {weaknesses.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Points faibles</p>
-              <div className="flex flex-wrap gap-1.5">
-                {weaknesses.map((w) => (
-                  <span key={w} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">
-                    {w}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          {(!strengths.length && !weaknesses.length) && (
-            <p className="text-sm text-white/40 text-center py-2">Profil non renseigné</p>
+        {/* Name · username · style pill */}
+        <div className="space-y-0.5 mb-3">
+          {username && <p className="text-xs text-muted-foreground">@{username}</p>}
+          <h2 className="text-base font-bold text-foreground">{name}</h2>
+          {style && (
+            <span className="inline-block text-xs font-medium px-2.5 py-0.5 rounded-full bg-[#e6f1fb] text-[#1a6fa8]">
+              {style}
+            </span>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
 
-// ── Stats bar ─────────────────────────────────────────────────────────────────
-function StatsBar({ bookingsCount, friendsCount }) {
-  return (
-    <div className="w-full max-w-sm mx-auto mt-4">
-      <div className="rounded-xl border border-border bg-card px-5 py-3 flex items-center justify-around">
-        <div className="text-center">
-          <p className="text-xl font-bold text-foreground">{bookingsCount ?? '—'}</p>
-          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mt-0.5">Parties</p>
+        {/* Stats row — Sessions + Amis */}
+        <div className="flex border border-border rounded-xl overflow-hidden mb-3">
+          <div className="flex-1 text-center py-2.5">
+            <p className="text-lg font-bold text-foreground">{bookingsCount ?? 0}</p>
+            <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wide">Sessions</p>
+          </div>
+          <div className="w-px bg-border" />
+          <div className="flex-1 text-center py-2.5">
+            <p className="text-lg font-bold text-foreground">{friendsCount ?? 0}</p>
+            <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wide">Amis</p>
+          </div>
         </div>
-        <div className="w-px h-8 bg-border" />
-        <div className="text-center">
-          <p className="text-xl font-bold text-foreground">{friendsCount ?? '—'}</p>
-          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mt-0.5">Amis</p>
-        </div>
-        <div className="w-px h-8 bg-border" />
-        <div className="text-center">
-          <p className="text-xl font-bold text-foreground">
-            <Sparkles className="h-5 w-5 text-primary inline-block" />
-          </p>
-          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mt-0.5">IA</p>
-        </div>
+
+        {/* Strengths & Weaknesses */}
+        {(strengths.length > 0 || weaknesses.length > 0) ? (
+          <div className="space-y-3">
+            {strengths.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Points forts</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {strengths.map((s) => (
+                    <span key={s} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#e1f5ee] text-[#085041] border border-[#5dcaa5]">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {weaknesses.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Points faibles</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {weaknesses.map((w) => (
+                    <span key={w} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#faeeda] text-[#633806] border border-[#ef9f27]">
+                      {w}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-2">Profil non renseigné</p>
+        )}
       </div>
     </div>
   );
@@ -1136,12 +1124,14 @@ export default function Profile() {
       )}>
         {/* Left: player card */}
         <div className="space-y-4">
-          <FootballCard
+          <ProfileCard
             profile={profile}
+            user={user}
             name={name}
+            bookingsCount={bookings.length}
+            friendsCount={friends.length}
             onEditClick={() => setEditing(true)}
           />
-          <StatsBar bookingsCount={bookings.length} friendsCount={friends.length} />
 
           {/* Friends row */}
           <FriendsRow friends={friends} onViewAll={() => setShowFriendsModal(true)} />
