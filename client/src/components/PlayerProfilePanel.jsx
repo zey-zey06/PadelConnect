@@ -178,9 +178,10 @@ export default function PlayerProfilePanel({ userId, onClose }) {
             </div>
           ) : (
             <>
-              {/* ── Cover ─────────────────────────────────────── */}
+              {/* ── Cover — z-[1] creates a stacking context so the overhanging
+                   avatar renders above the profile-info section that follows */}
               <div
-                className="h-[130px] w-full relative"
+                className="h-[130px] w-full relative z-[1]"
                 style={coverUrl ? undefined : COVER_GRADIENT}
               >
                 {coverUrl && (
@@ -198,11 +199,16 @@ export default function PlayerProfilePanel({ userId, onClose }) {
                   </div>
                 )}
                 {/* Avatar — absolute at bottom of cover, hanging 42px below */}
-                <div className="absolute bottom-[-42px] left-4 z-10 h-[84px] w-[84px] rounded-full border-[3px] border-white bg-muted overflow-hidden flex items-center justify-center shadow-md">
+                <div className="absolute bottom-[-42px] left-4 z-10 h-[84px] w-[84px] rounded-full border-[3px] border-white overflow-hidden flex items-center justify-center shadow-md">
                   {photoUrl ? (
                     <img src={photoUrl} alt={displayName} className="h-full w-full object-cover object-top" />
                   ) : (
-                    <span className="text-base font-black text-muted-foreground">{initials}</span>
+                    <span
+                      className="h-full w-full flex items-center justify-center text-base font-black"
+                      style={{ background: '#e1f5ee', color: '#085041' }}
+                    >
+                      {initials}
+                    </span>
                   )}
                 </div>
               </div>
