@@ -11,7 +11,7 @@ import {
   getManagerDashboard, getMyClub, getMyVenues, addVenue, getVenueSlots,
   removeCoachFromClub, addBallPickerToClub, removeBallPickerFromClub,
 } from '@/api/manager';
-import { getClubCoaches, getClubBallPickers } from '@/api/clubs';
+import { getClubCoaches, getClubBallPickers, getClubSubscribers } from '@/api/clubs';
 import {
   sendClubInvitation, getClubPendingInvitations, cancelClubInvitation,
   sendBallPickerInvitation, getClubBallPickerInvitations, cancelBallPickerInvitation,
@@ -761,6 +761,11 @@ export default function ManagerDashboard() {
   const [subHistory,    setSubHistory]    = useState([]);
   const [showPayModal,  setShowPayModal]  = useState(false);
 
+  // Subscribers state
+  const [subscribers,        setSubscribers]        = useState([]);
+  const [loadingSubscribers, setLoadingSubscribers] = useState(false);
+  const [showSubscribersModal, setShowSubscribersModal] = useState(false);
+
   const loadStaff = useCallback(async (clubId) => {
     if (!clubId) return;
     setLoadingStaff(true);
@@ -857,6 +862,19 @@ export default function ManagerDashboard() {
     }
   }
 
+  async function openSubscribersModal() {
+    setShowSubscribersModal(true);
+    setLoadingSubscribers(true);
+    try {
+      const { subscribers: subs } = await getClubSubscribers(user.organization_id);
+      setSubscribers(subs ?? []);
+    } catch {
+      setSubscribers([]);
+    } finally {
+      setLoadingSubscribers(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
 
@@ -931,6 +949,9 @@ export default function ManagerDashboard() {
                 <p className="font-semibold text-foreground">{club.name}</p>
                 <p className="text-xs text-muted-foreground">/{club.slug}</p>
               </div>
+              <Button size="sm" variant="outline" onClick={openSubscribersModal} className="text-xs">
+                Abonnés
+              </Button>
               <Badge variant={club.status === 'active' ? 'success' : 'secondary'}>
                 {club.status === 'active' ? 'Actif' : 'Inactif'}
               </Badge>
@@ -1197,6 +1218,53 @@ export default function ManagerDashboard() {
             getSubscriptionHistory().then((r) => setSubHistory(r.history ?? [])).catch(() => {});
           }}
         />
+      )}
+
+      {showSubscribersModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl max-h-96 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h2 className="text-lg font-semibold text-foreground">Abonnés au club</h2>
+              <button onClick={() => setShowSubscribersModal(false)} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-border/50">
+              {loadingSubscribers ? (
+                <div className="p-6 space-y-3">
+                  {[1, 2, 3].map((i) => <div key={i} className="h-10 rounded-lg bg-muted animate-pulse" />)}
+                </div>
+              ) : subscribers.length === 0 ? (
+                <div className="p-6 text-center">
+                  <p className="text-sm text-muted-foreground">Aucun abonné pour le moment.</p>
+                </div>
+              ) : (
+                subscribers.map((sub) => (
+                  <div key={sub.id} className="flex items-center gap-3 p-3 hover:bg-muted/50">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      {sub.photo_url ? (
+                        <img src={sub.photo_url} alt="" className="h-full w-full rounded-full object-cover" />
+                      ) : (
+                        <User className="h-5 w-5 text-primary" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {[sub.first_name, sub.last_name].filter(Boolean).join(' ') || sub.email?.split('@')[0]}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{sub.email}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex gap-3 px-6 py-4 border-t border-border">
+              <Button type="button" variant="outline" onClick={() => setShowSubscribersModal(false)} className="flex-1">
+                Fermer
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
