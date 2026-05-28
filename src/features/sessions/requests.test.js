@@ -511,3 +511,78 @@ describe('POST /api/sessions/:id/requests — coach invite', () => {
     expect(res.body.error).toBe('Validation Error');
   });
 });
+
+// ---------------------------------------------------------------------------
+// POST /api/sessions/:id/invite-player
+// DB call order (success):
+//   first()     → sessionsRepo.getById (session)
+//   first()     → sessionsRepo.getUserById (creator name)
+//   returning() → notificationsRepo.create (notify invited player)
+// ---------------------------------------------------------------------------
+describe('POST /api/sessions/:id/invite-player', () => {
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); });
+
+  it('CU-06: creator invites player — 201 + invited: true', async () => {
+    qb.first.mockResolvedValueOnce(SESSION);                                              // getById
+    qb.first.mockResolvedValueOnce({ first_name: 'Zeinab', last_name: 'B', email: 'z@test.com' }); // getUserById
+    qb.returning.mockResolvedValueOnce([{ id: 'notif-invite-1' }]);                       // createNotification
+
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/invite-player`)
+      .set('Cookie', `token=${CREATOR_TOKEN}`)
+      .send({ player_user_id: PLAYER_ID });
+
+    expect(res.status).toBe(201);
+    expect(res.body.invited).toBe(true);
+  });
+
+  it('CU-06: invite player — missing player_user_id — 422', async () => {
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/invite-player`)
+      .set('Cookie', `token=${CREATOR_TOKEN}`)
+      .send({});
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('Validation Error');
+  });
+
+  it('CU-06: invite player — invalid UUID — 422', async () => {
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/invite-player`)
+      .set('Cookie', `token=${CREATOR_TOKEN}`)
+      .send({ player_user_id: 'not-a-uuid' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('Validation Error');
+  });
+
+  it('CU-06: non-creator cannot invite player — 403', async () => {
+    qb.first.mockResolvedValueOnce(SESSION); // getById — creator_id is CREATOR_ID, not PLAYER_ID
+
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/invite-player`)
+      .set('Cookie', `token=${PLAYER_TOKEN}`)   // PLAYER_ID, not CREATOR_ID
+      .send({ player_user_id: 'cccccccc-0000-0000-0000-000000000003' });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('CU-06: invite player — session not found — 404', async () => {
+    qb.first.mockResolvedValueOnce(null); // getById returns nothing
+
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/invite-player`)
+      .set('Cookie', `token=${CREATOR_TOKEN}`)
+      .send({ player_user_id: PLAYER_ID });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('CU-06: invite player without auth — 401', async () => {
+    const res = await request(app)
+      .post(`/api/sessions/${SESSION.id}/invite-player`)
+      .send({ player_user_id: PLAYER_ID });
+
+    expect(res.status).toBe(401);
+  });
+});

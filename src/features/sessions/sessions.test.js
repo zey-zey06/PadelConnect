@@ -19,20 +19,25 @@ jest.mock('multer', () => {
 
 jest.mock('../../db', () => {
   const qb = {
-    where: jest.fn().mockReturnThis(),
-    whereNull: jest.fn().mockReturnThis(),
-    whereRaw: jest.fn().mockReturnThis(),
-    orderBy: jest.fn().mockReturnThis(),
-    join: jest.fn().mockReturnThis(),
-    leftJoin: jest.fn().mockReturnThis(),
-    select: jest.fn(),
-    first: jest.fn(),
-    insert: jest.fn().mockReturnThis(),
-    update: jest.fn().mockReturnThis(),
-    returning: jest.fn(),
+    where:          jest.fn().mockReturnThis(),
+    whereNull:      jest.fn().mockReturnThis(),
+    whereRaw:       jest.fn().mockReturnThis(),
+    whereIn:        jest.fn().mockReturnThis(),
+    whereNot:       jest.fn().mockReturnThis(),
+    whereNotIn:     jest.fn().mockReturnThis(),
+    orWhereNotNull: jest.fn().mockReturnThis(),
+    orderBy:        jest.fn().mockReturnThis(),
+    join:           jest.fn().mockReturnThis(),
+    leftJoin:       jest.fn().mockReturnThis(),
+    select:         jest.fn(),
+    first:          jest.fn(),
+    insert:         jest.fn().mockReturnThis(),
+    update:         jest.fn().mockReturnThis(),
+    returning:      jest.fn(),
   };
   const mockDb = jest.fn(() => qb);
-  mockDb.__qb = qb;
+  mockDb.__qb  = qb;
+  mockDb.raw   = jest.fn().mockReturnValue({});
   return mockDb;
 });
 
@@ -64,7 +69,13 @@ function resetQb() {
   qb.where.mockReturnThis();
   qb.whereNull.mockReturnThis();
   qb.whereRaw.mockReturnThis();
+  qb.whereIn.mockReturnThis();
+  qb.whereNot.mockReturnThis();
+  qb.whereNotIn.mockReturnThis();
+  qb.orWhereNotNull.mockReturnThis();
   qb.orderBy.mockReturnThis();
+  qb.join.mockReturnThis();
+  qb.leftJoin.mockReturnThis();
   qb.insert.mockReturnThis();
   qb.update.mockReturnThis();
   qb.select.mockReset();
@@ -184,6 +195,39 @@ describe('GET /api/sessions', () => {
     expect(res.status).toBe(200);
   });
 
+  it('CU-05: list sessions with level_min filter — 200', async () => {
+    qb.select.mockResolvedValueOnce([SESSION]);
+
+    const res = await request(app)
+      .get('/api/sessions?level_min=3')
+      .set('Cookie', `token=${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.sessions)).toBe(true);
+  });
+
+  it('CU-05: list sessions with level_max filter — 200', async () => {
+    qb.select.mockResolvedValueOnce([SESSION]);
+
+    const res = await request(app)
+      .get('/api/sessions?level_max=5')
+      .set('Cookie', `token=${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.sessions)).toBe(true);
+  });
+
+  it('CU-05: list sessions with gender filter — 200', async () => {
+    qb.select.mockResolvedValueOnce([SESSION]);
+
+    const res = await request(app)
+      .get('/api/sessions?gender=mixed')
+      .set('Cookie', `token=${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.sessions)).toBe(true);
+  });
+
   it('CU-05: list sessions without auth — 401', async () => {
     const res = await request(app).get('/api/sessions');
 
@@ -282,6 +326,156 @@ describe('PATCH /api/sessions/:id/status', () => {
       .patch(`/api/sessions/${SESSION.id}/status`)
       .send({ status: 'cancelled' });
 
+    expect(res.status).toBe(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/sessions/my
+// ---------------------------------------------------------------------------
+describe('GET /api/sessions/my', () => {
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); });
+
+  it('CU-05: list my sessions — 200 with sessions array', async () => {
+    qb.select.mockResolvedValueOnce([SESSION]);
+
+    const res = await request(app)
+      .get('/api/sessions/my')
+      .set('Cookie', `token=${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.sessions)).toBe(true);
+    expect(res.body.sessions).toHaveLength(1);
+  });
+
+  it('CU-05: list my sessions — empty — 200', async () => {
+    qb.select.mockResolvedValueOnce([]);
+
+    const res = await request(app)
+      .get('/api/sessions/my')
+      .set('Cookie', `token=${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.sessions).toEqual([]);
+  });
+
+  it('CU-05: list my sessions without auth — 401', async () => {
+    const res = await request(app).get('/api/sessions/my');
+    expect(res.status).toBe(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/sessions/my-requests
+// ---------------------------------------------------------------------------
+describe('GET /api/sessions/my-requests', () => {
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); });
+
+  it('CU-05: list my requests — 200 with requests array', async () => {
+    qb.select.mockResolvedValueOnce([
+      { id: 'req-001', session_id: SESSION.id, player_id: CREATOR_ID, status: 'pending' },
+    ]);
+
+    const res = await request(app)
+      .get('/api/sessions/my-requests')
+      .set('Cookie', `token=${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.requests)).toBe(true);
+    expect(res.body.requests).toHaveLength(1);
+  });
+
+  it('CU-05: list my requests — empty — 200', async () => {
+    qb.select.mockResolvedValueOnce([]);
+
+    const res = await request(app)
+      .get('/api/sessions/my-requests')
+      .set('Cookie', `token=${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.requests).toEqual([]);
+  });
+
+  it('CU-05: list my requests without auth — 401', async () => {
+    const res = await request(app).get('/api/sessions/my-requests');
+    expect(res.status).toBe(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/sessions/history
+// ---------------------------------------------------------------------------
+describe('GET /api/sessions/history', () => {
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); });
+
+  const HISTORY_SESSION = {
+    ...SESSION,
+    creator_first_name: 'Zeinab',
+    creator_last_name:  'Bourji',
+    creator_photo_url:  null,
+    creator_level:      3,
+    request_status:     null,
+  };
+
+  it('CU-05: session history — 200 — creator session with booking', async () => {
+    // Step 1: join query returns the session (user is creator)
+    qb.select.mockResolvedValueOnce([HISTORY_SESSION]);
+    // Step 2: bookings join query returns one booking
+    qb.select.mockResolvedValueOnce([
+      { session_id: SESSION.id, venue_name: 'Court A', club_name: 'Padel Club' },
+    ]);
+
+    const res = await request(app)
+      .get('/api/sessions/history')
+      .set('Cookie', `token=${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.sessions)).toBe(true);
+    expect(res.body.sessions).toHaveLength(1);
+    expect(res.body.sessions[0].booking).toEqual({ venue_name: 'Court A', club_name: 'Padel Club' });
+  });
+
+  it('CU-05: session history — 200 — joined session (no booking lookup)', async () => {
+    // Session where user is NOT creator — no booking step needed
+    const joinedSession = {
+      ...HISTORY_SESSION,
+      creator_id:     OTHER_USER_ID,
+      request_status: 'accepted',
+    };
+    qb.select.mockResolvedValueOnce([joinedSession]);
+
+    const res = await request(app)
+      .get('/api/sessions/history')
+      .set('Cookie', `token=${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.sessions).toHaveLength(1);
+    expect(res.body.sessions[0].booking).toBeNull();
+  });
+
+  it('CU-05: session history — empty — 200', async () => {
+    qb.select.mockResolvedValueOnce([]);
+
+    const res = await request(app)
+      .get('/api/sessions/history')
+      .set('Cookie', `token=${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.sessions).toEqual([]);
+  });
+
+  it('CU-05: session history — DB error — 500', async () => {
+    qb.select.mockRejectedValueOnce(new Error('DB failure'));
+
+    const res = await request(app)
+      .get('/api/sessions/history')
+      .set('Cookie', `token=${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(500);
+  });
+
+  it('CU-05: session history without auth — 401', async () => {
+    const res = await request(app).get('/api/sessions/history');
     expect(res.status).toBe(401);
   });
 });
