@@ -32,6 +32,12 @@ const friendshipsRouter   = require('./features/friendships/friendships.controll
 
 const app = express();
 
+// Required for Render (and any reverse-proxy deployment) so that
+// express-rate-limit reads the real client IP from X-Forwarded-For
+// instead of the proxy's IP (which would make every request look like
+// the same client and break the per-IP rate limiter).
+app.set('trust proxy', 1);
+
 // Static assets served first — no auth, no middleware overhead.
 // Must be registered before helmet/cors so /assets/* files are never
 // intercepted by the authentication middleware.
