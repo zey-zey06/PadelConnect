@@ -328,6 +328,22 @@ ${topClubs || '  Aucun club'}`;
   }
 }
 
+// ── History sanitisation ──────────────────────────────────────────────────────
+// Gemini requires strictly-alternating user/model, starting with 'user'.
+// Any DB-persisted history that violates this would cause startChat to throw,
+// which is why we use generateContent instead and sanitise here as a safeguard.
+function sanitizeHistory(hist) {
+  const valid = [];
+  for (const msg of hist) {
+    const text = msg?.parts?.[0]?.text;
+    if (!msg?.role || !text) continue;                                   // skip malformed
+    if (valid.length === 0 && msg.role !== 'user') continue;             // must start with user
+    if (valid.length > 0 && valid[valid.length - 1].role === msg.role) continue; // no consecutive same role
+    valid.push({ role: msg.role, parts: [{ text }] });
+  }
+  return valid;
+}
+
 // ── Validation ────────────────────────────────────────────────────────────────
 const chatSchema = Joi.object({
   message:         Joi.string().min(1).max(2000).required(),
@@ -343,12 +359,6 @@ const chatSchema = Joi.object({
 // ── Handlers ──────────────────────────────────────────────────────────────────
 async function chatHandler(req, res, next) {
   try {
-    console.log('[PIA] Starting chat handler');
-    console.log('[PIA] Gemini API key exists:', !!process.env.GEMINI_API_KEY);
-    if (process.env.GEMINI_API_KEY) {
-      console.log('[PIA] Key prefix:', process.env.GEMINI_API_KEY.substring(0, 10));
-    }
-
     const { error, value } = chatSchema.validate(req.body);
     if (error) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
@@ -372,29 +382,33 @@ async function chatHandler(req, res, next) {
     // Conversation management
     const conversation = await getOrCreateConversation(userId, inputConvId);
 
-    // Simple system prompt
-    const simpleSystemPrompt = 'Tu es PIA, assistant PadelConnect Abidjan. Réponds en français.';
-
-    // Call Gemini
+    // Guard: API key required
     if (!process.env.GEMINI_API_KEY) {
-      console.error('[PIA ERROR] GEMINI_API_KEY not configured');
+      console.error('[PIA] GEMINI_API_KEY not set');
       return res.json({ response: 'PIA est temporairement indisponible. Veuillez réessayer plus tard. 🎾', conversation_id: conversation.id });
     }
 
-    console.log('[PIA] Initializing Gemini with key (first 10 chars):', process.env.GEMINI_API_KEY.substring(0, 10));
+    // Build context-aware system prompt for this role
+    const context    = await fetchContext(role, userId, orgId);
+    const systemPrompt = buildSystemPrompt(role, context);
+
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    console.log('[PIA] Creating generative model');
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash', systemInstruction: simpleSystemPrompt });
+    const model = genAI.getGenerativeModel({
+      model:             'gemini-1.5-flash',
+      systemInstruction: systemPrompt,
+    });
 
-    console.log('[PIA] Starting chat session, history length:', history?.length ?? 0);
-    const chat = model.startChat({ history: history ?? [] });
+    // Sanitize history to guarantee strict user/model alternation,
+    // then pass everything as a single generateContent call.
+    // This avoids the startChat() history-validation errors that were
+    // causing all requests to fall into the catch block.
+    const validHistory = sanitizeHistory(history ?? []);
+    const contents = [
+      ...validHistory,
+      { role: 'user', parts: [{ text: message }] },
+    ];
 
-    // ── Final pre-call checkpoint ──────────────────────────────────────────────
-    console.log('[PIA] Starting call, key exists:', !!process.env.GEMINI_API_KEY);
-    console.log('[PIA] Sending message to Gemini:', message.substring(0, 50));
-    const result = await chat.sendMessage(message);
-
-    console.log('[PIA] Got response from Gemini');
+    const result   = await model.generateContent({ contents });
     const response = result.response.text();
 
     // Persist both messages to DB
@@ -404,24 +418,9 @@ async function chatHandler(req, res, next) {
       { role: 'model', text: response, ts: new Date().toISOString() },
     ]);
 
-    console.log('[PIA] Returning response successfully');
     return res.json({ response, conversation_id: conversation.id });
   } catch (err) {
-    // ── Extensive error dump ────────────────────────────────────────────────────
-    console.error('[PIA] Starting call, key exists:', !!process.env.GEMINI_API_KEY);
-    console.error('[PIA] err.message:', err?.message);
-    console.error('[PIA] err.stack:', err?.stack);
-    // JSON.stringify(err) is empty for Error objects — use getOwnPropertyNames to get all fields
-    try {
-      console.error('[PIA] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
-    } catch {
-      console.error('[PIA] Full error (raw):', String(err));
-    }
-    console.error('[PIA] err.name:', err?.name);
-    console.error('[PIA] err.code:', err?.code);
-    console.error('[PIA] err.status:', err?.status);
-    console.error('[PIA] err.statusCode:', err?.statusCode);
-    console.error('[PIA] err.errorDetails:', err?.errorDetails);
+    console.error('[PIA] chatHandler error:', err?.message);
     if (!res.headersSent) {
       return res.json({
         response: 'Désolée, une erreur technique s\'est produite. Veuillez réessayer. 🎾',

@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe, Menu, MessageSquare, Users, Camera } from 'lucide-react';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe, Menu, MessageSquare, Users, Camera, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { setLanguage } from '@/i18n/i18n';
-import { useAuth } from '@/App';
+import { useAuth, usePlayerPanel } from '@/App';
 import { getProfile, updateProfile, uploadPhoto, uploadCoverPhoto, updateUsername } from '@/api/profile';
 import { updateMe, logout, changePassword, deleteAccount } from '@/api/auth';
 import { getMyBookings } from '@/api/bookings';
@@ -71,7 +71,7 @@ function TagInput({ value = [], onChange, placeholder, colorClass }) {
 }
 
 // ── ProfileCard — unified card matching the design system ─────────────────────
-function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditClick, onPhotoUploaded }) {
+function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditClick, onPhotoUploaded, onFriendsClick }) {
   const coverInputRef  = useRef(null);
   const photoInputRef  = useRef(null);
   const [coverUploading, setCoverUploading] = useState(false);
@@ -208,10 +208,13 @@ function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditC
             <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wide">Sessions</p>
           </div>
           <div className="w-px bg-border" />
-          <div className="flex-1 text-center py-2.5">
+          <button
+            onClick={onFriendsClick}
+            className="flex-1 text-center py-2.5 hover:bg-muted/50 transition-colors"
+          >
             <p className="text-lg font-bold text-foreground">{friendsCount ?? 0}</p>
             <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wide">Amis</p>
-          </div>
+          </button>
         </div>
 
         {/* Strengths & Weaknesses */}
@@ -1000,83 +1003,162 @@ function HamburgerMenu({ open, onClose, onPassword, onDelete, onLogout }) {
   );
 }
 
-// ── Friends row (horizontal avatar strip) ────────────────────────────────────
-function FriendsRow({ friends, onViewAll }) {
-  if (!friends.length) return null;
-  return (
-    <div className="w-full max-w-sm mx-auto">
-      <div className="rounded-xl border border-border bg-card px-4 py-3">
-        <button onClick={onViewAll} className="flex items-center gap-2 mb-2.5 group">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-semibold text-foreground">{friends.length} ami{friends.length > 1 ? 's' : ''}</span>
-          <span className="text-xs text-primary group-hover:underline ml-auto">Voir tout</span>
-        </button>
-        <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
-          {friends.slice(0, 10).map((f) => (
-            <Link key={f.id} to={`/player/${f.id}`} className="flex flex-col items-center shrink-0 w-14">
-              <div className="h-12 w-12 rounded-full overflow-hidden border-2 border-primary/20 bg-muted">
-                {f.photo_url ? (
-                  <img src={f.photo_url} alt={f.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center">
-                    <User className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                )}
-              </div>
-              <span className="text-[10px] text-muted-foreground mt-1 truncate w-full text-center">
-                {f.first_name || f.name?.split(' ')[0] || '?'}
-              </span>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+// ── Friends slide panel (right-side, like PlayerProfilePanel) ────────────────
+function FriendsSlidePanel({ friends, onClose }) {
+  const { openPlayerPanel } = usePlayerPanel();
+  const navigate            = useNavigate();
+  const [visible, setVisible] = useState(false);
+  const [search,  setSearch]  = useState('');
 
-// ── Friends list modal ───────────────────────────────────────────────────────
-function FriendsListModal({ friends, onClose }) {
-  const navigate = useNavigate();
+  // Animate in
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 15);
+    return () => clearTimeout(t);
+  }, []);
+
+  function handleClose() {
+    setVisible(false);
+    setTimeout(onClose, 280);
+  }
+
+  function handleFriendClick(friendId) {
+    openPlayerPanel(friendId);
+    handleClose();
+  }
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return friends;
+    return friends.filter((f) => {
+      const name = [f.first_name, f.last_name].filter(Boolean).join(' ').toLowerCase();
+      return name.includes(q) || (f.username ?? '').toLowerCase().includes(q);
+    });
+  }, [friends, search]);
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/20 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-xl max-h-[70dvh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <h2 className="text-base font-semibold text-foreground">Mes amis ({friends.length})</h2>
-          <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+    <>
+      {/* Backdrop */}
+      <div
+        className={cn(
+          'fixed inset-0 z-40 bg-foreground/20 backdrop-blur-sm transition-opacity duration-300',
+          visible ? 'opacity-100' : 'opacity-0 pointer-events-none',
+        )}
+        onClick={handleClose}
+      />
+
+      {/* Slide panel */}
+      <div
+        className={cn(
+          'fixed top-0 right-0 bottom-0 z-50 w-full max-w-sm bg-background shadow-2xl',
+          'flex flex-col transform transition-transform duration-300 ease-in-out',
+          visible ? 'translate-x-0' : 'translate-x-full',
+        )}
+      >
+        {/* Header */}
+        <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-base font-semibold text-foreground">
+              Mes amis ({friends.length})
+            </h2>
+          </div>
+          <button
+            onClick={handleClose}
+            className="h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Fermer"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
-        <div className="overflow-y-auto flex-1 divide-y divide-border">
-          {friends.map((f) => (
-            <div key={f.id} className="flex items-center gap-3 px-5 py-3">
-              <div className="h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0 border border-border">
-                {f.photo_url ? (
-                  <img src={f.photo_url} alt={f.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center"><User className="h-5 w-5 text-muted-foreground" /></div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <Link to={`/player/${f.id}`} onClick={onClose} className="text-sm font-medium text-foreground hover:underline truncate block">
-                  {f.name || `${f.first_name ?? ''} ${f.last_name ?? ''}`.trim() || 'Joueur'}
-                </Link>
-                {f.level && <p className="text-xs text-muted-foreground">{LEVEL_LABELS[f.level] ?? `Niveau ${f.level}`}</p>}
-              </div>
+
+        {/* Search bar */}
+        <div className="shrink-0 px-4 py-3 border-b border-border">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher un ami…"
+              className="w-full rounded-lg border border-input bg-muted/30 pl-9 pr-8 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-background transition-colors"
+            />
+            {search && (
               <button
-                onClick={() => { onClose(); navigate(`/messages?to=${f.id}`); }}
-                className="h-8 w-8 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors shrink-0"
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Effacer"
               >
-                <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                <X className="h-3.5 w-3.5" />
               </button>
+            )}
+          </div>
+        </div>
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6 py-12">
+              <Users className="h-10 w-10 text-muted-foreground/30" />
+              <p className="text-sm font-medium text-foreground">
+                {search ? 'Aucun ami trouvé' : 'Aucun ami pour le moment'}
+              </p>
+              {search && (
+                <button onClick={() => setSearch('')} className="text-xs text-primary hover:underline">
+                  Effacer la recherche
+                </button>
+              )}
             </div>
-          ))}
-          {!friends.length && (
-            <p className="text-sm text-muted-foreground text-center py-8">Aucun ami pour le moment</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {filtered.map((f) => {
+                const name     = [f.first_name, f.last_name].filter(Boolean).join(' ') || f.name || f.username || 'Joueur';
+                const initials = name.slice(0, 2).toUpperCase();
+                const level    = f.level ?? null;
+
+                return (
+                  <div key={f.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
+                    {/* Avatar */}
+                    <button
+                      onClick={() => handleFriendClick(f.id)}
+                      className="shrink-0 h-11 w-11 rounded-full overflow-hidden border border-border bg-muted flex items-center justify-center"
+                      aria-label={`Voir le profil de ${name}`}
+                    >
+                      {f.photo_url ? (
+                        <img src={f.photo_url} alt={name} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-xs font-bold text-muted-foreground">{initials}</span>
+                      )}
+                    </button>
+
+                    {/* Name + meta */}
+                    <button
+                      onClick={() => handleFriendClick(f.id)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <p className="text-sm font-medium text-foreground truncate">{name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {f.username ? `@${f.username}` : ''}
+                        {f.username && level ? ' · ' : ''}
+                        {level ? (LEVEL_LABELS[level] ?? `Niveau ${level}`) : ''}
+                      </p>
+                    </button>
+
+                    {/* Message */}
+                    <button
+                      onClick={() => { handleClose(); navigate(`/messages?to=${f.id}`); }}
+                      className="shrink-0 h-8 w-8 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
+                      aria-label={`Envoyer un message à ${name}`}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -1098,7 +1180,7 @@ export default function Profile() {
   const [showPasswordModal,  setShowPasswordModal]  = useState(false);
   const [showDeleteModal,    setShowDeleteModal]     = useState(false);
   const [menuOpen,           setMenuOpen]            = useState(false);
-  const [showFriendsModal,   setShowFriendsModal]    = useState(false);
+  const [showFriendsPanel,   setShowFriendsPanel]   = useState(false);
 
   async function handleLogout() {
     try { await logout(); } catch { /* non-fatal */ }
@@ -1210,10 +1292,8 @@ export default function Profile() {
             friendsCount={friends.length}
             onEditClick={() => setEditing(true)}
             onPhotoUploaded={(updated) => { setLocal(updated); setProfile(updated); }}
+            onFriendsClick={() => setShowFriendsPanel(true)}
           />
-
-          {/* Friends row */}
-          <FriendsRow friends={friends} onViewAll={() => setShowFriendsModal(true)} />
 
           {/* Balance card */}
           <div className="w-full max-w-sm mx-auto">
@@ -1301,8 +1381,10 @@ export default function Profile() {
         onLogout={handleLogout}
       />
 
-      {/* Modals */}
-      {showFriendsModal && <FriendsListModal friends={friends} onClose={() => setShowFriendsModal(false)} />}
+      {/* Friends slide panel */}
+      {showFriendsPanel && (
+        <FriendsSlidePanel friends={friends} onClose={() => setShowFriendsPanel(false)} />
+      )}
       {showRechargeModal && <RechargeModal onClose={() => setShowRechargeModal(false)} />}
       {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
       {showDeleteModal && (
