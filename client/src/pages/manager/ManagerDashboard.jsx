@@ -955,7 +955,17 @@ export default function ManagerDashboard() {
                   {venues.length} terrain{venues.length !== 1 ? 's' : ''} enregistré{venues.length !== 1 ? 's' : ''}
                 </p>
               </div>
-              <Button size="sm" onClick={() => setShowModal(true)}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  // Check if subscription is active
+                  if (!subscription || subscription.status !== 'active') {
+                    setShowPayModal(true);
+                  } else {
+                    setShowModal(true);
+                  }
+                }}
+              >
                 <Plus className="h-4 w-4" />
                 Ajouter un terrain
               </Button>
@@ -1177,7 +1187,13 @@ export default function ManagerDashboard() {
           onPaid={() => {
             setShowPayModal(false);
             // Refresh subscription status
-            getMySubscription().then((r) => setSubscription(r.subscription ?? null)).catch(() => {});
+            getMySubscription().then((r) => {
+              setSubscription(r.subscription ?? null);
+              // If subscription is now active, open the add venue modal
+              if (r.subscription?.status === 'active') {
+                setTimeout(() => setShowModal(true), 300);
+              }
+            }).catch(() => {});
             getSubscriptionHistory().then((r) => setSubHistory(r.history ?? [])).catch(() => {});
           }}
         />
