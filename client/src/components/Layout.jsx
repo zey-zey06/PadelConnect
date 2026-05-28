@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Bell, LogOut, Menu, X, User, Sparkles, ChevronLeft } from 'lucide-react';
+import { Bell, LogOut, Menu, X, User, ChevronLeft } from 'lucide-react';
 import { useAuth, usePlayerPanel } from '@/App';
 import { logout } from '@/api/auth';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
@@ -136,19 +136,6 @@ export default function Layout({ children }) {
 
           {/* Right-side actions — pushed to far right */}
           <div className="flex items-center gap-1 ml-auto">
-
-            {/* PIA button — mobile only, all authenticated users (desktop uses floating FAB) */}
-            {user?.sub && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setPiaOpen((o) => !o)}
-                aria-label={piaOpen ? 'Fermer PIA' : 'Ouvrir PIA'}
-                className="md:hidden relative text-foreground/60 hover:text-foreground hover:bg-accent"
-              >
-                <Sparkles className="h-4 w-4" />
-              </Button>
-            )}
 
             {/* Notification bell */}
             <Link to="/notifications">

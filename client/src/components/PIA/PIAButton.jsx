@@ -9,7 +9,7 @@ export default function PIAButton({ onClick, isOpen }) {
     <button
       onClick={onClick}
       aria-label={isOpen ? 'Fermer PIA' : 'Ouvrir PIA'}
-      className={`fixed bottom-6 right-6 z-50 hidden md:flex items-center gap-2 px-4 py-3 rounded-full shadow-lg
+      className={`fixed bottom-20 right-4 md:bottom-6 md:right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg
         hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200
         text-white font-semibold text-sm select-none
         ${isOpen
