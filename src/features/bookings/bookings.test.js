@@ -363,10 +363,13 @@ describe('DELETE /api/bookings/:id', () => {
     penaltiesRepo.countLateCancelsByUser.mockResolvedValueOnce(3);
 
     qb.first
-      .mockResolvedValueOnce(BOOKING)
-      .mockResolvedValueOnce(SESSION_PAST)
-      .mockResolvedValueOnce(SLOT_AVAILABLE)
-      .mockResolvedValueOnce(VENUE);
+      .mockResolvedValueOnce(BOOKING)        // #1: bookingsRepo.getById
+      .mockResolvedValueOnce(SESSION_PAST)   // #2: sessionsRepo.getById
+      .mockResolvedValueOnce(SLOT_AVAILABLE) // #3: venuesRepo.getSlotById (Promise.all)
+      .mockResolvedValueOnce(null)           // #4: clubsRepo.getUserById (Promise.all, booker)
+      .mockResolvedValueOnce(VENUE)          // #5: venuesRepo.getById → orgId resolved
+      .mockResolvedValueOnce(null)           // #6: clubsRepo.getAdminByOrg
+      .mockResolvedValueOnce(null);          // #7: db('organizations').first() for org/clubName
     qb.returning
       .mockResolvedValueOnce([NO_SHOW_RECORD])
       .mockResolvedValueOnce([BOOKING_CANCELLED])

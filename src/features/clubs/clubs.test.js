@@ -18,6 +18,7 @@ jest.mock('../../db', () => {
   const qb = {
     where: jest.fn().mockReturnThis(),
     whereNull: jest.fn().mockReturnThis(),
+    whereNot: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     leftJoin: jest.fn().mockReturnThis(),
     select: jest.fn(),
