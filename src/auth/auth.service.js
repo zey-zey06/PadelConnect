@@ -210,4 +210,20 @@ async function changePassword(userId, currentPassword, newPassword) {
   await db('users').where({ id: userId }).update({ password_hash: hash, updated_at: new Date() });
 }
 
-module.exports = { signup, login, verifyEmail, getUserById, updateName, updateUsername, changePassword, softDeleteAccount };
+async function resendVerification(email) {
+  const user = await db('users').where({ email }).whereNull('deleted_at').first();
+  // Silently succeed when email unknown or already verified — don't leak user existence
+  if (!user || user.email_verified) return;
+
+  const verification_token   = crypto.randomBytes(32).toString('hex');
+  const verification_expires = new Date(Date.now() + VERIFICATION_TTL_MS);
+
+  await db('users').where({ id: user.id }).update({
+    email_verification_token:      verification_token,
+    email_verification_expires_at: verification_expires,
+  });
+
+  sendVerificationEmail(email, verification_token).catch(() => {});
+}
+
+module.exports = { signup, login, verifyEmail, getUserById, updateName, updateUsername, changePassword, softDeleteAccount, resendVerification };

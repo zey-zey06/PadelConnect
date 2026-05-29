@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { signupSchema, loginSchema } = require('./auth.validation');
-const { signup, login, verifyEmail, getUserById, updateName, changePassword, softDeleteAccount } = require('./auth.service');
+const { signup, login, verifyEmail, getUserById, updateName, changePassword, softDeleteAccount, resendVerification } = require('./auth.service');
 const { signToken } = require('./jwt');
 const authenticate = require('../middleware/authenticate');
 const notificationsService = require('../features/notifications/notifications.service');
@@ -139,8 +139,22 @@ async function changePasswordHandler(req, res, next) {
   }
 }
 
+async function resendVerificationHandler(req, res, next) {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Email requis.' });
+    }
+    await resendVerification(email.trim().toLowerCase());
+    return res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 const router = Router();
 router.post('/signup', signupHandler);
+router.post('/resend-verification', resendVerificationHandler);
 router.post('/login', loginHandler);
 router.get('/verify-email', verifyEmailHandler);
 router.post('/logout', logoutHandler);

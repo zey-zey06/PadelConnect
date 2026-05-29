@@ -49,3 +49,9 @@ export const changePassword = (data) => client.patch('/auth/password', data);
  * Soft-deletes the current user's account and clears the session cookie.
  */
 export const deleteAccount = () => client.delete('/auth/me');
+
+/**
+ * POST /api/auth/resend-verification
+ * { email } → { ok: true }
+ */
+export const resendVerification = (email) => client.post('/auth/resend-verification', { email });

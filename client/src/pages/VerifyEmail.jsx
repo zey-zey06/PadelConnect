@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useLocation, Link } from 'react-router-dom';
-import { verifyEmail } from '@/api/auth';
+import { verifyEmail, resendVerification } from '@/api/auth';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, AlertCircle, Mail, Loader2 } from 'lucide-react';
 
@@ -78,8 +78,47 @@ function VerifyingToken({ token }) {
   );
 }
 
+const COOLDOWN_SECONDS = 60;
+
 // ── "Check your email" waiting state ─────────────────────────────────────────
 function CheckEmail({ email }) {
+  const [resendStatus, setResendStatus] = useState('idle'); // idle | loading | sent | error
+  const [cooldown,     setCooldown]     = useState(0);
+  const intervalRef = useRef(null);
+
+  function startCooldown() {
+    setCooldown(COOLDOWN_SECONDS);
+    intervalRef.current = setInterval(() => {
+      setCooldown((s) => {
+        if (s <= 1) { clearInterval(intervalRef.current); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+  }
+
+  useEffect(() => () => clearInterval(intervalRef.current), []);
+
+  async function handleResend() {
+    if (!email || resendStatus === 'loading' || cooldown > 0) return;
+    setResendStatus('loading');
+    try {
+      await resendVerification(email);
+      setResendStatus('sent');
+      startCooldown();
+      setTimeout(() => setResendStatus('idle'), 3000);
+    } catch {
+      setResendStatus('error');
+      setTimeout(() => setResendStatus('idle'), 3000);
+    }
+  }
+
+  const btnDisabled = resendStatus === 'loading' || cooldown > 0;
+  const btnLabel =
+    resendStatus === 'loading' ? 'Envoi…' :
+    resendStatus === 'sent'    ? 'Email renvoyé ✓' :
+    cooldown > 0               ? `Renvoyer dans ${cooldown}s` :
+    'Renvoyer l\'email';
+
   return (
     <div className="space-y-6 text-center">
       <div className="flex justify-center">
@@ -115,6 +154,24 @@ function CheckEmail({ email }) {
           <li>· Attendez quelques minutes — l'envoi peut prendre du temps.</li>
         </ul>
       </div>
+
+      {/* Resend button — only shown when email is known */}
+      {email && (
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={handleResend}
+          disabled={btnDisabled}
+        >
+          {resendStatus === 'loading' && (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          )}
+          {resendStatus === 'sent' && (
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+          )}
+          <span className={resendStatus === 'sent' ? 'text-green-600' : ''}>{btnLabel}</span>
+        </Button>
+      )}
 
       <Link to="/login">
         <Button variant="outline" className="w-full">Retour à la connexion</Button>
