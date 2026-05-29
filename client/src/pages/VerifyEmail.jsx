@@ -79,6 +79,7 @@ function VerifyingToken({ token }) {
 
 // ── OTP input — "check your email" state ─────────────────────────────────────
 const COOLDOWN_SECONDS = 60;
+const OTP_TTL_SECONDS  = 60;
 
 function CheckEmail({ email }) {
   const [digits,       setDigits]       = useState(Array(6).fill(''));
@@ -86,13 +87,25 @@ function CheckEmail({ email }) {
   const [errorMsg,     setErrorMsg]     = useState('');
   const [resendStatus, setResendStatus] = useState('idle'); // idle | loading | sent
   const [cooldown,     setCooldown]     = useState(0);
-  const inputRefs   = useRef([]);
-  const cooldownRef = useRef(null);
+  const [otpCountdown, setOtpCountdown] = useState(OTP_TTL_SECONDS);
+  const inputRefs      = useRef([]);
+  const cooldownRef    = useRef(null);
+  const otpTimerRef    = useRef(null);
 
   // Focus first input on mount
   useEffect(() => { inputRefs.current[0]?.focus(); }, []);
   // Cleanup cooldown interval
   useEffect(() => () => clearInterval(cooldownRef.current), []);
+  // OTP expiry countdown
+  useEffect(() => {
+    otpTimerRef.current = setInterval(() => {
+      setOtpCountdown((s) => {
+        if (s <= 1) { clearInterval(otpTimerRef.current); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(otpTimerRef.current);
+  }, []);
 
   function startCooldown() {
     setCooldown(COOLDOWN_SECONDS);
@@ -168,6 +181,14 @@ function CheckEmail({ email }) {
       setErrorMsg('');
       setSubmitStatus('idle');
       startCooldown();
+      clearInterval(otpTimerRef.current);
+      setOtpCountdown(OTP_TTL_SECONDS);
+      otpTimerRef.current = setInterval(() => {
+        setOtpCountdown((s) => {
+          if (s <= 1) { clearInterval(otpTimerRef.current); return 0; }
+          return s - 1;
+        });
+      }, 1000);
       setTimeout(() => {
         setResendStatus('idle');
         inputRefs.current[0]?.focus();
@@ -205,7 +226,15 @@ function CheckEmail({ email }) {
             Un code à 6 chiffres a été envoyé à votre adresse email.
           </p>
         )}
-        <p className="text-xs text-muted-foreground">Ce code expire dans 10 minutes.</p>
+        {otpCountdown > 0 ? (
+          <p className={cn('text-xs', otpCountdown < 10 ? 'text-red-500 font-medium' : 'text-muted-foreground')}>
+            Ce code expire dans {otpCountdown}s
+          </p>
+        ) : (
+          <p className="text-xs text-red-500 font-medium">
+            Code expiré — demandez un nouveau code
+          </p>
+        )}
       </div>
 
       {/* 6-digit OTP boxes */}
