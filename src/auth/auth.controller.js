@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { signupSchema, loginSchema } = require('./auth.validation');
-const { signup, login, verifyEmail, getUserById, updateName, changePassword, softDeleteAccount, resendVerification } = require('./auth.service');
+const { signup, login, verifyEmail, getUserById, updateName, changePassword, softDeleteAccount, resendVerification, verifyOtp } = require('./auth.service');
 const { signToken } = require('./jwt');
 const authenticate = require('../middleware/authenticate');
 const notificationsService = require('../features/notifications/notifications.service');
@@ -139,6 +139,28 @@ async function changePasswordHandler(req, res, next) {
   }
 }
 
+async function verifyOtpHandler(req, res, next) {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Email et code requis.' });
+    }
+    const user = await verifyOtp(email.trim().toLowerCase(), String(code).trim());
+    const token = signToken({
+      sub:             user.id,
+      role:            user.role,
+      organization_id: user.organization_id,
+    });
+    res.cookie('token', token, COOKIE_OPTIONS);
+    return res.json({ user: { id: user.id, email: user.email, role: user.role } });
+  } catch (err) {
+    if (err.code === 'INVALID_OTP' || err.code === 'EXPIRED_OTP') {
+      return res.status(400).json({ status: 400, error: err.code, message: err.message });
+    }
+    next(err);
+  }
+}
+
 async function resendVerificationHandler(req, res, next) {
   try {
     const { email } = req.body;
@@ -154,6 +176,7 @@ async function resendVerificationHandler(req, res, next) {
 
 const router = Router();
 router.post('/signup', signupHandler);
+router.post('/verify-otp', verifyOtpHandler);
 router.post('/resend-verification', resendVerificationHandler);
 router.post('/login', loginHandler);
 router.get('/verify-email', verifyEmailHandler);

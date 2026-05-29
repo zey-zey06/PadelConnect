@@ -55,3 +55,9 @@ export const deleteAccount = () => client.delete('/auth/me');
  * { email } → { ok: true }
  */
 export const resendVerification = (email) => client.post('/auth/resend-verification', { email });
+
+/**
+ * POST /api/auth/verify-otp
+ * { email, code } → { user } + sets JWT cookie
+ */
+export const verifyOtp = (email, code) => client.post('/auth/verify-otp', { email, code });

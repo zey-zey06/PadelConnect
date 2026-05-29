@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useLocation, Link } from 'react-router-dom';
-import { verifyEmail, resendVerification } from '@/api/auth';
+import { verifyEmail, verifyOtp, resendVerification } from '@/api/auth';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, AlertCircle, Mail, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-// ── Token verification state ──────────────────────────────────────────────────
+// ── Token verification state (legacy link fallback) ───────────────────────────
 function VerifyingToken({ token }) {
-  const [status, setStatus] = useState('loading'); // loading | success | error
+  const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('');
   const [userEmail, setUserEmail] = useState('');
 
@@ -41,9 +42,7 @@ function VerifyingToken({ token }) {
         </div>
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Email vérifié !</h1>
-          {userEmail && (
-            <p className="text-sm text-muted-foreground">{userEmail}</p>
-          )}
+          {userEmail && <p className="text-sm text-muted-foreground">{userEmail}</p>}
           <p className="text-sm text-muted-foreground mt-2">
             Votre compte est actif. Connectez-vous pour commencer.
           </p>
@@ -78,103 +77,210 @@ function VerifyingToken({ token }) {
   );
 }
 
+// ── OTP input — "check your email" state ─────────────────────────────────────
 const COOLDOWN_SECONDS = 60;
 
-// ── "Check your email" waiting state ─────────────────────────────────────────
 function CheckEmail({ email }) {
-  const [resendStatus, setResendStatus] = useState('idle'); // idle | loading | sent | error
+  const [digits,       setDigits]       = useState(Array(6).fill(''));
+  const [submitStatus, setSubmitStatus] = useState('idle'); // idle | loading | error
+  const [errorMsg,     setErrorMsg]     = useState('');
+  const [resendStatus, setResendStatus] = useState('idle'); // idle | loading | sent
   const [cooldown,     setCooldown]     = useState(0);
-  const intervalRef = useRef(null);
+  const inputRefs   = useRef([]);
+  const cooldownRef = useRef(null);
+
+  // Focus first input on mount
+  useEffect(() => { inputRefs.current[0]?.focus(); }, []);
+  // Cleanup cooldown interval
+  useEffect(() => () => clearInterval(cooldownRef.current), []);
 
   function startCooldown() {
     setCooldown(COOLDOWN_SECONDS);
-    intervalRef.current = setInterval(() => {
+    cooldownRef.current = setInterval(() => {
       setCooldown((s) => {
-        if (s <= 1) { clearInterval(intervalRef.current); return 0; }
+        if (s <= 1) { clearInterval(cooldownRef.current); return 0; }
         return s - 1;
       });
     }, 1000);
   }
 
-  useEffect(() => () => clearInterval(intervalRef.current), []);
+  async function submitCode(codeStr) {
+    if (submitStatus === 'loading') return;
+    setSubmitStatus('loading');
+    setErrorMsg('');
+    try {
+      await verifyOtp(email, codeStr);
+      // JWT cookie set by backend — force full reload so auth context reinitialises
+      window.location.replace('/sessions');
+    } catch (err) {
+      setErrorMsg(err.message || 'Code incorrect.');
+      setSubmitStatus('error');
+      if (err.message?.toLowerCase().includes('expiré')) {
+        setDigits(Array(6).fill(''));
+        setTimeout(() => inputRefs.current[0]?.focus(), 50);
+      }
+    }
+  }
+
+  function handleDigitInput(index, value) {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    const next = [...digits];
+    next[index] = digit;
+    setDigits(next);
+    if (submitStatus === 'error') { setSubmitStatus('idle'); setErrorMsg(''); }
+    if (digit && index < 5) inputRefs.current[index + 1]?.focus();
+    if (digit && next.every((d) => d !== '')) submitCode(next.join(''));
+  }
+
+  function handleKeyDown(index, e) {
+    if (e.key === 'Backspace') {
+      if (digits[index]) {
+        const next = [...digits]; next[index] = ''; setDigits(next);
+      } else if (index > 0) {
+        inputRefs.current[index - 1]?.focus();
+      }
+      return;
+    }
+    if (e.key === 'ArrowLeft'  && index > 0) inputRefs.current[index - 1]?.focus();
+    if (e.key === 'ArrowRight' && index < 5) inputRefs.current[index + 1]?.focus();
+  }
+
+  function handlePaste(e) {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+    const next = Array(6).fill('');
+    pasted.split('').forEach((d, i) => { next[i] = d; });
+    setDigits(next);
+    setErrorMsg('');
+    setSubmitStatus('idle');
+    inputRefs.current[Math.min(pasted.length, 5)]?.focus();
+    if (pasted.length === 6) submitCode(pasted);
+  }
 
   async function handleResend() {
-    if (!email || resendStatus === 'loading' || cooldown > 0) return;
+    if (cooldown > 0 || resendStatus === 'loading' || !email) return;
     setResendStatus('loading');
     try {
       await resendVerification(email);
       setResendStatus('sent');
+      setDigits(Array(6).fill(''));
+      setErrorMsg('');
+      setSubmitStatus('idle');
       startCooldown();
-      setTimeout(() => setResendStatus('idle'), 3000);
+      setTimeout(() => {
+        setResendStatus('idle');
+        inputRefs.current[0]?.focus();
+      }, 3000);
     } catch {
-      setResendStatus('error');
-      setTimeout(() => setResendStatus('idle'), 3000);
+      setResendStatus('idle');
     }
   }
 
-  const btnDisabled = resendStatus === 'loading' || cooldown > 0;
-  const btnLabel =
-    resendStatus === 'loading' ? 'Envoi…' :
-    resendStatus === 'sent'    ? 'Email renvoyé ✓' :
-    cooldown > 0               ? `Renvoyer dans ${cooldown}s` :
-    'Renvoyer l\'email';
+  const code = digits.join('');
+  const isLoading = submitStatus === 'loading';
 
   return (
     <div className="space-y-6 text-center">
+
+      {/* Icon */}
       <div className="flex justify-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
           <Mail className="h-8 w-8 text-primary" />
         </div>
       </div>
-      <div className="space-y-2">
+
+      {/* Heading */}
+      <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Vérifiez votre email
+          Entrez le code
         </h1>
         {email ? (
           <p className="text-sm text-muted-foreground">
-            Un lien de confirmation a été envoyé à{' '}
-            <span className="font-medium text-foreground">{email}</span>.
+            Code envoyé à{' '}
+            <span className="font-medium text-foreground">{email}</span>
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Un lien de confirmation a été envoyé à votre adresse email.
+            Un code à 6 chiffres a été envoyé à votre adresse email.
           </p>
         )}
-        <p className="text-sm text-muted-foreground">
-          Cliquez sur le lien pour activer votre compte. Le lien expire dans 24 heures.
-        </p>
+        <p className="text-xs text-muted-foreground">Ce code expire dans 10 minutes.</p>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-4 text-left space-y-2">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Vous ne trouvez pas l'email ?
-        </p>
-        <ul className="text-sm text-muted-foreground space-y-1">
-          <li>· Vérifiez votre dossier spam ou courrier indésirable.</li>
-          <li>· Attendez quelques minutes — l'envoi peut prendre du temps.</li>
-        </ul>
+      {/* 6-digit OTP boxes */}
+      <div className="flex justify-center gap-2" onPaste={handlePaste}>
+        {digits.map((d, i) => (
+          <input
+            key={i}
+            ref={(el) => { inputRefs.current[i] = el; }}
+            type="text"
+            inputMode="numeric"
+            maxLength={1}
+            value={d}
+            onChange={(e) => handleDigitInput(i, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            onFocus={(e) => e.target.select()}
+            disabled={isLoading}
+            className={cn(
+              'w-11 h-14 text-center text-xl font-bold rounded-xl border-2 bg-card transition-all focus:outline-none select-none',
+              submitStatus === 'error'
+                ? 'border-red-400 bg-red-50/50 text-red-700'
+                : d
+                ? 'border-primary text-foreground'
+                : 'border-border text-foreground focus:border-primary',
+              isLoading && 'opacity-50 cursor-not-allowed',
+            )}
+          />
+        ))}
       </div>
 
-      {/* Resend button — only shown when email is known */}
-      {email && (
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={handleResend}
-          disabled={btnDisabled}
-        >
-          {resendStatus === 'loading' && (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          )}
-          {resendStatus === 'sent' && (
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-          )}
-          <span className={resendStatus === 'sent' ? 'text-green-600' : ''}>{btnLabel}</span>
-        </Button>
+      {/* Error message */}
+      {errorMsg && (
+        <div className="flex items-center justify-center gap-2 text-sm text-red-600">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {errorMsg}
+        </div>
       )}
 
+      {/* Verify button */}
+      <Button
+        size="lg"
+        className="w-full"
+        onClick={() => submitCode(code)}
+        disabled={code.length < 6 || isLoading}
+      >
+        {isLoading ? (
+          <><Loader2 className="h-4 w-4 animate-spin" /> Vérification…</>
+        ) : (
+          'Vérifier'
+        )}
+      </Button>
+
+      {/* Resend link */}
+      <button
+        type="button"
+        onClick={handleResend}
+        disabled={cooldown > 0 || resendStatus === 'loading'}
+        className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-default"
+      >
+        {resendStatus === 'sent' ? (
+          <span className="flex items-center justify-center gap-1.5 text-green-600 font-medium">
+            <CheckCircle2 className="h-4 w-4" /> Code renvoyé !
+          </span>
+        ) : cooldown > 0 ? (
+          `Renvoyer dans ${cooldown}s`
+        ) : resendStatus === 'loading' ? (
+          'Envoi…'
+        ) : (
+          'Renvoyer le code'
+        )}
+      </button>
+
       <Link to="/login">
-        <Button variant="outline" className="w-full">Retour à la connexion</Button>
+        <Button variant="ghost" size="sm" className="text-muted-foreground w-full">
+          Retour à la connexion
+        </Button>
       </Link>
     </div>
   );

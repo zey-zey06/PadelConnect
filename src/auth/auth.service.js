@@ -5,7 +5,11 @@ const notificationsService = require('../features/notifications/notifications.se
 const { sendVerificationEmail } = require('../emails/verification');
 
 const BCRYPT_ROUNDS = 12;
-const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const VERIFICATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 /**
  * Generate a unique username from first/last name.
@@ -38,7 +42,7 @@ async function signup({ email, password, role = 'player', organization_id = null
   }
 
   const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-  const verification_token = crypto.randomBytes(32).toString('hex');
+  const verification_token = generateOtp();
   const verification_expires = new Date(Date.now() + VERIFICATION_TTL_MS);
 
   const username = await generateUniqueUsername(first_name, last_name);
@@ -217,7 +221,7 @@ async function resendVerification(email) {
   // Silently succeed when email unknown or already verified — don't leak user existence
   if (!user || user.email_verified) return;
 
-  const verification_token   = crypto.randomBytes(32).toString('hex');
+  const verification_token   = generateOtp();
   const verification_expires = new Date(Date.now() + VERIFICATION_TTL_MS);
 
   await db('users').where({ id: user.id }).update({
@@ -228,4 +232,43 @@ async function resendVerification(email) {
   sendVerificationEmail(email, verification_token).catch(() => {});
 }
 
-module.exports = { signup, login, verifyEmail, getUserById, updateName, updateUsername, changePassword, softDeleteAccount, resendVerification };
+async function verifyOtp(email, code) {
+  const user = await db('users')
+    .where({ email })
+    .whereNull('deleted_at')
+    .first();
+
+  if (!user) {
+    const err = new Error('Code incorrect ou expiré.');
+    err.status = 400;
+    throw err;
+  }
+
+  if (user.email_verified) {
+    return user; // already verified — let them through
+  }
+
+  if (user.email_verification_token !== String(code)) {
+    const err = new Error('Code incorrect.');
+    err.status = 400;
+    err.code = 'INVALID_OTP';
+    throw err;
+  }
+
+  if (new Date(user.email_verification_expires_at) < new Date()) {
+    const err = new Error('Code expiré. Demandez un nouveau code.');
+    err.status = 400;
+    err.code = 'EXPIRED_OTP';
+    throw err;
+  }
+
+  await db('users').where({ id: user.id }).update({
+    email_verified:                true,
+    email_verification_token:      null,
+    email_verification_expires_at: null,
+  });
+
+  return user;
+}
+
+module.exports = { signup, login, verifyEmail, getUserById, updateName, updateUsername, changePassword, softDeleteAccount, resendVerification, verifyOtp };
