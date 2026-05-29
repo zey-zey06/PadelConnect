@@ -1,6 +1,8 @@
 const { sendEmail, FROM } = require('./mailer');
 
 async function sendVerificationEmail(email, code) {
+  console.log('[VERIFICATION] Sending to:', email);
+  console.log('[VERIFICATION] Code:', code);
   await sendEmail({
     from:    FROM,
     to:      email,

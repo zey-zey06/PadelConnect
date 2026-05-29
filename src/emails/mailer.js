@@ -28,15 +28,29 @@ async function sendEmail({ from, to, subject, html }) {
   const sender = from || FROM;
 
   if (gmailTransport) {
-    await gmailTransport.sendMail({
-      from:    sender,
-      to:      Array.isArray(to) ? to.join(', ') : to,
-      subject,
-      html,
-    });
+    try {
+      const result = await gmailTransport.sendMail({
+        from:    sender,
+        to:      Array.isArray(to) ? to.join(', ') : to,
+        subject,
+        html,
+      });
+      console.log('[MAILER] Email sent successfully:', result.messageId);
+    } catch (err) {
+      console.error('[MAILER] Send error:', err.message);
+      console.error('[MAILER] Send error code:', err.code);
+      throw err;
+    }
   } else {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({ from: sender, to, subject, html });
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const result = await resend.emails.send({ from: sender, to, subject, html });
+      console.log('[MAILER] Email sent successfully:', result.id);
+    } catch (err) {
+      console.error('[MAILER] Send error:', err.message);
+      console.error('[MAILER] Send error code:', err.code);
+      throw err;
+    }
   }
 }
 
