@@ -2,6 +2,8 @@ const { verifyToken } = require('../auth/jwt');
 const db = require('../db');
 
 async function authenticate(req, res, next) {
+  console.log('[AUTH] Cookies received:', Object.keys(req.cookies || {}));
+  console.log('[AUTH] Token exists:', !!req.cookies?.token);
   const token = req.cookies?.token;
 
   if (!token) {
