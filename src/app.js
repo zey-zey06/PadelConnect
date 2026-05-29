@@ -51,8 +51,10 @@ if (process.env.NODE_ENV === 'production') {
 // breaks fonts.googleapis.com in production.
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  credentials: true,
+  origin:         process.env.CORS_ORIGIN || 'http://localhost:5173',
+  credentials:    true,
+  methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
 app.use(cookieParser());

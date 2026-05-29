@@ -6,11 +6,12 @@ const authenticate = require('../middleware/authenticate');
 const notificationsService = require('../features/notifications/notifications.service');
 const db = require('../db');
 
+const isProd = process.env.NODE_ENV === 'production';
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.COOKIE_SECURE === 'true',
-  sameSite: 'lax',
-  maxAge: 7 * 24 * 60 * 60 * 1000,
+  secure:   isProd,
+  sameSite: isProd ? 'none' : 'lax',
+  maxAge:   7 * 24 * 60 * 60 * 1000,
 };
 
 async function signupHandler(req, res, next) {
@@ -95,11 +96,7 @@ async function verifyEmailHandler(req, res, next) {
 }
 
 function logoutHandler(req, res) {
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.COOKIE_SECURE === 'true',
-    sameSite: 'lax',
-  });
+  res.clearCookie('token', COOKIE_OPTIONS);
   return res.json({ message: 'Déconnecté.' });
 }
 
@@ -189,11 +186,7 @@ async function deleteAccountHandler(req, res, next) {
   try {
     const user = await getUserById(req.user.sub);
     await softDeleteAccount(req.user.sub);
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: process.env.COOKIE_SECURE === 'true',
-      sameSite: 'lax',
-    });
+    res.clearCookie('token', COOKIE_OPTIONS);
     // Notify super_admins of account deletion (fire-and-forget)
     const name = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.email || 'Utilisateur';
     db('users').where({ role: 'super_admin' }).select('id')

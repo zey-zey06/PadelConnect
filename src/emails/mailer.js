@@ -7,7 +7,6 @@ console.log('[MAILER] GMAIL_USER:', process.env.GMAIL_USER);
 console.log('[MAILER] GMAIL_PASSWORD length:', process.env.GMAIL_PASSWORD?.length);
 console.log('[MAILER] Using Gmail:', !!(process.env.GMAIL_USER && process.env.GMAIL_PASSWORD));
 
-// Build transport once at startup so the TCP connection can be reused.
 const gmailTransport = (process.env.GMAIL_USER && process.env.GMAIL_PASSWORD)
   ? nodemailer.createTransport({
       host:   'smtp.gmail.com',
@@ -20,39 +19,41 @@ const gmailTransport = (process.env.GMAIL_USER && process.env.GMAIL_PASSWORD)
     })
   : null;
 
-/**
- * Send a single email via Gmail SMTP (if configured) or Resend (fallback).
- * @param {{ from?: string, to: string|string[], subject: string, html: string }} opts
- */
-async function sendEmail({ from, to, subject, html }) {
-  const sender = from || FROM;
+// Nodemailer-compatible wrapper around the Resend SDK
+function createResendTransport() {
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  return {
+    sendMail: async ({ from, to, subject, html }) => {
+      const result = await resend.emails.send({ from: from || FROM, to, subject, html });
+      if (result.error) {
+        const err = new Error(result.error.message || 'Resend error');
+        err.code     = result.error.name;
+        err.response = result.error;
+        throw err;
+      }
+      return { messageId: result.data?.id };
+    },
+  };
+}
 
-  if (gmailTransport) {
-    try {
-      const result = await gmailTransport.sendMail({
-        from:    sender,
-        to:      Array.isArray(to) ? to.join(', ') : to,
-        subject,
-        html,
-      });
-      console.log('[MAILER] Email sent successfully:', result.messageId);
-    } catch (err) {
-      console.error('[MAILER] Send error:', err.message);
-      console.error('[MAILER] Send error code:', err.code);
-      throw err;
-    }
-  } else {
-    try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const result = await resend.emails.send({ from: sender, to, subject, html });
-      console.log('[MAILER] Email sent successfully:', result.id);
-    } catch (err) {
-      console.error('[MAILER] Send error:', err.message);
-      console.error('[MAILER] Send error code:', err.code);
-      throw err;
-    }
+async function getTransporter() {
+  if (gmailTransport) return gmailTransport;
+  return createResendTransport();
+}
+
+async function sendEmail(mailOptions) {
+  try {
+    const transporter = await getTransporter();
+    console.log('[MAILER] Attempting to send to:', mailOptions.to);
+    const result = await transporter.sendMail({ from: FROM, ...mailOptions });
+    console.log('[MAILER] SUCCESS - Message ID:', result.messageId);
+    return result;
+  } catch (err) {
+    console.error('[MAILER] FAILED - Error:', err.message);
+    console.error('[MAILER] FAILED - Code:', err.code);
+    console.error('[MAILER] FAILED - Response:', err.response);
+    throw err;
   }
 }
 
 module.exports = { sendEmail, FROM };
-
