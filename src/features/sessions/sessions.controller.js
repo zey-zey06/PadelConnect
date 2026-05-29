@@ -94,12 +94,22 @@ async function historyHandler(req, res, next) {
   }
 }
 
+async function getParticipantsHandler(req, res, next) {
+  try {
+    const participants = await sessionsService.getSessionParticipants(req.params.id);
+    return res.json({ participants });
+  } catch (err) {
+    next(err);
+  }
+}
+
 const router = Router();
 router.get('/', authenticate, listHandler);
 router.post('/', authenticate, createHandler);
 router.get('/my',          authenticate, listMySessionsHandler);  // must be before /:id
 router.get('/my-requests', authenticate, listMyRequestsHandler);  // must be before /:id
 router.get('/history',     authenticate, historyHandler);         // must be before /:id
+router.get('/:id/participants', authenticate, getParticipantsHandler);  // must be before /:id
 router.get('/:id',         authenticate, getByIdHandler);
 router.patch('/:id/status', authenticate, updateStatusHandler);
 

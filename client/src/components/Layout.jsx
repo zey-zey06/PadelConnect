@@ -89,6 +89,7 @@ export default function Layout({ children }) {
 
   async function handleLogout() {
     try { await logout(); } catch { /* non-fatal */ }
+    sessionStorage.clear();
     setUser(null);
     navigate('/login', { replace: true });
   }

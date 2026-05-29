@@ -456,13 +456,33 @@ export default function ProfileSetup() {
                 {/* QCM answer chips */}
                 {!chatBusy && !generating && qIndex < QUESTIONS_QCM.length && (
                   <div className="border-t border-border px-4 py-4 bg-background/50 space-y-3">
-                    <div className="flex flex-wrap gap-2">
+                    {/* Progress */}
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        Question {qIndex + 1} sur {QUESTIONS_QCM.length}
+                      </p>
+                      <div className="flex gap-1">
+                        {QUESTIONS_QCM.map((_, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              'h-1.5 rounded-full transition-all duration-300',
+                              i < qIndex  ? 'w-4 bg-green-600'
+                              : i === qIndex ? 'w-6 bg-green-700'
+                              : 'w-4 bg-border'
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div key={qIndex} className="flex flex-wrap gap-3 animate-fade-in-up">
                       {QUESTIONS_QCM[qIndex].options.map((opt) => (
                         <button
                           key={opt}
                           type="button"
                           onClick={() => handlePickAnswer(opt)}
-                          className="px-3.5 py-2 rounded-xl border border-border bg-card text-sm font-medium text-foreground hover:bg-primary hover:text-white hover:border-primary transition-all"
+                          className="px-4 py-3 rounded-full border border-green-600 bg-white text-sm font-medium text-green-700 hover:bg-green-700 hover:text-white hover:border-green-700 active:scale-95 transition-all"
                         >
                           {opt}
                         </button>
@@ -471,10 +491,10 @@ export default function ProfileSetup() {
                         type="button"
                         onClick={() => { setAutreMode(true); setAutreText(''); }}
                         className={cn(
-                          'px-3.5 py-2 rounded-xl border text-sm font-medium transition-all',
+                          'px-4 py-3 rounded-full border text-sm font-medium transition-all active:scale-95',
                           autreMode
-                            ? 'border-primary bg-primary text-white'
-                            : 'border-dashed border-border bg-card text-muted-foreground hover:border-primary/60 hover:text-foreground'
+                            ? 'border-green-700 bg-green-700 text-white'
+                            : 'border-dashed border-gray-300 bg-gray-50 text-gray-500 hover:border-gray-400 hover:text-gray-700'
                         )}
                       >
                         Autre…
@@ -483,7 +503,7 @@ export default function ProfileSetup() {
 
                     {/* "Autre" text input */}
                     {autreMode && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 animate-fade-in-up">
                         <input
                           autoFocus
                           value={autreText}
@@ -501,10 +521,6 @@ export default function ProfileSetup() {
                         </button>
                       </div>
                     )}
-
-                    <p className="text-[10px] text-muted-foreground text-center">
-                      Question {Math.min(qIndex + 1, 7)} / {QUESTIONS_QCM.length}
-                    </p>
                   </div>
                 )}
               </div>

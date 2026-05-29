@@ -156,4 +156,30 @@ async function getHistory(userId) {
   return sessions.map((s) => ({ ...s, booking: bookingMap[s.id] ?? null }));
 }
 
-module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers, getSessionPlayers, getUserById, getMyRequests, getHistory };
+async function getSessionParticipants(sessionId) {
+  const session = await db('sessions').where({ id: sessionId }).whereNull('deleted_at').first();
+  if (!session) return [];
+
+  const [creator, accepted] = await Promise.all([
+    db('users')
+      .leftJoin('player_profiles', 'users.id', 'player_profiles.user_id')
+      .where('users.id', session.creator_id)
+      .select('users.id', 'users.first_name', 'users.last_name', 'users.email', 'player_profiles.photo_url')
+      .first(),
+    db('session_requests')
+      .join('users', 'session_requests.player_id', 'users.id')
+      .leftJoin('player_profiles', 'users.id', 'player_profiles.user_id')
+      .where({ 'session_requests.session_id': sessionId, 'session_requests.status': 'accepted' })
+      .whereNull('session_requests.deleted_at')
+      .select('users.id', 'users.first_name', 'users.last_name', 'users.email', 'player_profiles.photo_url'),
+  ]);
+
+  const participants = [];
+  if (creator) participants.push({ ...creator, is_creator: true });
+  for (const p of accepted) {
+    if (!participants.some((x) => x.id === p.id)) participants.push(p);
+  }
+  return participants;
+}
+
+module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers, getSessionPlayers, getUserById, getMyRequests, getHistory, getSessionParticipants };

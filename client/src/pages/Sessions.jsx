@@ -4,7 +4,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import {
   listSessions, createSession, requestJoin, getMySessions,
   getSessionRequests, respondToRequest, cancelSession, inviteCoach, invitePlayer,
-  getMySessionRequests,
+  getMySessionRequests, getSessionParticipants,
 } from '@/api/sessions';
 import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
 import { listClubs, getClubSlots, getClubCoaches, getClubBallPickers } from '@/api/clubs';
@@ -189,7 +189,229 @@ const GENDER_PREFS = [
 const GENDER_DISPLAY = { mixed: 'Mixte', women: 'Femmes', men: 'Hommes' };
 const GENDER_ICON    = { mixed: '⚧', women: '♀', men: '♂' };
 
-function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, requestStatus = null }) {
+// ── Session detail modal ──────────────────────────────────────────────────────
+function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }) {
+  const { user }           = useAuth();
+  const { openPlayerPanel } = usePlayerPanel();
+  const [participants,  setParticipants]  = useState(null);
+  const [loadingPart,   setLoadingPart]   = useState(true);
+
+  const d         = parseSessionDate(session.date);
+  const isOwner   = user?.id === session.creator_id;
+  const filled    = session.current_players ?? 0;
+  const total     = session.max_players ?? 4;
+  const isFull    = session.status === 'complete' || filled >= total;
+  const levelMin  = session.preferences?.level_min;
+  const gender    = session.preferences?.gender;
+  const creatorName =
+    [session.creator_first_name, session.creator_last_name].filter(Boolean).join(' ') ||
+    session.creator_email?.split('@')[0] || 'Joueur';
+
+  const initialState =
+    requestStatus === 'accepted' ? 'accepted' :
+    requestStatus === 'refused'  ? 'refused'  :
+    requestStatus === 'pending'  ? 'pending'  : 'idle';
+  const [state, setState] = useState(initialState);
+
+  useEffect(() => {
+    getSessionParticipants(session.id)
+      .then(({ participants: p }) => setParticipants(p ?? []))
+      .catch(() => setParticipants([]))
+      .finally(() => setLoadingPart(false));
+  }, [session.id]);
+
+  async function handleJoin() {
+    setState('loading');
+    try {
+      await onJoin(session.id);
+      setState('pending');
+    } catch {
+      setState('error');
+    }
+  }
+
+  const hasActiveBooking = booking && booking.status !== 'cancelled';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/30 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-xl max-h-[88vh] flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <div>
+            <h2 className="text-base font-semibold text-foreground capitalize">
+              {d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </h2>
+            <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
+              <Clock className="h-3 w-3" />
+              {session.time?.slice(0, 5)}
+              {session.end_time && <span>– {session.end_time.slice(0, 5)}</span>}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+
+          {/* Level + gender tags */}
+          {(levelMin || gender) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {levelMin && (
+                <span className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/8 text-primary border border-primary/15">
+                  Niv.&nbsp;{levelMin}+ requis
+                </span>
+              )}
+              {gender && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-accent text-foreground/70 border border-border">
+                  <span aria-hidden>{GENDER_ICON[gender]}</span>
+                  {GENDER_DISPLAY[gender]}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Organizer */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Organisateur</p>
+            <button
+              type="button"
+              onClick={() => openPlayerPanel(session.creator_id)}
+              className="flex items-center gap-3 w-full hover:bg-accent/40 rounded-xl p-2 -mx-2 transition-colors text-left"
+            >
+              <div className="h-10 w-10 rounded-full overflow-hidden bg-primary/10 shrink-0 ring-2 ring-border">
+                {session.creator_photo_url ? (
+                  <img src={session.creator_photo_url} alt={creatorName} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+                    <span className="text-xs font-bold text-primary select-none">{creatorName.slice(0, 2).toUpperCase()}</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">{creatorName}</p>
+                {session.creator_level && (
+                  <p className="text-xs text-muted-foreground">
+                    Niv.&nbsp;{session.creator_level}/7 · {LEVEL_LABELS[session.creator_level]}
+                  </p>
+                )}
+              </div>
+            </button>
+          </div>
+
+          {/* Participants */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+              Participants · {filled}/{total}
+            </p>
+            {loadingPart ? (
+              <div className="flex gap-2">
+                {[1, 2, 3].map((i) => <div key={i} className="h-10 w-10 rounded-full bg-muted animate-pulse" />)}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap">
+                {(participants ?? []).map((p) => {
+                  const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email?.split('@')[0] || 'Joueur';
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => openPlayerPanel(p.id)}
+                      title={name}
+                      className="h-10 w-10 rounded-full overflow-hidden bg-primary/10 ring-2 ring-border hover:opacity-80 transition-opacity shrink-0"
+                    >
+                      {p.photo_url ? (
+                        <img src={p.photo_url} alt={name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+                          <span className="text-[10px] font-bold text-primary select-none">{name.slice(0, 2).toUpperCase()}</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+                {/* Empty spots */}
+                {Array.from({ length: Math.max(0, total - (participants?.length ?? 0)) }, (_, i) => (
+                  <div key={`empty-${i}`} className="h-10 w-10 rounded-full border-2 border-dashed border-border/50 bg-background shrink-0" />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Booked venue */}
+          {hasActiveBooking && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Terrain réservé</p>
+              <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-3">
+                <div className="h-9 w-9 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+                  <MapPin className="h-4 w-4 text-green-700" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-green-900">{booking.venue_name}</p>
+                  <p className="text-xs text-green-700/80">
+                    {booking.club_name} · {booking.start_time?.slice(0, 5)}–{booking.end_time?.slice(0, 5)}
+                  </p>
+                </div>
+                <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer CTA */}
+        {!isOwner && (
+          <div className="px-5 py-4 border-t border-border shrink-0">
+            {state === 'accepted' ? (
+              <p className="text-xs text-green-700 flex items-center justify-center gap-1.5 py-2 font-semibold">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                Confirmé — vous faites partie de la session !
+              </p>
+            ) : state === 'refused' ? (
+              <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5 py-2">
+                <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                Demande refusée.
+              </p>
+            ) : state === 'pending' ? (
+              <p className="text-xs text-green-600 flex items-center justify-center gap-1 py-2 font-medium">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                Demande envoyée — en attente de confirmation.
+              </p>
+            ) : (
+              <Button
+                className="w-full h-11"
+                onClick={handleJoin}
+                disabled={isFull || state === 'loading'}
+                variant={isFull ? 'outline' : 'default'}
+              >
+                {state === 'loading' ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-current/40 border-t-transparent rounded-full animate-spin" />
+                    Envoi…
+                  </>
+                ) : isFull ? 'Session complète' : (
+                  <>
+                    <Plus className="h-4 w-4" />
+                    Rejoindre la session
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestStatus = null }) {
   const { user } = useAuth();
   const { openPlayerPanel } = usePlayerPanel();
   // Derive initial state from the server-side request status
@@ -202,7 +424,9 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, reques
   const [msg,   setMsg]   = useState('');
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [showSharePicker,   setShowSharePicker]   = useState(false);
+  const [showDetail,        setShowDetail]        = useState(false);
 
+  const hasBooking = !!booking;
   const isOwner = user?.id === session.creator_id;
   const filled  = Math.min(session.current_players ?? 0, session.max_players ?? 4);
   const total   = session.max_players ?? 4;
@@ -231,13 +455,16 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, reques
   }
 
   return (
-    <article className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+    <article
+      className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+      onClick={() => setShowDetail(true)}
+    >
 
       {/* ── Header: creator avatar + name + status ─────────────────── */}
       <div className="flex items-center gap-3 px-4 py-3.5">
         <button
           type="button"
-          onClick={() => openPlayerPanel(session.creator_id)}
+          onClick={(e) => { e.stopPropagation(); openPlayerPanel(session.creator_id); }}
           className="h-10 w-10 rounded-full overflow-hidden bg-primary/10 shrink-0 ring-2 ring-border hover:opacity-80 transition-opacity"
         >
           {session.creator_photo_url ? (
@@ -252,7 +479,7 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, reques
         <div className="flex-1 min-w-0">
           <button
             type="button"
-            onClick={() => openPlayerPanel(session.creator_id)}
+            onClick={(e) => { e.stopPropagation(); openPlayerPanel(session.creator_id); }}
             className="text-sm font-semibold text-foreground truncate leading-snug hover:underline text-left w-full"
           >
             {creatorName}
@@ -354,7 +581,7 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, reques
         </div>
 
         {/* CTA */}
-        <div className="pt-0.5">
+        <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
           {isOwner ? (
             hasBooking ? (
               <Button variant="outline" className="w-full text-green-600 border-green-200 bg-green-50 cursor-default" disabled>
@@ -414,7 +641,7 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, reques
         </div>
 
         {/* Share */}
-        <div className="flex justify-end pt-0.5">
+        <div className="flex justify-end pt-0.5" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={() => setShowSharePicker(true)}
@@ -425,6 +652,16 @@ function FeedSessionCard({ session, onJoin, hasBooking = false, onBooked, reques
           </button>
         </div>
       </div>
+
+      {showDetail && (
+        <SessionDetailModal
+          session={session}
+          booking={booking}
+          onClose={() => setShowDetail(false)}
+          onJoin={onJoin}
+          requestStatus={requestStatus}
+        />
+      )}
 
       {showTerrainPicker && (
         <TerrainPickerModal
@@ -2427,7 +2664,8 @@ export default function Sessions() {
         getMyBookings(),
         getMySessionRequests(),
       ]);
-      setSessions(s ?? []);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      setSessions((s ?? []).filter((sess) => (sess.date ?? '').toString().slice(0, 10) >= todayStr));
       const map = {};
       for (const bk of (b ?? [])) {
         if (bk.status !== 'cancelled') map[bk.session_id] = bk;
@@ -2566,7 +2804,7 @@ export default function Sessions() {
                   key={s.id}
                   session={s}
                   onJoin={handleJoin}
-                  hasBooking={!!bookingMap[s.id]}
+                  booking={bookingMap[s.id] ?? null}
                   onBooked={load}
                   requestStatus={requestStatusMap[s.id] ?? null}
                 />

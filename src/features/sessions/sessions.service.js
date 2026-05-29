@@ -113,4 +113,8 @@ async function getHistory(userId) {
   return sessionsRepo.getHistory(userId);
 }
 
-module.exports = { create, list, listMySessions, getMyRequests, getById, updateStatus, getHistory };
+async function getSessionParticipants(sessionId) {
+  return sessionsRepo.getSessionParticipants(sessionId);
+}
+
+module.exports = { create, list, listMySessions, getMyRequests, getById, updateStatus, getHistory, getSessionParticipants };

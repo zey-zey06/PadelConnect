@@ -57,3 +57,6 @@ export const getMySessionRequests = () => client.get('/sessions/my-requests');
 
 /** GET /api/sessions/history → { sessions: [...] } — all sessions user created or requested */
 export const getSessionHistory = () => client.get('/sessions/history');
+
+/** GET /api/sessions/:id/participants → { participants: [...] } */
+export const getSessionParticipants = (id) => client.get(`/sessions/${id}/participants`);
