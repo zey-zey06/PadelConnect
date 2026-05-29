@@ -13,7 +13,7 @@ const DEGRADED = {
 async function generateProfile(description) {
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash-latest',
+      model: 'gemini-2.0-flash-exp',
       systemInstruction: "Tu es un expert padel. À partir de la description d'un joueur, génère un profil JSON structuré. Réponds uniquement avec du JSON valide, sans texte supplémentaire ni balises markdown.",
     });
 

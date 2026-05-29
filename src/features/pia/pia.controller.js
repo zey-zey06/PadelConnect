@@ -394,7 +394,7 @@ async function chatHandler(req, res, next) {
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model:             'gemini-1.5-flash-latest',
+      model:             'gemini-2.0-flash-exp',
       systemInstruction: systemPrompt,
     });
 
@@ -510,7 +510,7 @@ async function testGeminiHandler(req, res) {
   try {
     console.log('[PIA TEST] Initializing GoogleGenerativeAI...');
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
 
     console.log('[PIA TEST] Sending minimal prompt: "Say hello"');
     const result = await model.generateContent('Say hello in one word.');
