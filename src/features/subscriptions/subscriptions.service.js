@@ -1,4 +1,9 @@
 const subsRepo = require('./subscriptions.repository');
+const {
+  sendSubscriptionReceipt,
+  sendSubscriptionReminder,
+  sendSubscriptionSuspended,
+} = require('../../emails/club');
 
 async function getMySubscription(orgId) {
   return subsRepo.getOrgSubscriptionStatus(orgId);
@@ -15,7 +20,24 @@ async function pay(orgId, paymentMethod) {
     err.status = 404;
     throw err;
   }
-  return subsRepo.createSubscription(orgId, status.venue_count, paymentMethod);
+  const sub = await subsRepo.createSubscription(orgId, status.venue_count, paymentMethod);
+
+  // Send receipt email to manager — non-fatal
+  try {
+    const managerEmail = await subsRepo.getManagerEmailByOrgId(orgId);
+    if (managerEmail) {
+      sendSubscriptionReceipt({
+        clubName:     status.name ?? '',
+        managerEmail,
+        venueCount:   sub.venue_count,
+        amount:       sub.amount,
+        periodStart:  sub.current_period_start,
+        periodEnd:    sub.current_period_end,
+      }).catch(() => {});
+    }
+  } catch { /* non-fatal */ }
+
+  return sub;
 }
 
 async function getAllSubscriptions() {
@@ -32,9 +54,33 @@ async function suspend(orgId) {
 
 async function runCron() {
   try {
-    const result = await subsRepo.suspendExpired();
-    if (result.expired_trials > 0 || result.expired_subs > 0) {
-      console.log(JSON.stringify({ level: 'info', event: 'subscriptions_expired', ...result }));
+    // 1. Send reminders for subscriptions expiring in 7 days
+    const expiring = await subsRepo.getOrgsExpiringInDays(7);
+    for (const org of expiring) {
+      if (org.manager_email) {
+        const subStatus = await subsRepo.getOrgSubscriptionStatus(org.id).catch(() => null);
+        sendSubscriptionReminder({
+          clubName:     org.name,
+          managerEmail: org.manager_email,
+          daysLeft:     7,
+          amountDue:    subStatus?.amount_due ?? 0,
+        }).catch(() => {});
+      }
+    }
+
+    // 2. Suspend expired and send suspension emails
+    const { expired_trials, expired_subs, suspendedOrgs } = await subsRepo.suspendExpired();
+    for (const org of suspendedOrgs) {
+      if (org.manager_email) {
+        sendSubscriptionSuspended({
+          clubName:     org.name,
+          managerEmail: org.manager_email,
+        }).catch(() => {});
+      }
+    }
+
+    if (expired_trials > 0 || expired_subs > 0) {
+      console.log(JSON.stringify({ level: 'info', event: 'subscriptions_expired', expired_trials, expired_subs }));
     }
   } catch (err) {
     console.error(JSON.stringify({ level: 'error', event: 'subscriptions_cron_error', error: err.message }));

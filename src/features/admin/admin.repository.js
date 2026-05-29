@@ -125,11 +125,26 @@ async function listClubs() {
     .select([
       'organizations.*',
       db.raw('COUNT(DISTINCT venues.id)::int as venues_count'),
+      db.raw(`(
+        SELECT email FROM users
+        WHERE users.organization_id = organizations.id
+          AND users.role = 'venue_admin'
+          AND users.deleted_at IS NULL
+        LIMIT 1
+      ) AS manager_email`),
     ]);
 }
 
 async function getClubById(id) {
   return db('organizations').where({ id }).whereNull('deleted_at').first();
+}
+
+async function getClubManager(orgId) {
+  return db('users')
+    .where({ organization_id: orgId, role: 'venue_admin' })
+    .whereNull('deleted_at')
+    .select('id', 'email', 'first_name', 'last_name')
+    .first();
 }
 
 async function updateClubStatus(id, status) {
@@ -234,6 +249,7 @@ module.exports = {
   deleteSession,
   listClubs,
   getClubById,
+  getClubManager,
   updateClubStatus,
   cancelAvailableSlotsForClub,
   listBookings,

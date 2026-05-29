@@ -2,10 +2,35 @@ const bcrypt     = require('bcrypt');
 const crypto     = require('crypto');
 const clubsRepo  = require('./clubs.repository');
 const venuesRepo = require('../venues/venues.repository');
+const adminRepo  = require('../admin/admin.repository');
+const { sendNewClubAdminAlert } = require('../../emails/club');
 
 async function createClub(userId, data) {
-  const org = await clubsRepo.create(data);
+  const org = await clubsRepo.create({ ...data, status: 'pending_validation' });
   await clubsRepo.linkUserToOrg(userId, org.id);
+
+  // Notify super_admins — non-fatal
+  try {
+    const [manager, admins] = await Promise.all([
+      clubsRepo.getUserById(userId),
+      adminRepo.getSuperAdmins(),
+    ]);
+    const managerName = [manager?.first_name, manager?.last_name].filter(Boolean).join(' ') || manager?.email || '';
+    for (const admin of admins) {
+      if (admin.email) {
+        sendNewClubAdminAlert({
+          clubName:     org.name,
+          managerEmail: manager?.email ?? '',
+          managerName,
+          phone:        data.phone ?? null,
+          address:      data.address ?? null,
+          courtsCount:  null, // courts created after org, count unknown here
+          adminEmail:   admin.email,
+        }).catch(() => {});
+      }
+    }
+  } catch { /* non-fatal */ }
+
   return org;
 }
 

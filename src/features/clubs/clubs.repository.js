@@ -16,6 +16,7 @@ async function getById(id) {
 async function listWithStats() {
   return db('organizations')
     .whereNull('organizations.deleted_at')
+    .whereNot('organizations.status', 'pending_validation')
     .where(function () {
       this.where('organizations.subscription_status', 'active')
         .orWhere(function () {

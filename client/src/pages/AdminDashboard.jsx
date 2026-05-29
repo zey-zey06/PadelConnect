@@ -12,7 +12,7 @@ import {
   getDashboard, getAdminActivity,
   listUsers, updateUserStatus,
   listAdminSessions, deleteAdminSession,
-  listAdminClubs, updateClubStatus,
+  listAdminClubs, updateClubStatus, validateClub,
   listAdminBookings,
   listAdminSanctions, markSanctionPaid, liftSanction,
 } from '@/api/admin';
@@ -49,10 +49,12 @@ function Badge({ label, color }) {
 
 const STATUS_COLOR = {
   active: 'green', inactive: 'gray', suspended: 'yellow', banned: 'red',
+  pending_validation: 'orange',
   open: 'green', complete: 'blue', cancelled: 'gray', confirmed: 'green',
 };
 const STATUS_LABEL = {
   active: 'Actif', inactive: 'Inactif', suspended: 'Suspendu', banned: 'Banni',
+  pending_validation: 'En attente',
   open: 'Ouverte', complete: 'Complète', cancelled: 'Annulée', confirmed: 'Confirmée',
 };
 const ROLE_LABEL = {
@@ -480,11 +482,25 @@ function ClubsTab() {
     setClubs((prev) => prev.map((c) => c.id === id ? { ...c, status: next } : c));
   }, []);
 
+  const handleValidate = useCallback(async (id) => {
+    await validateClub(id);
+    setClubs((prev) => prev.map((c) => c.id === id ? { ...c, status: 'active' } : c));
+  }, []);
+
+  const pending = clubs.filter((c) => c.status === 'pending_validation');
+
   return (
     <div className="space-y-4">
       {loading ? <Skeleton /> : error ? <ErrorBanner message={error} /> : (
         <>
-          <p className="text-xs text-slate-400">{clubs.length} club{clubs.length !== 1 ? 's' : ''}</p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-slate-400">{clubs.length} club{clubs.length !== 1 ? 's' : ''}</p>
+            {pending.length > 0 && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                {pending.length} en attente de validation
+              </span>
+            )}
+          </div>
           <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
             <table className="w-full text-sm">
               <thead>
@@ -521,7 +537,11 @@ function ClubsTab() {
                       <Badge label={STATUS_LABEL[c.status] ?? c.status} color={STATUS_COLOR[c.status]} />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <ClubToggle club={c} onToggle={handleToggle} />
+                      {c.status === 'pending_validation' ? (
+                        <ClubValidateButton club={c} onValidate={handleValidate} />
+                      ) : (
+                        <ClubToggle club={c} onToggle={handleToggle} />
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -531,6 +551,30 @@ function ClubsTab() {
         </>
       )}
     </div>
+  );
+}
+
+function ClubValidateButton({ club, onValidate }) {
+  const [saving, setSaving] = useState(false);
+  const [done,   setDone]   = useState(false);
+  async function handle() {
+    setSaving(true);
+    try {
+      await onValidate(club.id);
+      setDone(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+  if (done) return <span className="text-xs text-emerald-600 font-medium">Validé ✓</span>;
+  return (
+    <button
+      onClick={handle}
+      disabled={saving}
+      className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-40"
+    >
+      {saving ? '…' : 'Valider'}
+    </button>
   );
 }
 

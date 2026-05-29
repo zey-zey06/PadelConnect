@@ -47,9 +47,10 @@ async function getOrgSubscriptionStatus(orgId) {
 async function isOrgSubscriptionActive(orgId) {
   const org = await db('organizations')
     .where('id', orgId)
-    .select('subscription_status', 'trial_ends_at')
+    .select('status', 'subscription_status', 'trial_ends_at')
     .first();
   if (!org) return false;
+  if (org.status === 'pending_validation') return false;
   if (org.subscription_status === 'active') return true;
   if (
     org.subscription_status === 'trial' &&
@@ -158,26 +159,96 @@ async function updateOrgStatus(orgId, status) {
   await db('organizations').where('id', orgId).update({ subscription_status: status });
 }
 
+async function getManagerEmailByOrgId(orgId) {
+  const user = await db('users')
+    .where({ organization_id: orgId, role: 'venue_admin' })
+    .whereNull('deleted_at')
+    .select('email')
+    .first();
+  return user?.email ?? null;
+}
+
+async function getOrgsExpiringInDays(daysAhead) {
+  const lo = new Date(Date.now() + (daysAhead - 1) * 86400000);
+  const hi = new Date(Date.now() + daysAhead * 86400000);
+
+  const [trialOrgs, subOrgs] = await Promise.all([
+    db('organizations')
+      .where({ subscription_status: 'trial' })
+      .whereNull('deleted_at')
+      .whereBetween('trial_ends_at', [lo, hi])
+      .select('id', 'name'),
+
+    db('organizations as o')
+      .join('subscriptions as s', 's.organization_id', 'o.id')
+      .where('o.subscription_status', 'active')
+      .where('s.status', 'active')
+      .whereNull('o.deleted_at')
+      .whereBetween('s.current_period_end', [lo, hi])
+      .select('o.id', 'o.name', 's.venue_count'),
+  ]);
+
+  const seen = new Set();
+  const all  = [...trialOrgs, ...subOrgs].filter((o) => {
+    if (seen.has(o.id)) return false;
+    seen.add(o.id);
+    return true;
+  });
+
+  return Promise.all(
+    all.map(async (org) => ({
+      ...org,
+      manager_email: await getManagerEmailByOrgId(org.id),
+    }))
+  );
+}
+
 async function suspendExpired() {
   const now = new Date();
 
-  const expiredTrials = await db('organizations')
-    .where({ subscription_status: 'trial' })
-    .where('trial_ends_at', '<', now)
-    .update({ subscription_status: 'suspended' });
+  // Capture orgs before suspending so we can email them
+  const [trialsToSuspend, activesToSuspend] = await Promise.all([
+    db('organizations')
+      .where({ subscription_status: 'trial' })
+      .where('trial_ends_at', '<', now)
+      .whereNull('deleted_at')
+      .select('id', 'name'),
 
-  const expiredSubs = await db('organizations')
-    .where({ subscription_status: 'active' })
-    .whereNotExists(function () {
-      this.select('id')
-        .from('subscriptions')
-        .whereRaw('subscriptions.organization_id = organizations.id')
-        .where('subscriptions.status', 'active')
-        .where('subscriptions.current_period_end', '>=', now);
-    })
-    .update({ subscription_status: 'suspended' });
+    db('organizations')
+      .where({ subscription_status: 'active' })
+      .whereNotExists(function () {
+        this.select('id').from('subscriptions')
+          .whereRaw('subscriptions.organization_id = organizations.id')
+          .where('subscriptions.status', 'active')
+          .where('subscriptions.current_period_end', '>=', now);
+      })
+      .whereNull('deleted_at')
+      .select('id', 'name'),
+  ]);
 
-  return { expired_trials: expiredTrials ?? 0, expired_subs: expiredSubs ?? 0 };
+  let expired_trials = 0;
+  let expired_subs   = 0;
+
+  if (trialsToSuspend.length) {
+    expired_trials = await db('organizations')
+      .whereIn('id', trialsToSuspend.map((o) => o.id))
+      .update({ subscription_status: 'suspended' });
+  }
+  if (activesToSuspend.length) {
+    expired_subs = await db('organizations')
+      .whereIn('id', activesToSuspend.map((o) => o.id))
+      .update({ subscription_status: 'suspended' });
+  }
+
+  const allSuspended = [...trialsToSuspend, ...activesToSuspend];
+  const suspendedOrgs = await Promise.all(
+    allSuspended.map(async (org) => ({
+      ...org,
+      manager_email: await getManagerEmailByOrgId(org.id),
+    }))
+  );
+
+  return { expired_trials: expired_trials || 0, expired_subs: expired_subs || 0, suspendedOrgs };
 }
 
 module.exports = {
@@ -189,4 +260,6 @@ module.exports = {
   getAllOrgSubscriptions,
   updateOrgStatus,
   suspendExpired,
+  getManagerEmailByOrgId,
+  getOrgsExpiringInDays,
 };

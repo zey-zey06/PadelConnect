@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Building2, AlertCircle, ChevronLeft, ChevronRight, Clock, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/App';
 import { createClub, addVenue } from '@/api/manager';
 import { me } from '@/api/auth';
@@ -109,6 +109,7 @@ export default function ClubSetup() {
   const [courtsCount, setCourtsCount] = useState(2);
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState(null);
+  const [created,     setCreated]     = useState(null); // club object after creation
 
   useEffect(() => {
     if (user?.organization_id) navigate('/manager/dashboard', { replace: true });
@@ -146,12 +147,53 @@ export default function ClubSetup() {
 
       const { user: fresh } = await me();
       setUser(fresh);
-      navigate('/manager/dashboard', { replace: true });
+      setCreated(club);
     } catch (err) {
       setError(err.message || 'Erreur lors de la création.');
     } finally {
       setLoading(false);
     }
+  }
+
+  // ── Pending validation screen ──────────────────────────────────────────────
+  if (created) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md text-center space-y-6">
+          <div className="h-16 w-16 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto">
+            <Clock className="h-8 w-8 text-amber-600" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              En attente de validation
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Votre club <strong>{created.name}</strong> a bien été créé et est en cours de validation par notre équipe.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Vous recevrez un email dès qu'il sera activé, généralement sous 24h.
+            </p>
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-left space-y-2 text-sm text-amber-800">
+            <p className="font-semibold flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-amber-600 shrink-0" /> Ce qui se passe ensuite
+            </p>
+            <ul className="space-y-1 text-amber-700 text-xs ml-6">
+              <li>· Notre équipe examine votre demande</li>
+              <li>· Vous recevez un email de confirmation</li>
+              <li>· Votre club devient visible sur la plateforme</li>
+            </ul>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/manager/dashboard', { replace: true })}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors underline"
+          >
+            Accéder au tableau de bord
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

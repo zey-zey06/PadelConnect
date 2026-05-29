@@ -90,6 +90,15 @@ router.get('/clubs', async (req, res, next) => {
   }
 });
 
+router.patch('/clubs/:id/validate', async (req, res, next) => {
+  try {
+    const club = await adminService.validateClub(req.params.id);
+    res.json({ club });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.patch('/clubs/:id/status', validate(updateClubStatusSchema), async (req, res, next) => {
   try {
     const club = await adminService.updateClubStatus(req.params.id, req.body.status);

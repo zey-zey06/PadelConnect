@@ -1,4 +1,5 @@
 const adminRepo = require('./admin.repository');
+const { sendClubValidated } = require('../../emails/club');
 
 function makeError(status, message) {
   const err = new Error(message);
@@ -44,6 +45,23 @@ async function listClubs() {
   return adminRepo.listClubs();
 }
 
+async function validateClub(id) {
+  const club = await adminRepo.getClubById(id);
+  if (!club) throw makeError(404, 'Club introuvable.');
+
+  const updated = await adminRepo.updateClubStatus(id, 'active');
+
+  // Email manager — non-fatal
+  try {
+    const manager = await adminRepo.getClubManager(id);
+    if (manager?.email) {
+      sendClubValidated({ clubName: club.name, managerEmail: manager.email }).catch(() => {});
+    }
+  } catch { /* non-fatal */ }
+
+  return updated;
+}
+
 async function updateClubStatus(id, status) {
   const club = await adminRepo.getClubById(id);
   if (!club) throw makeError(404, 'Club introuvable.');
@@ -86,6 +104,7 @@ module.exports = {
   listSessions,
   deleteSession,
   listClubs,
+  validateClub,
   updateClubStatus,
   listBookings,
   listSanctions,
