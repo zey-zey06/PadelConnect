@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Sparkles, Upload, CheckCircle2, ChevronRight, ChevronLeft,
-  AlertCircle, X, Phone, Send,
+  AlertCircle, X, Phone, Send, Camera,
 } from 'lucide-react';
 import { useAuth } from '@/App';
 import { generateProfileFromQA, updateProfile, uploadPhoto, getProfile } from '@/api/profile';
@@ -285,6 +285,16 @@ export default function ProfileSetup() {
   }
 
   // ── Photo ──────────────────────────────────────────────────────────────────
+  const uploading = photoUploading;
+
+  async function handlePhotoSelect(e) {
+    return handlePhotoChange(e);
+  }
+
+  function handleSkip() {
+    handleComplete();
+  }
+
   async function handlePhotoChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -663,64 +673,28 @@ export default function ProfileSetup() {
               </div>
 
               {/* Photo upload */}
-              <div className="flex flex-col items-center gap-3">
-
-                {/* Circle: preview or placeholder — always clickable */}
-                <label htmlFor="photo-input" className={cn('cursor-pointer', photoUploading && 'pointer-events-none')}>
-                  <div className={cn(
-                    'w-[84px] h-[84px] rounded-full overflow-hidden ring-4 transition-all',
-                    photoPreview ? 'ring-primary/30' : 'ring-border',
-                  )}>
-                    {photoPreview ? (
-                      <img src={photoPreview} alt="Aperçu" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-muted/50 border-2 border-dashed border-border rounded-full flex items-center justify-center hover:bg-accent transition-colors">
-                        <Upload className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                    )}
+              <div className="flex flex-col items-center gap-4">
+                {photoPreview ? (
+                  <img src={photoPreview} className="w-24 h-24 rounded-full object-cover border-4 border-green-200" alt="Aperçu" />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center">
+                    <Camera className="w-8 h-8 text-gray-400" />
                   </div>
+                )}
+
+                <label className="cursor-pointer bg-green-700 text-white px-6 py-3 rounded-full font-medium">
+                  {uploading ? 'Envoi...' : 'Ajouter une photo'}
                   <input
-                    id="photo-input"
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    disabled={photoUploading}
-                    onChange={handlePhotoChange}
+                    onChange={handlePhotoSelect}
                   />
                 </label>
 
-                {/* Status */}
-                {photoUploading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin shrink-0" />
-                    Téléversement…
-                  </div>
-                ) : photoUploaded ? (
-                  <div className="flex items-center gap-2 text-sm text-green-600 font-semibold">
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    Photo ajoutée !
-                  </div>
-                ) : (
-                  <label
-                    htmlFor="photo-input"
-                    className="cursor-pointer flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-dashed border-border bg-muted/20 text-sm font-medium text-foreground/70 hover:border-primary/40 hover:text-foreground hover:bg-accent transition-all"
-                  >
-                    <Upload className="w-4 h-4 shrink-0" />
-                    Ajouter une photo de profil
-                  </label>
-                )}
-
-                {photoPreview && !photoUploading && (
-                  <button
-                    type="button"
-                    onClick={() => { setPhoto(null); setPhotoPreview(null); setPhotoUploaded(false); }}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Supprimer la photo
-                  </button>
-                )}
-
-                <p className="text-xs text-muted-foreground">JPG, PNG ou WEBP — max 5 Mo</p>
+                <button onClick={handleSkip} className="text-gray-500 text-sm underline">
+                  Passer cette étape
+                </button>
               </div>
 
               {/* Profile summary */}
@@ -748,40 +722,28 @@ export default function ProfileSetup() {
                 </div>
               )}
 
-              <div className="space-y-3">
-                <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => setStep(3)} className="gap-1" disabled={saving || photoUploading}>
-                    <ChevronLeft className="h-4 w-4" /> Retour
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    size="lg"
-                    onClick={handleComplete}
-                    disabled={saving || photoUploading}
-                  >
-                    {saving ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />
-                        Enregistrement…
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="h-4 w-4" />
-                        Terminer l'inscription
-                      </>
-                    )}
-                  </Button>
-                </div>
-                {!photo && (
-                  <button
-                    type="button"
-                    onClick={handleComplete}
-                    disabled={saving}
-                    className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors py-1 disabled:opacity-40"
-                  >
-                    Passer cette étape →
-                  </button>
-                )}
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setStep(3)} className="gap-1" disabled={saving}>
+                  <ChevronLeft className="h-4 w-4" /> Retour
+                </Button>
+                <Button
+                  className="flex-1"
+                  size="lg"
+                  onClick={handleComplete}
+                  disabled={saving || photoUploading}
+                >
+                  {saving ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />
+                      Enregistrement…
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      Terminer l'inscription
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
           )}
