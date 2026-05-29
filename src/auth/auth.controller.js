@@ -6,11 +6,10 @@ const authenticate = require('../middleware/authenticate');
 const notificationsService = require('../features/notifications/notifications.service');
 const db = require('../db');
 
-const isProd = process.env.NODE_ENV === 'production';
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure:   isProd,
-  sameSite: isProd ? 'none' : 'lax',
+  secure:   process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
   maxAge:   7 * 24 * 60 * 60 * 1000,
 };
 
