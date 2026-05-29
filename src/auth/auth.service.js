@@ -68,6 +68,8 @@ async function signup({ email, password, role = 'player', organization_id = null
     .catch(() => {});
 
   // Send verification email
+  console.log('[SIGNUP] Sending verification to:', email);
+  console.log('[SIGNUP] Token generated:', !!verification_token);
   sendVerificationEmail(email, verification_token).catch(() => {});
 
   return {

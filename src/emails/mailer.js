@@ -3,6 +3,10 @@ const { Resend } = require('resend');
 
 const FROM = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
+console.log('[MAILER] GMAIL_USER:', process.env.GMAIL_USER);
+console.log('[MAILER] GMAIL_PASSWORD length:', process.env.GMAIL_PASSWORD?.length);
+console.log('[MAILER] Using Gmail:', !!(process.env.GMAIL_USER && process.env.GMAIL_PASSWORD));
+
 // Build transport once at startup so the TCP connection can be reused.
 const gmailTransport = (process.env.GMAIL_USER && process.env.GMAIL_PASSWORD)
   ? nodemailer.createTransport({
