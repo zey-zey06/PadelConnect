@@ -394,7 +394,7 @@ async function chatHandler(req, res, next) {
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model:             'gemini-2.0-flash',
+      model:             'gemini-1.5-flash-latest',
       systemInstruction: systemPrompt,
     });
 
@@ -510,7 +510,7 @@ async function testGeminiHandler(req, res) {
   try {
     console.log('[PIA TEST] Initializing GoogleGenerativeAI...');
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
     console.log('[PIA TEST] Sending minimal prompt: "Say hello"');
     const result = await model.generateContent('Say hello in one word.');
@@ -536,11 +536,41 @@ async function testGeminiHandler(req, res) {
   }
 }
 
+// ── Models discovery — lists models available for the configured API key ──────
+// Uses the REST API directly because the SDK (v0.24.1) has no listModels().
+async function modelsHandler(req, res) {
+  if (!process.env.GEMINI_API_KEY) {
+    return res.json({ ok: false, error: 'GEMINI_API_KEY not configured', models: [] });
+  }
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`;
+    const response = await fetch(url);
+    const data     = await response.json();
+
+    if (!response.ok) {
+      return res.json({ ok: false, error: data?.error?.message ?? `HTTP ${response.status}`, models: [] });
+    }
+
+    const models = (data.models ?? []).map((m) => ({
+      name:               m.name,
+      displayName:        m.displayName,
+      supportedMethods:   m.supportedGenerationMethods ?? [],
+    }));
+
+    console.log(JSON.stringify({ level: 'info', msg: '[PIA] available models', count: models.length, models: models.map((m) => m.name) }));
+    return res.json({ ok: true, count: models.length, models });
+  } catch (err) {
+    console.error('[PIA] modelsHandler error:', err?.message);
+    return res.json({ ok: false, error: err?.message ?? String(err), models: [] });
+  }
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 const router = Router();
 router.post('/chat',          authenticate, chatHandler);
 router.get('/history',        authenticate, historyHandler);
 router.get('/conversations',  authenticate, conversationsHandler);
 router.get('/test-gemini',    authenticate, testGeminiHandler);
+router.get('/models',         authenticate, modelsHandler);
 
 module.exports = router;

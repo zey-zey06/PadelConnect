@@ -7,7 +7,7 @@ const DEGRADED = { score: 50, explication: 'Compatibilité neutre' };
 async function matchScore({ candidateProfile, acceptedProfiles, sessionPreferences }) {
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash-latest',
       systemInstruction: "Tu es un expert padel. Calcule un score de compatibilité entre un candidat et un groupe existant. Réponds uniquement avec du JSON valide, sans texte supplémentaire ni balises markdown.",
     });
 

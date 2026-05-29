@@ -24,7 +24,7 @@ async function findMatches({ session, eligibleProfiles }) {
 
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash-latest',
       systemInstruction:
         "Tu es un expert padel. Analyse les profils de joueurs et sélectionne les 5 meilleurs candidats pour rejoindre une session. Réponds uniquement avec du JSON valide, sans texte supplémentaire ni balises markdown.",
     });
