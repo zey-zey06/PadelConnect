@@ -45,13 +45,18 @@ async function sendEmail(mailOptions) {
   try {
     const transporter = await getTransporter();
     console.log('[MAILER] Attempting to send to:', mailOptions.to);
-    const result = await transporter.sendMail({ from: FROM, ...mailOptions });
-    console.log('[MAILER] SUCCESS - Message ID:', result.messageId);
+
+    const result = await Promise.race([
+      transporter.sendMail({ from: FROM, ...mailOptions }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT after 10s')), 10000)),
+    ]);
+
+    console.log('[MAILER] SUCCESS:', result.messageId);
     return result;
   } catch (err) {
-    console.error('[MAILER] FAILED - Error:', err.message);
-    console.error('[MAILER] FAILED - Code:', err.code);
-    console.error('[MAILER] FAILED - Response:', err.response);
+    console.error('[MAILER] FAILED:', err.message);
+    console.error('[MAILER] Code:', err.code);
+    console.error('[MAILER] Response:', err.response);
     throw err;
   }
 }
