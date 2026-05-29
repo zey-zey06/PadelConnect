@@ -170,9 +170,11 @@ export default function ProfileSetup() {
   const [adjustedLevel,    setAdjustedLevel]    = useState(null);
 
   // ── Step 4: photo upload ──────────────────────────────────────────────────
-  const [photo,        setPhoto]        = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
-  const [saving,       setSaving]       = useState(false);
+  const [photo,          setPhoto]          = useState(null);
+  const [photoPreview,   setPhotoPreview]   = useState(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoUploaded,  setPhotoUploaded]  = useState(false);
+  const [saving,         setSaving]         = useState(false);
 
   const [step, setStep] = useState(1);
 
@@ -283,7 +285,7 @@ export default function ProfileSetup() {
   }
 
   // ── Photo ──────────────────────────────────────────────────────────────────
-  function handlePhotoChange(e) {
+  async function handlePhotoChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
@@ -293,6 +295,18 @@ export default function ProfileSetup() {
     setError(null);
     setPhoto(file);
     setPhotoPreview(URL.createObjectURL(file));
+    setPhotoUploaded(false);
+    setPhotoUploading(true);
+    try {
+      await uploadPhoto(file);
+      setPhotoUploaded(true);
+    } catch (err) {
+      setError(err.message || 'Erreur lors du téléversement.');
+      setPhoto(null);
+      setPhotoPreview(null);
+    } finally {
+      setPhotoUploading(false);
+    }
   }
 
   // ── Final save ─────────────────────────────────────────────────────────────
@@ -301,7 +315,7 @@ export default function ProfileSetup() {
     setError(null);
     try {
       const saves = [];
-      if (photo)              saves.push(uploadPhoto(photo));
+      if (photo && !photoUploaded) saves.push(uploadPhoto(photo));
       if (phoneNumber.trim()) saves.push(updateProfile({ phone_number: phoneNumber.trim() }));
       saves.push(updateMe({ first_name: firstName.trim() || null, last_name: lastName.trim() || null }));
       await Promise.all(saves);
@@ -649,68 +663,64 @@ export default function ProfileSetup() {
               </div>
 
               {/* Photo upload */}
-              <div className="space-y-3">
-                <Label>Photo de profil</Label>
+              <div className="flex flex-col items-center gap-3">
 
-                {/* Preview */}
-                {photoPreview && (
-                  <div className="flex justify-center">
-                    <img
-                      src={photoPreview}
-                      alt="Aperçu"
-                      className="w-24 h-24 rounded-full object-cover ring-4 ring-border"
-                    />
+                {/* Circle: preview or placeholder — always clickable */}
+                <label htmlFor="photo-input" className={cn('cursor-pointer', photoUploading && 'pointer-events-none')}>
+                  <div className={cn(
+                    'w-[84px] h-[84px] rounded-full overflow-hidden ring-4 transition-all',
+                    photoPreview ? 'ring-primary/30' : 'ring-border',
+                  )}>
+                    {photoPreview ? (
+                      <img src={photoPreview} alt="Aperçu" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-muted/50 border-2 border-dashed border-border rounded-full flex items-center justify-center hover:bg-accent transition-colors">
+                        <Upload className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                    )}
                   </div>
+                  <input
+                    id="photo-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={photoUploading}
+                    onChange={handlePhotoChange}
+                  />
+                </label>
+
+                {/* Status */}
+                {photoUploading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin shrink-0" />
+                    Téléversement…
+                  </div>
+                ) : photoUploaded ? (
+                  <div className="flex items-center gap-2 text-sm text-green-600 font-semibold">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    Photo ajoutée !
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="photo-input"
+                    className="cursor-pointer flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-dashed border-border bg-muted/20 text-sm font-medium text-foreground/70 hover:border-primary/40 hover:text-foreground hover:bg-accent transition-all"
+                  >
+                    <Upload className="w-4 h-4 shrink-0" />
+                    Ajouter une photo de profil
+                  </label>
                 )}
 
-                {/* Two-button chooser */}
-                <div className="grid grid-cols-2 gap-3">
-                  <label
-                    htmlFor="photo-gallery"
-                    className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/20 p-5 cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent text-center"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                      <Upload className="w-4 h-4 text-muted-foreground" />
-                    </div>
-                    <p className="text-xs font-medium text-foreground/80 leading-tight">Choisir depuis la galerie</p>
-                    <input
-                      id="photo-gallery"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handlePhotoChange}
-                    />
-                  </label>
-
-                  <label
-                    htmlFor="photo-camera"
-                    className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/20 p-5 cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent text-center"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                      <span className="text-base">📷</span>
-                    </div>
-                    <p className="text-xs font-medium text-foreground/80 leading-tight">Prendre une photo</p>
-                    <input
-                      id="photo-camera"
-                      type="file"
-                      accept="image/*"
-                      capture="user"
-                      className="hidden"
-                      onChange={handlePhotoChange}
-                    />
-                  </label>
-                </div>
-
-                <p className="text-xs text-muted-foreground text-center">JPG, PNG ou WEBP — max 5 Mo</p>
-                {photoPreview && (
+                {photoPreview && !photoUploading && (
                   <button
                     type="button"
-                    onClick={() => { setPhoto(null); setPhotoPreview(null); }}
+                    onClick={() => { setPhoto(null); setPhotoPreview(null); setPhotoUploaded(false); }}
                     className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Supprimer la photo
                   </button>
                 )}
+
+                <p className="text-xs text-muted-foreground">JPG, PNG ou WEBP — max 5 Mo</p>
               </div>
 
               {/* Profile summary */}
@@ -738,28 +748,40 @@ export default function ProfileSetup() {
                 </div>
               )}
 
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setStep(3)} className="gap-1">
-                  <ChevronLeft className="h-4 w-4" /> Retour
-                </Button>
-                <Button
-                  className="flex-1"
-                  size="lg"
-                  onClick={handleComplete}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />
-                      Enregistrement…
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-4 w-4" />
-                      Terminer l'inscription
-                    </>
-                  )}
-                </Button>
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => setStep(3)} className="gap-1" disabled={saving || photoUploading}>
+                    <ChevronLeft className="h-4 w-4" /> Retour
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    size="lg"
+                    onClick={handleComplete}
+                    disabled={saving || photoUploading}
+                  >
+                    {saving ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />
+                        Enregistrement…
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Terminer l'inscription
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {!photo && (
+                  <button
+                    type="button"
+                    onClick={handleComplete}
+                    disabled={saving}
+                    className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors py-1 disabled:opacity-40"
+                  >
+                    Passer cette étape →
+                  </button>
+                )}
               </div>
             </div>
           )}
