@@ -73,14 +73,16 @@ async function createBooking(userId, { session_id, venue_slot_id, payment_method
   // Post-booking notifications — all non-fatal
   try {
     const venue = await venuesRepo.getById(slot.venue_id);
-    const [venueAdmin, booker, players] = await Promise.all([
+    const [venueAdmin, booker, players, org] = await Promise.all([
       venue ? clubsRepo.getAdminByOrg(venue.organization_id) : Promise.resolve(null),
       clubsRepo.getUserById(userId),
       sessionsRepo.getSessionPlayers(session_id),
+      venue ? db('organizations').where({ id: venue.organization_id }).first().catch(() => null) : Promise.resolve(null),
     ]);
+    const clubName = org?.name ?? '';
 
     // Confirmation email to all session players
-    await sendBookingConfirmation({ booking, session, slot, venue, players }).catch(() => {});
+    await sendBookingConfirmation({ booking, session, slot, venue, players, clubName }).catch(() => {});
 
     // In-app + email notification to venue admin
     if (venueAdmin) {
@@ -90,10 +92,10 @@ async function createBooking(userId, { session_id, venue_slot_id, payment_method
         `Nouvelle réservation — ${venue.name} · ${fmtDateFr(slot.date)} · ${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}`
       );
       await sendManagerBookingNotification({
-        booking, session, slot, venue,
-        booker:      booker  || { name: 'Joueur', email: '' },
+        booking, session, slot, venue, clubName,
+        booker:       booker || {},
         managerEmail: venueAdmin.email,
-        playerCount: players.length,
+        playerCount:  players.length,
       }).catch(() => {});
     }
   } catch {
@@ -123,20 +125,25 @@ async function cancelBooking(bookingId, userId) {
 
   const late = isWithin4hDeadline(session);
   let clubBanCreated = false;
-  let orgId = null;
+
+  // Fetch context for emails — non-fatal, never blocks cancellation
+  const [slot, booker] = await Promise.all([
+    venuesRepo.getSlotById(booking.venue_slot_id).catch(() => null),
+    clubsRepo.getUserById(userId).catch(() => null),
+  ]);
+  const venue      = slot ? await venuesRepo.getById(slot.venue_id).catch(() => null) : null;
+  const venueAdmin = venue ? await clubsRepo.getAdminByOrg(venue.organization_id).catch(() => null) : null;
+  const org        = venue ? await db('organizations').where({ id: venue.organization_id }).first().catch(() => null) : null;
+  const orgId      = venue?.organization_id ?? null;
+  const clubName   = org?.name ?? '';
 
   if (late) {
     await bookingsRepo.createNoShowRecord({
-      user_id: userId,
+      user_id:    userId,
       booking_id: bookingId,
-      type: 'late_cancel',
+      type:       'late_cancel',
       amount_due: 0,
     });
-
-    // CU-10: look up the venue's organization for club-ban check
-    const slot = await venuesRepo.getSlotById(booking.venue_slot_id);
-    const venue = slot ? await venuesRepo.getById(slot.venue_id) : null;
-    orgId = venue ? venue.organization_id : null;
 
     // CU-10: auto club-ban after 3+ late cancels in the same org
     const lateCancelCount = await penaltiesRepo.countLateCancelsByUser(userId);
@@ -144,27 +151,29 @@ async function cancelBooking(bookingId, userId) {
       const existingBan = await penaltiesRepo.getActiveClubBan(userId, orgId);
       if (!existingBan) {
         await penaltiesRepo.create({
-          user_id: userId,
-          type: 'club_ban',
+          user_id:         userId,
+          type:            'club_ban',
           organization_id: orgId,
-          amount: 0,
-          paid: false,
+          amount:          0,
+          paid:            false,
         });
         clubBanCreated = true;
       }
-    }
-
-    try {
-      await sendBookingCancellation({ booking, session });
-    } catch {
-      // Non-fatal: email failure must not block cancellation
     }
   }
 
   const cancelledBooking = await bookingsRepo.cancel(bookingId);
   await venuesRepo.updateSlot(booking.venue_slot_id, { status: 'available' });
 
-  // Notifications AFTER all DB ops — TypeError from exhausted mock queues caught internally
+  // Cancellation emails to player + manager — always, non-fatal
+  sendBookingCancellation({
+    booking, session, slot, venue, booker,
+    managerEmail: venueAdmin?.email ?? null,
+    isLate:       late,
+    clubName,
+  }).catch(() => {});
+
+  // In-app notifications AFTER all DB ops
   if (late) {
     await notificationsService.createNotification(
       userId,
