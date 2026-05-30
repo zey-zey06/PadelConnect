@@ -465,3 +465,128 @@ describe('DELETE /api/venues/:id/slots/:slotId', () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ── PATCH /api/clubs/:id ──────────────────────────────────────────────────────
+// success DB:       first() → ORG, returning() → UPDATED_ORG
+// cross-tenant DB:  first() → ORG (org.id ≠ userOrgId) → 403
+// not found DB:     first() → null → 404
+describe('PATCH /api/clubs/:id', () => {
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); });
+
+  it('CU-07: venue_admin updates own club — 200', async () => {
+    qb.first.mockResolvedValueOnce(ORG);
+    qb.returning.mockResolvedValueOnce([{ ...ORG, name: 'Updated Club' }]);
+
+    const res = await request(app)
+      .patch(`/api/clubs/${ORG_ID}`)
+      .set('Cookie', `token=${ADMIN_TOKEN}`)
+      .send({ name: 'Updated Club' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.club.name).toBe('Updated Club');
+  });
+
+  it('CU-07: cross-tenant admin updates club — 403', async () => {
+    qb.first.mockResolvedValueOnce(ORG);
+
+    const res = await request(app)
+      .patch(`/api/clubs/${ORG_ID}`)
+      .set('Cookie', `token=${OTHER_ADMIN_TOKEN}`)
+      .send({ name: 'Hacked' });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('CU-07: update club not found — 404', async () => {
+    qb.first.mockResolvedValueOnce(null);
+
+    const res = await request(app)
+      .patch(`/api/clubs/${ORG_ID}`)
+      .set('Cookie', `token=${ADMIN_TOKEN}`)
+      .send({ name: 'Updated Club' });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('CU-07: update club empty body — 422', async () => {
+    const res = await request(app)
+      .patch(`/api/clubs/${ORG_ID}`)
+      .set('Cookie', `token=${ADMIN_TOKEN}`)
+      .send({});
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('Validation Error');
+  });
+
+  it('CU-07: update club without auth — 401', async () => {
+    const res = await request(app).patch(`/api/clubs/${ORG_ID}`).send({ name: 'X' });
+    expect(res.status).toBe(401);
+  });
+
+  it('CU-07: update club invalid UUID — 400', async () => {
+    const res = await request(app)
+      .patch('/api/clubs/not-a-valid-uuid')
+      .set('Cookie', `token=${ADMIN_TOKEN}`)
+      .send({ name: 'X' });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+// ── GET /api/clubs/:id/public ─────────────────────────────────────────────────
+// success DB: first() → ORG, select() → [VENUE]
+// not found:  first() → null → 404
+describe('GET /api/clubs/:id/public', () => {
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); });
+
+  it('CU-07: get public club info — 200 with venues', async () => {
+    qb.first.mockResolvedValueOnce(ORG);
+    qb.select.mockResolvedValueOnce([VENUE]);
+
+    const res = await request(app)
+      .get(`/api/clubs/${ORG_ID}/public`)
+      .set('Cookie', `token=${PLAYER_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.club.id).toBe(ORG_ID);
+    expect(Array.isArray(res.body.venues)).toBe(true);
+  });
+
+  it('CU-07: get public club not found — 404', async () => {
+    qb.first.mockResolvedValueOnce(null);
+
+    const res = await request(app)
+      .get(`/api/clubs/${ORG_ID}/public`)
+      .set('Cookie', `token=${PLAYER_TOKEN}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('CU-07: get public club without auth — 401', async () => {
+    const res = await request(app).get(`/api/clubs/${ORG_ID}/public`);
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── GET /api/clubs/:id/ball-pickers ──────────────────────────────────────────
+// success DB: first() → ORG, select() → []
+describe('GET /api/clubs/:id/ball-pickers', () => {
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); });
+
+  it('CU-07: list ball pickers for club — 200', async () => {
+    qb.first.mockResolvedValueOnce(ORG);
+    qb.select.mockResolvedValueOnce([]);
+
+    const res = await request(app)
+      .get(`/api/clubs/${ORG_ID}/ball-pickers`)
+      .set('Cookie', `token=${ADMIN_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.ballPickers)).toBe(true);
+  });
+
+  it('CU-07: list ball pickers without auth — 401', async () => {
+    const res = await request(app).get(`/api/clubs/${ORG_ID}/ball-pickers`);
+    expect(res.status).toBe(401);
+  });
+});
