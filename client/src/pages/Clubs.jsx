@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Building2, MapPin, Phone, ChevronRight, Eye, AlertCircle, Map, List, Heart } from 'lucide-react';
 import { listClubs, toggleClubFavorite, getClubFavoriteStatus } from '@/api/clubs';
 import { useAuth } from '@/App';
@@ -10,6 +11,7 @@ import { MultiClubMap } from '@/components/ClubMap';
 
 // ── Club card ─────────────────────────────────────────────────────────────────
 function ClubCard({ club, isAdmin }) {
+  const { t } = useTranslation();
   const photo      = club.logo_url || (Array.isArray(club.photos_urls) && club.photos_urls[0]) || null;
   const venueCount = parseInt(club.venue_count ?? 0, 10);
   const minPrice   = club.min_price != null ? Number(club.min_price) : null;
@@ -109,11 +111,11 @@ function ClubCard({ club, isAdmin }) {
           {isAdmin ? (
             <Button size="sm" variant="outline" className="w-full">
               <Eye className="h-3.5 w-3.5 mr-1.5" />
-              Voir
+              {t('common.edit')}
             </Button>
           ) : (
             <Button size="sm" className="w-full">
-              Réserver
+              {t('clubs.reserve')}
               <ChevronRight className="h-3.5 w-3.5 ml-auto" />
             </Button>
           )}
@@ -125,6 +127,7 @@ function ClubCard({ club, isAdmin }) {
 
 // ── Clubs page ────────────────────────────────────────────────────────────────
 export default function Clubs() {
+  const { t }      = useTranslation();
   const { user }   = useAuth();
   const navigate   = useNavigate();
   const isAdmin    = user?.role === 'super_admin';
@@ -145,7 +148,7 @@ export default function Clubs() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Clubs</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('clubs.title')}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Découvrez les clubs partenaires à Abidjan.
           </p>
@@ -164,7 +167,7 @@ export default function Clubs() {
               )}
             >
               <List className="h-3.5 w-3.5" />
-              Liste
+              {t('clubs.list')}
             </button>
             <button
               onClick={() => setViewMode('map')}
@@ -176,7 +179,7 @@ export default function Clubs() {
               )}
             >
               <Map className="h-3.5 w-3.5" />
-              Carte
+              {t('clubs.map')}
             </button>
           </div>
         )}

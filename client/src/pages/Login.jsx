@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth, homeFor } from '@/App';
 import { login }       from '@/api/auth';
 import { getProfile }  from '@/api/profile';
@@ -32,6 +33,7 @@ function UnverifiedBanner({ email }) {
 }
 
 export default function Login() {
+  const { t } = useTranslation();
   const { setUser, setProfile } = useAuth();
   const navigate = useNavigate();
 
@@ -116,7 +118,7 @@ export default function Login() {
           {error && <ErrorBanner message={error} />}
 
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('auth.email')}</Label>
             <Input
               id="email"
               name="email"
@@ -131,12 +133,12 @@ export default function Login() {
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password">Mot de passe</Label>
+              <Label htmlFor="password">{t('auth.password')}</Label>
               <Link
                 to="/forgot-password"
                 className="text-xs text-primary hover:underline"
               >
-                Mot de passe oublié ?
+                {t('auth.forgot')}
               </Link>
             </div>
             <div className="relative">
@@ -167,10 +169,10 @@ export default function Login() {
             {loading ? (
               <>
                 <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />
-                Connexion…
+                {t('auth.connect')}
               </>
             ) : (
-              'Se connecter'
+              t('auth.login')
             )}
           </Button>
         </form>

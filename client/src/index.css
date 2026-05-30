@@ -3,8 +3,10 @@
 @tailwind utilities;
 
 /* RTL support for Arabic */
-[dir="rtl"] .flex { flex-direction: row-reverse; }
-[dir="rtl"] { text-align: right; }
+[dir="rtl"] .flex-row { flex-direction: row-reverse; }
+[dir="rtl"] .text-left { text-align: right; }
+[dir="rtl"] .ml-auto { margin-left: 0; margin-right: auto; }
+[dir="rtl"] input, [dir="rtl"] textarea { text-align: right; }
 
 @layer utilities {
   /* Hide scrollbar while preserving scroll functionality */

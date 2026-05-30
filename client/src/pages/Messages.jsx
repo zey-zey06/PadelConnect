@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Send, ArrowLeft, AlertCircle, Smile, Calendar, Clock, Building2, User } from 'lucide-react';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import EmojiPicker from 'emoji-picker-react';
@@ -294,6 +295,7 @@ function ProfileShareCard({ msg }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function Messages() {
+  const { t }          = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate       = useNavigate();
   const { user }       = useAuth();
@@ -723,7 +725,7 @@ export default function Messages() {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Écrire un message…"
+                  placeholder={t('chat.placeholder')}
                   disabled={sending}
                   autoComplete="off"
                   className="flex-1 text-sm outline-none transition-all duration-150"
@@ -741,7 +743,7 @@ export default function Messages() {
                 <button
                   type="submit"
                   disabled={!draft.trim() || sending}
-                  aria-label="Envoyer"
+                  aria-label={t('chat.send')}
                   className="shrink-0 h-10 w-10 rounded-full flex items-center justify-center transition-all duration-150"
                   style={{
                     background: draft.trim() && !sending ? '#1A3D2B' : '#E8E0D4',

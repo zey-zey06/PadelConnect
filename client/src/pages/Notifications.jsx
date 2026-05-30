@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { getNotifications, markAsRead } from '@/api/notifications';
 import { acceptFriendRequest, refuseFriendRequest } from '@/api/friends';
 import { getMySessions, invitePlayer } from '@/api/sessions';
@@ -171,6 +172,7 @@ function PullSpinner() {
 }
 
 export default function Notifications() {
+  const { t } = useTranslation();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState(null);
@@ -259,7 +261,7 @@ export default function Notifications() {
         </div>
         {unreadCount > 0 && (
           <Button variant="outline" size="sm" onClick={handleMarkAllRead}>
-            Tout marquer comme lu ({unreadCount})
+            {t('notifications.markAllRead')} ({unreadCount})
           </Button>
         )}
       </div>
@@ -274,7 +276,7 @@ export default function Notifications() {
       ) : notifications.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-12 text-center space-y-3">
           <Bell className="h-8 w-8 text-muted-foreground mx-auto" />
-          <p className="text-sm font-medium text-foreground">Aucune notification</p>
+          <p className="text-sm font-medium text-foreground">{t('notifications.empty')}</p>
           <p className="text-xs text-muted-foreground">
             Vous serez notifié des demandes de session, réservations et mises à jour.
           </p>
@@ -343,7 +345,7 @@ export default function Notifications() {
                           ? <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin" />
                           : <UserCheck className="h-3 w-3" />
                         }
-                        Accepter
+                        {t('notifications.accept')}
                       </Button>
                       <Button
                         size="sm"
@@ -356,7 +358,7 @@ export default function Notifications() {
                           ? <span className="w-3 h-3 border border-red-400/50 border-t-transparent rounded-full animate-spin" />
                           : <UserX className="h-3 w-3" />
                         }
-                        Refuser
+                        {t('notifications.refuse')}
                       </Button>
                     </div>
                   )}
@@ -373,7 +375,7 @@ export default function Notifications() {
                           ? <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin" />
                           : <UserCheck className="h-3 w-3" />
                         }
-                        Accepter
+                        {t('notifications.accept')}
                       </Button>
                       <Button
                         size="sm"
@@ -386,7 +388,7 @@ export default function Notifications() {
                           ? <span className="w-3 h-3 border border-red-400/50 border-t-transparent rounded-full animate-spin" />
                           : <UserX className="h-3 w-3" />
                         }
-                        Refuser
+                        {t('notifications.refuse')}
                       </Button>
                     </div>
                   )}
@@ -397,7 +399,7 @@ export default function Notifications() {
                       onClick={() => handleMarkRead(n.id)}
                       className="text-xs text-muted-foreground"
                     >
-                      Lire
+                      {t('notifications.markRead')}
                     </Button>
                   )}
                 </div>

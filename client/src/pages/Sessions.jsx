@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   listSessions, createSession, requestJoin, getMySessions,
@@ -191,6 +192,7 @@ const GENDER_ICON    = { mixed: '⚧', women: '♀', men: '♂' };
 
 // ── Session detail modal ──────────────────────────────────────────────────────
 function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }) {
+  const { t }              = useTranslation();
   const { user }           = useAuth();
   const { openPlayerPanel } = usePlayerPanel();
   const [participants,  setParticipants]  = useState(null);
@@ -372,17 +374,17 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
             {state === 'accepted' ? (
               <p className="text-xs text-green-700 flex items-center justify-center gap-1.5 py-2 font-semibold">
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                Confirmé — vous faites partie de la session !
+                {t('sessions.confirmed')} — vous faites partie de la session !
               </p>
             ) : state === 'refused' ? (
               <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5 py-2">
                 <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
-                Demande refusée.
+                {t('sessions.refused')}.
               </p>
             ) : state === 'pending' ? (
               <p className="text-xs text-green-600 flex items-center justify-center gap-1 py-2 font-medium">
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                Demande envoyée — en attente de confirmation.
+                {t('sessions.sent')} — en attente de confirmation.
               </p>
             ) : (
               <Button
@@ -394,12 +396,12 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
                 {state === 'loading' ? (
                   <>
                     <span className="w-4 h-4 border-2 border-current/40 border-t-transparent rounded-full animate-spin" />
-                    Envoi…
+                    {t('common.loading')}
                   </>
-                ) : isFull ? 'Session complète' : (
+                ) : isFull ? t('sessions.full') : (
                   <>
                     <Plus className="h-4 w-4" />
-                    Rejoindre la session
+                    {t('sessions.join')}
                   </>
                 )}
               </Button>
@@ -412,6 +414,7 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
 }
 
 function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestStatus = null }) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { openPlayerPanel } = usePlayerPanel();
   // Derive initial state from the server-side request status
@@ -597,17 +600,17 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
           ) : state === 'accepted' ? (
             <p className="text-xs text-green-700 flex items-center justify-center gap-1.5 py-2 font-semibold">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-              Confirmé — vous faites partie de la session !
+              {t('sessions.confirmed')} — vous faites partie de la session !
             </p>
           ) : state === 'refused' ? (
             <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5 py-2 font-medium">
               <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
-              Demande refusée.
+              {t('sessions.refused')}.
             </p>
           ) : state === 'pending' ? (
             <p className="text-xs text-green-600 flex items-center justify-center gap-1 py-2 font-medium">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-              Demande envoyée — en attente de confirmation.
+              {t('sessions.sent')} — en attente de confirmation.
             </p>
           ) : state === 'error' ? (
             <div className="space-y-2">
@@ -615,7 +618,7 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
                 <AlertCircle className="h-3 w-3 shrink-0" />{msg}
               </p>
               <Button size="sm" className="w-full" onClick={handleJoin} disabled={isFull}>
-                Réessayer
+                {t('common.retry')}
               </Button>
             </div>
           ) : (
@@ -628,12 +631,12 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
               {state === 'loading' ? (
                 <>
                   <span className="w-4 h-4 border-2 border-current/40 border-t-transparent rounded-full animate-spin" />
-                  Envoi…
+                  {t('common.loading')}
                 </>
-              ) : isFull ? 'Session complète' : (
+              ) : isFull ? t('sessions.full') : (
                 <>
                   <Plus className="h-4 w-4" />
-                  Rejoindre la session
+                  {t('sessions.join')}
                 </>
               )}
             </Button>
@@ -795,6 +798,7 @@ function FilterBar({ dateFilter, setDateFilter, levelFilter, setLevelFilter, gen
 
 // ── Create session modal (redesigned) ─────────────────────────────────────────
 function CreateSessionModal({ onClose, onCreate }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState(() => ({
     date:        new Date().toISOString().slice(0, 10),
     time:        '09:00',
@@ -851,7 +855,7 @@ function CreateSessionModal({ onClose, onCreate }) {
       <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-          <h2 className="text-lg font-semibold text-foreground">Créer une session</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t('sessions.create')}</h2>
           <button
             onClick={() => onClose(null)}
             className="text-muted-foreground hover:text-foreground transition-colors rounded-lg p-1 hover:bg-muted"
@@ -980,7 +984,7 @@ function CreateSessionModal({ onClose, onCreate }) {
             disabled={loading}
             className="w-full h-12 text-base font-semibold bg-green-600 hover:bg-green-700 border-0 text-white"
           >
-            {loading ? 'Création…' : 'Créer la session'}
+            {loading ? t('auth.creating') : t('sessions.create')}
           </Button>
         </form>
       </div>
@@ -2628,6 +2632,7 @@ function MySessions({ autoOpen = false }) {
 
 // ── Sessions page ─────────────────────────────────────────────────────────────
 export default function Sessions() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const fromNotification = searchParams.get('tab') === 'mine';
   const [tab, setTab] = useState(fromNotification ? 'mine' : 'browse');
@@ -2740,15 +2745,15 @@ export default function Sessions() {
         </div>
         <Button onClick={() => setShowCreate(true)}>
           <Plus className="h-4 w-4" />
-          Créer une session
+          {t('sessions.create')}
         </Button>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
         {[
-          { key: 'browse', label: 'Sessions disponibles' },
-          { key: 'mine',   label: 'Mes sessions' },
+          { key: 'browse', label: t('sessions.all') },
+          { key: 'mine',   label: t('sessions.mine') },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -2790,7 +2795,7 @@ export default function Sessions() {
             <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center space-y-4">
               <Users className="h-8 w-8 text-muted-foreground mx-auto" />
               <div>
-                <p className="font-medium text-foreground">Aucune session disponible</p>
+                <p className="font-medium text-foreground">{t('sessions.noSessions')}</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {hasFilters
                     ? "Aucun résultat pour ces filtres. Essayez d'en changer."

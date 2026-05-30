@@ -365,6 +365,7 @@ function CoverUpload({ currentUrl, onUploaded }) {
 }
 
 function EditForm({ profile, user, onSave, onCancel, onPhotoUploaded }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({
     first_name:   user?.first_name   ?? '',
     last_name:    user?.last_name    ?? '',
@@ -413,7 +414,7 @@ function EditForm({ profile, user, onSave, onCancel, onPhotoUploaded }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-border bg-card p-6 shadow-sm">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-foreground">Modifier le profil</h2>
+        <h2 className="text-base font-semibold text-foreground">{t('profile.edit')}</h2>
         <button type="button" onClick={onCancel} className="text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
         </button>
@@ -898,7 +899,7 @@ const LANGUAGES = [
 ];
 
 function LanguageSelector() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const current = i18n.language?.slice(0, 2) || localStorage.getItem('padelconnect_lang') || 'fr';
 
   function handleSelect(code) {
@@ -908,7 +909,7 @@ function LanguageSelector() {
   return (
     <div className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl">
       <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
-      <span className="text-sm text-foreground flex-1">Langue</span>
+      <span className="text-sm text-foreground flex-1">{t('profile.language')}</span>
       <div className="flex gap-1">
         {LANGUAGES.map(({ code, label, flag }) => (
           <button
@@ -933,6 +934,7 @@ function LanguageSelector() {
 
 // ── Hamburger slide-out menu ──────────────────────────────────────────────────
 function HamburgerMenu({ open, onClose, onPassword, onDelete, onLogout }) {
+  const { t } = useTranslation();
   return (
     <>
       {/* Backdrop */}
@@ -945,7 +947,7 @@ function HamburgerMenu({ open, onClose, onPassword, onDelete, onLogout }) {
         open ? 'translate-x-0' : 'translate-x-full',
       )}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border">
-          <h2 className="text-base font-semibold text-foreground">Paramètres</h2>
+          <h2 className="text-base font-semibold text-foreground">{t('profile.settings')}</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-muted transition-colors">
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
@@ -957,7 +959,7 @@ function HamburgerMenu({ open, onClose, onPassword, onDelete, onLogout }) {
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-foreground hover:bg-muted transition-colors text-left"
           >
             <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-            Changer le mot de passe
+            {t('profile.password')}
           </button>
           <Link
             to="/privacy"
@@ -965,21 +967,21 @@ function HamburgerMenu({ open, onClose, onPassword, onDelete, onLogout }) {
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-foreground hover:bg-muted transition-colors"
           >
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-            Politique de confidentialité
+            {t('profile.privacy')}
           </Link>
           <button
             onClick={() => { onClose(); onLogout(); }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-left"
           >
             <LogOut className="h-4 w-4 shrink-0" />
-            Se déconnecter
+            {t('profile.logout')}
           </button>
           <button
             onClick={() => { onClose(); onDelete(); }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
           >
             <Trash2 className="h-4 w-4 shrink-0" />
-            Supprimer mon compte
+            {t('profile.delete')}
           </button>
         </div>
       </div>

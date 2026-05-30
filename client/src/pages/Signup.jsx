@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { signup } from '@/api/auth';
 import { useAuth, homeFor } from '@/App';
 import { Button }   from '@/components/ui/button';
@@ -33,6 +34,7 @@ const ROLES = [
 const VALID_ROLES = ROLES.map((r) => r.value);
 
 export default function Signup() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { setUser } = useAuth();
   const [searchParams] = useSearchParams();
@@ -168,9 +170,9 @@ export default function Signup() {
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">
-              Déjà un compte ?{' '}
+              {t('auth.alreadyAccount')}{' '}
               <Link to="/login" className="text-primary font-medium hover:underline">
-                Se connecter
+                {t('auth.login')}
               </Link>
             </p>
           </div>
@@ -226,25 +228,25 @@ export default function Signup() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="firstName">Prénom</Label>
+                  <Label htmlFor="firstName">{t('auth.firstName')}</Label>
                   <Input id="firstName" name="firstName" type="text" placeholder="Kofi"
                     autoComplete="given-name" value={form.firstName} onChange={handleChange} required />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="lastName">Nom</Label>
+                  <Label htmlFor="lastName">{t('auth.lastName')}</Label>
                   <Input id="lastName" name="lastName" type="text" placeholder="Mensah"
                     autoComplete="family-name" value={form.lastName} onChange={handleChange} required />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t('auth.email')}</Label>
                 <Input id="email" name="email" type="email" placeholder="vous@exemple.com"
                   autoComplete="email" value={form.email} onChange={handleChange} required />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="password">Mot de passe</Label>
+                <Label htmlFor="password">{t('auth.password')}</Label>
                 <div className="relative">
                   <Input id="password" name="password" type={showPwd ? 'text' : 'password'}
                     placeholder="8 caractères minimum" autoComplete="new-password"
@@ -271,7 +273,7 @@ export default function Signup() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
+                <Label htmlFor="confirmPassword">{t('auth.confirmPassword')}</Label>
                 <div className="relative">
                   <Input id="confirmPassword" name="confirmPassword" type={showConfirm ? 'text' : 'password'}
                     placeholder="••••••••" autoComplete="new-password"
@@ -289,9 +291,9 @@ export default function Signup() {
                 {loading ? (
                   <>
                     <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />
-                    Création…
+                    {t('auth.creating')}
                   </>
-                ) : 'Créer mon compte'}
+                ) : t('auth.signup')}
               </Button>
 
               <p className="text-center text-xs text-muted-foreground">
@@ -303,9 +305,9 @@ export default function Signup() {
             </form>
 
             <p className="text-center text-sm text-muted-foreground">
-              Déjà un compte ?{' '}
+              {t('auth.alreadyAccount')}{' '}
               <Link to="/login" className="text-primary font-medium hover:underline">
-                Se connecter
+                {t('auth.login')}
               </Link>
             </p>
           </div>
