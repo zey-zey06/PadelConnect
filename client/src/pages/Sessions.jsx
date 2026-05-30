@@ -1117,6 +1117,35 @@ function findAllCoveringOptions(availSlots, sessionStart, sessionEnd) {
 
 // ── Terrain picker modal ───────────────────────────────────────────────────────
 // 3-step: choose club → choose slot covering session time → confirm + pay
+// Returns consecutive available slots starting from startSlot until sessionEnd is covered
+function buildAutoChain(startSlot, allSlots, sessionEnd) {
+  const byStart = {};
+  for (const s of allSlots) {
+    const key = (s.start_time ?? '').slice(0, 5);
+    if (!byStart[key]) byStart[key] = s;
+  }
+  const chain = [startSlot];
+  if (!sessionEnd) return chain;
+  let curEnd = (startSlot.end_time ?? '').slice(0, 5);
+  while (curEnd < sessionEnd) {
+    const next = byStart[curEnd];
+    if (!next) break;
+    chain.push(next);
+    curEnd = (next.end_time ?? '').slice(0, 5);
+  }
+  return chain;
+}
+
+function calcDuration(startHHMM, endHHMM) {
+  const [sh, sm] = startHHMM.split(':').map(Number);
+  const [eh, em] = endHHMM.split(':').map(Number);
+  const mins = (eh * 60 + em) - (sh * 60 + sm);
+  if (mins <= 0) return '';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? (m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h00`) : `${m}min`;
+}
+
 function TerrainPickerModal({ session, onClose, onBooked, bookingMode = 'session' }) {
   const { openPlayerPanel } = usePlayerPanel();
   const [step,            setStep]            = useState(1);
@@ -1127,6 +1156,9 @@ function TerrainPickerModal({ session, onClose, onBooked, bookingMode = 'session
   const [loadingSlots,    setLoadingSlots]    = useState(false);
   const [selectedSlot,    setSelectedSlot]    = useState(null);
   const [selectedDate,    setSelectedDate]    = useState(() => new Date().toISOString().slice(0, 10));
+  // Grid selection state (session mode step 2)
+  const [gridSelectedSlots, setGridSelectedSlots] = useState([]);
+  const [gridSelectedVenue, setGridSelectedVenue] = useState(null);
   const [availableCoaches,   setAvailableCoaches]   = useState([]);
   const [loadingCoaches,     setLoadingCoaches]     = useState(false);
   const [selectedCoaches,    setSelectedCoaches]    = useState([]); // [{user_id, user_first_name, …}]
@@ -1187,19 +1219,27 @@ function TerrainPickerModal({ session, onClose, onBooked, bookingMode = 'session
       return;
     }
 
-    // session mode — filter by session date + time
+    // session mode — filter to slots that overlap the session window
     setLoadingSlots(true);
+    setGridSelectedSlots([]);
+    setGridSelectedVenue(null);
     try {
       const { venues } = await getClubSlots(club.id, session.date);
+      const sessionEnd = sessionEndTime || sessionTime;
       const filtered = (venues ?? [])
         .map((v) => {
-          const availSlots = (v.slots ?? [])
-            .filter((sl) => sl.status === 'available')
+          const overlappingSlots = (v.slots ?? [])
+            .filter((sl) => {
+              if (sl.status !== 'available') return false;
+              const st = (sl.start_time ?? '').slice(0, 5);
+              const et = (sl.end_time   ?? '').slice(0, 5);
+              // Slot overlaps session window: starts before session ends, ends after session starts
+              return st <= sessionEnd && et > sessionTime;
+            })
             .sort((a, b) => ((a.start_time ?? '') < (b.start_time ?? '') ? -1 : 1));
-          const matchingChains = findAllCoveringOptions(availSlots, sessionTime, sessionEndTime);
-          return { ...v, matchingChains };
+          return { ...v, overlappingSlots };
         })
-        .filter((v) => v.matchingChains.length > 0);
+        .filter((v) => v.overlappingSlots.length > 0);
       setVenueData(filtered);
       setStep(2);
     } catch (e) {
@@ -1207,6 +1247,46 @@ function TerrainPickerModal({ session, onClose, onBooked, bookingMode = 'session
     } finally {
       setLoadingSlots(false);
     }
+  }
+
+  function handleSlotGridClick(slot, allOverlappingSlots, venueId, venueName) {
+    // Clicking an already-selected slot deselects everything
+    if (gridSelectedSlots.some((s) => s.id === slot.id)) {
+      setGridSelectedSlots([]);
+      setGridSelectedVenue(null);
+      return;
+    }
+    // Auto-build chain from this slot covering the session duration
+    const chain = buildAutoChain(slot, allOverlappingSlots, sessionEndTime || sessionTime);
+    setGridSelectedSlots(chain);
+    setGridSelectedVenue({ id: venueId, name: venueName });
+  }
+
+  function handleGridConfirm() {
+    if (!gridSelectedSlots.length || !gridSelectedVenue) return;
+    setSelectedSlot({
+      slots:      gridSelectedSlots,
+      venue_name: gridSelectedVenue.name,
+      start_time: gridSelectedSlots[0].start_time,
+      end_time:   gridSelectedSlots[gridSelectedSlots.length - 1].end_time,
+      totalPrice: gridSelectedSlots.reduce((sum, s) => sum + Number(s.price ?? 0), 0),
+    });
+    setSelectedCoaches([]);
+    setSelectedBallPicker(null);
+    setAvailableCoaches([]);
+    setAvailableBallPickers([]);
+    setLoadingCoaches(true);
+    setLoadingBallPickers(true);
+    getClubCoaches(selectedClub.id)
+      .then(({ coaches }) => setAvailableCoaches(coaches ?? []))
+      .catch(() => setAvailableCoaches([]))
+      .finally(() => setLoadingCoaches(false));
+    getClubBallPickers(selectedClub.id)
+      .then(({ ballPickers }) => setAvailableBallPickers(ballPickers ?? []))
+      .catch(() => setAvailableBallPickers([]))
+      .finally(() => setLoadingBallPickers(false));
+    setStep(3);
+    setError(null);
   }
 
   async function handleDateChange(date) {
@@ -1566,7 +1646,7 @@ function TerrainPickerModal({ session, onClose, onBooked, bookingMode = 'session
                 <div>
                   <p className="font-medium text-foreground text-sm">Aucun terrain disponible</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Pas de créneau couvrant {sessionTime}{sessionEndTime ? ` – ${sessionEndTime}` : ''} le{' '}
+                    Pas de créneau autour de {sessionTime}{sessionEndTime ? ` – ${sessionEndTime}` : ''} le{' '}
                     <span className="capitalize">
                       {parseSessionDate(session.date).toLocaleDateString('fr-FR')}
                     </span>.
@@ -1577,42 +1657,95 @@ function TerrainPickerModal({ session, onClose, onBooked, bookingMode = 'session
                 </Button>
               </div>
             ) : (
-              venueData.map((venue) => (
-                <div key={venue.id} className="space-y-2">
-                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">
-                    {venue.name}
+              <div className="space-y-5">
+                {/* Session window reminder */}
+                <div className="flex items-center gap-2 rounded-xl bg-primary/5 border border-primary/15 px-4 py-2.5">
+                  <Clock className="h-4 w-4 text-primary shrink-0" />
+                  <p className="text-xs text-foreground">
+                    Session{' '}
+                    <span className="font-semibold">{sessionTime}{sessionEndTime ? ` – ${sessionEndTime}` : ''}</span>
+                    {' '}— sélectionnez les créneaux à couvrir
                   </p>
-                  {venue.matchingChains.map((chain, idx) => {
-                    const n = chain.slots.length;
-                    const isExact = chain.end_time?.slice(0, 5) === sessionEndTime;
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => handleSelectChain(chain, venue.name)}
-                        className="w-full flex items-center gap-4 rounded-xl border-2 border-primary/30 bg-primary/5 px-4 py-3.5 hover:border-primary hover:bg-primary/10 transition-all text-left"
-                      >
-                        <div className="h-9 w-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                          <Clock className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-foreground">
-                            {chain.start_time?.slice(0, 5)} – {chain.end_time?.slice(0, 5)}
-                            {!isExact && (
-                              <span className="ml-2 text-[10px] font-medium text-primary/60 bg-primary/10 px-1.5 py-0.5 rounded-full">
-                                élargi
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {n} créneau{n > 1 ? 'x' : ''} · {chain.totalPrice.toLocaleString('fr-FR')} FCFA · disponible
-                          </p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-primary shrink-0" />
-                      </button>
-                    );
-                  })}
                 </div>
-              ))
+
+                {venueData.map((venue) => {
+                  const isThisVenueSelected = gridSelectedVenue?.id === venue.id;
+                  return (
+                    <div key={venue.id} className="space-y-2">
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">
+                        {venue.name}
+                      </p>
+
+                      {/* Slot chips grid */}
+                      <div className="flex flex-wrap gap-2">
+                        {venue.overlappingSlots.map((slot) => {
+                          const isSelected = isThisVenueSelected &&
+                            gridSelectedSlots.some((s) => s.id === slot.id);
+                          const isDisabled = gridSelectedVenue &&
+                            gridSelectedVenue.id !== venue.id;
+                          return (
+                            <button
+                              key={slot.id}
+                              type="button"
+                              disabled={!!isDisabled}
+                              onClick={() => handleSlotGridClick(slot, venue.overlappingSlots, venue.id, venue.name)}
+                              className={cn(
+                                'flex flex-col items-center rounded-xl border-2 px-3 py-2 transition-all active:scale-95 disabled:opacity-30',
+                                isSelected
+                                  ? 'border-green-600 bg-green-600 text-white shadow-md'
+                                  : 'border-primary/25 bg-primary/5 text-foreground hover:border-primary hover:bg-primary/10',
+                              )}
+                            >
+                              <span className="text-xs font-bold leading-none">
+                                {slot.start_time?.slice(0, 5)}
+                              </span>
+                              <span className={cn(
+                                'text-[10px] leading-none mt-0.5',
+                                isSelected ? 'text-white/80' : 'text-muted-foreground'
+                              )}>
+                                {slot.end_time?.slice(0, 5)}
+                              </span>
+                              {slot.price > 0 && (
+                                <span className={cn(
+                                  'text-[9px] font-semibold mt-1 leading-none',
+                                  isSelected ? 'text-white/70' : 'text-primary/70'
+                                )}>
+                                  {Number(slot.price).toLocaleString('fr-FR')} ₣
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Selection summary + confirm */}
+                {gridSelectedSlots.length > 0 && gridSelectedVenue && (
+                  <div className="sticky bottom-0 bg-card border-t border-border -mx-5 px-5 py-3 space-y-2.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-foreground">
+                        {gridSelectedSlots.length} créneau{gridSelectedSlots.length > 1 ? 'x' : ''}
+                        {' '}·{' '}
+                        {calcDuration(
+                          gridSelectedSlots[0].start_time?.slice(0, 5),
+                          gridSelectedSlots[gridSelectedSlots.length - 1].end_time?.slice(0, 5),
+                        )}
+                      </span>
+                      <span className="font-bold text-foreground">
+                        {gridSelectedSlots.reduce((s, sl) => s + Number(sl.price ?? 0), 0).toLocaleString('fr-FR')} FCFA
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {gridSelectedVenue.name} · {gridSelectedSlots[0].start_time?.slice(0, 5)} – {gridSelectedSlots[gridSelectedSlots.length - 1].end_time?.slice(0, 5)}
+                    </p>
+                    <Button className="w-full" onClick={handleGridConfirm}>
+                      Continuer <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             )
           )}
 
