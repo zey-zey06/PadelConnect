@@ -1,29 +1,28 @@
-const { Resend } = require('resend');
+﻿const nodemailer = require('nodemailer');
 
-const FROM = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+const FROM = process.env.GMAIL_USER || 'padelconnectci@gmail.com';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getTransporter() {
+  return nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_PASSWORD,
+    },
+  });
+}
 
 async function sendEmail(mailOptions) {
   try {
-    const result = await resend.emails.send({
-      from:    mailOptions.from || FROM,
-      to:      mailOptions.to,
-      subject: mailOptions.subject,
-      html:    mailOptions.html,
-    });
-
-    if (result.error) {
-      const err = new Error(result.error.message || 'Resend error');
-      err.code     = result.error.name;
-      err.response = result.error;
-      throw err;
-    }
-
-    console.log('[MAILER] sent to:', mailOptions.to, '— id:', result.data?.id);
-    return { messageId: result.data?.id };
+    const transporter = getTransporter();
+    console.log('[MAILER] Attempting to send to:', mailOptions.to);
+    const result = await transporter.sendMail(mailOptions);
+    console.log('[MAILER] SUCCESS:', result.messageId);
+    return result;
   } catch (err) {
-    console.error('[MAILER] FAILED to:', mailOptions.to, '—', err.message);
+    console.error('[MAILER] FAILED:', err.message);
     throw err;
   }
 }
