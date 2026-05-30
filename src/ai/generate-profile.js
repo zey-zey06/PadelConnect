@@ -1,6 +1,4 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const OpenAI = require('openai');
 
 const DEGRADED = {
   niveau: 4,
@@ -11,17 +9,26 @@ const DEGRADED = {
 };
 
 async function generateProfile(description) {
+  if (!process.env.OPENAI_API_KEY) return { ...DEGRADED };
+
   try {
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
-      systemInstruction: "Tu es un expert padel. À partir de la description d'un joueur, génère un profil JSON structuré. Réponds uniquement avec du JSON valide, sans texte supplémentaire ni balises markdown.",
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: "Tu es un expert padel. À partir de la description d'un joueur, génère un profil JSON structuré. Réponds uniquement avec du JSON valide, sans texte supplémentaire ni balises markdown.",
+        },
+        {
+          role: 'user',
+          content: `Description du joueur: ${description}\n\nGénère un profil JSON avec exactement ce format:\n{\n  "niveau": <entier entre 1 et 7>,\n  "style": "<style de jeu en quelques mots>",\n  "points_forts": ["<point1>", "<point2>"],\n  "points_faibles": ["<point1>"],\n  "description_courte": "<résumé en 1-2 phrases>"\n}`,
+        },
+      ],
+      response_format: { type: 'json_object' },
     });
 
-    const prompt = `Description du joueur: ${description}\n\nGénère un profil JSON avec exactement ce format:\n{\n  "niveau": <entier entre 1 et 7>,\n  "style": "<style de jeu en quelques mots>",\n  "points_forts": ["<point1>", "<point2>"],\n  "points_faibles": ["<point1>"],\n  "description_courte": "<résumé en 1-2 phrases>"\n}`;
-
-    const result = await model.generateContent(prompt);
-    const raw = result.response.text().trim();
-    const text = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+    const text = completion.choices[0].message.content.trim();
     const json = JSON.parse(text);
 
     const niveau = Number(json.niveau);
@@ -31,9 +38,9 @@ async function generateProfile(description) {
 
     return {
       niveau,
-      style: String(json.style || '').trim(),
-      points_forts: Array.isArray(json.points_forts) ? json.points_forts.map(String) : [],
-      points_faibles: Array.isArray(json.points_faibles) ? json.points_faibles.map(String) : [],
+      style:              String(json.style || '').trim(),
+      points_forts:       Array.isArray(json.points_forts)  ? json.points_forts.map(String)  : [],
+      points_faibles:     Array.isArray(json.points_faibles) ? json.points_faibles.map(String) : [],
       description_courte: String(json.description_courte || '').trim(),
     };
   } catch (err) {

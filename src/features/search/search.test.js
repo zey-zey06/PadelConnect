@@ -4,17 +4,6 @@ process.env.COOKIE_SECURE = 'false';
 
 const request = require('supertest');
 
-jest.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn().mockReturnValue({
-      startChat: jest.fn().mockReturnValue({
-        sendMessage: jest.fn().mockResolvedValue({
-          response: { text: jest.fn().mockReturnValue('ok') },
-        }),
-      }),
-    }),
-  })),
-}));
 jest.mock('multer', () => {
   const m = () => ({ single: () => (req, res, next) => next() });
   m.diskStorage   = () => ({});

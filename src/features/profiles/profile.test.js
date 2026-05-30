@@ -1,18 +1,11 @@
-process.env.JWT_SECRET = 'test-secret-that-is-at-least-64-characters-long-for-testing-purposes-00';
-process.env.NODE_ENV = 'test';
-process.env.COOKIE_SECURE = 'false';
+process.env.JWT_SECRET     = 'test-secret-that-is-at-least-64-characters-long-for-testing-purposes-00';
+process.env.NODE_ENV       = 'test';
+process.env.COOKIE_SECURE  = 'false';
+process.env.OPENAI_API_KEY = 'test-key';
 
 const request = require('supertest');
 
-// Mock Google Gemini SDK — __mockGenerateContent is exposed so tests can configure it
-jest.mock('@google/generative-ai', () => {
-  const mockGenerateContent = jest.fn();
-  const MockGoogleGenerativeAI = jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn().mockReturnValue({ generateContent: mockGenerateContent }),
-  }));
-  MockGoogleGenerativeAI.__mockGenerateContent = mockGenerateContent;
-  return { GoogleGenerativeAI: MockGoogleGenerativeAI };
-});
+// OpenAI mock is auto-applied via moduleNameMapper (see package.json)
 
 // Mock multer — reads req.file from a global so individual tests can control it
 jest.mock('multer', () => {
@@ -44,12 +37,12 @@ jest.mock('../../db', () => {
   return mockDb;
 });
 
-const app = require('../../app');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const db = require('../../db');
+const app    = require('../../app');
+const OpenAI = require('openai');
+const db     = require('../../db');
 const { signToken } = require('../../auth/jwt');
 
-const mockGenerateContent = GoogleGenerativeAI.__mockGenerateContent;
+const mockCreate = OpenAI.__mockCreate;
 const qb = db.__qb;
 
 const USER_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
@@ -69,15 +62,13 @@ const PROFILE = {
 };
 
 const AI_RESPONSE = {
-  response: {
-    text: () => JSON.stringify({
-      niveau: 5,
-      style: 'attaquant',
-      points_forts: ['smash', 'volée'],
-      points_faibles: ['défense'],
-      description_courte: 'Joueur offensif.',
-    }),
-  },
+  choices: [{ message: { content: JSON.stringify({
+    niveau: 5,
+    style: 'attaquant',
+    points_forts: ['smash', 'volée'],
+    points_faibles: ['défense'],
+    description_courte: 'Joueur offensif.',
+  }) } }],
 };
 
 function resetQb() {
@@ -98,11 +89,11 @@ describe('POST /api/profile/generate', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resetQb();
-    mockGenerateContent.mockReset();
+    mockCreate.mockReset();
   });
 
   it('CU-04: generate success — 200 with AI-generated profile', async () => {
-    mockGenerateContent.mockResolvedValue(AI_RESPONSE);
+    mockCreate.mockResolvedValue(AI_RESPONSE);
     qb.first.mockResolvedValueOnce(null);
     qb.returning.mockResolvedValueOnce([PROFILE]);
 
@@ -117,7 +108,7 @@ describe('POST /api/profile/generate', () => {
   });
 
   it('CU-04: generate — AI failure returns degraded profile, never blocks user', async () => {
-    mockGenerateContent.mockRejectedValue(new Error('Gemini API down'));
+    mockCreate.mockRejectedValue(new Error('OpenAI API down'));
     qb.first.mockResolvedValueOnce(null);
     qb.returning.mockResolvedValueOnce([{ ...PROFILE, level: 4, style: 'unknown' }]);
 

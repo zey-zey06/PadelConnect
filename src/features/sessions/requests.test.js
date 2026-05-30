@@ -1,18 +1,11 @@
-process.env.JWT_SECRET = 'test-secret-that-is-at-least-64-characters-long-for-testing-purposes-00';
-process.env.NODE_ENV = 'test';
-process.env.COOKIE_SECURE = 'false';
+process.env.JWT_SECRET     = 'test-secret-that-is-at-least-64-characters-long-for-testing-purposes-00';
+process.env.NODE_ENV       = 'test';
+process.env.COOKIE_SECURE  = 'false';
+process.env.OPENAI_API_KEY = 'test-key';
 
 const request = require('supertest');
 
-// Expose __mockGenerateContent so individual tests can configure AI responses
-jest.mock('@google/generative-ai', () => {
-  const mockGenerateContent = jest.fn();
-  const MockGoogleGenerativeAI = jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn().mockReturnValue({ generateContent: mockGenerateContent }),
-  }));
-  MockGoogleGenerativeAI.__mockGenerateContent = mockGenerateContent;
-  return { GoogleGenerativeAI: MockGoogleGenerativeAI };
-});
+// OpenAI mock is auto-applied via moduleNameMapper (see package.json)
 
 jest.mock('multer', () => {
   const m = () => ({ single: () => (req, res, next) => next() });
@@ -41,12 +34,12 @@ jest.mock('../../db', () => {
   return mockDb;
 });
 
-const app = require('../../app');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const db = require('../../db');
+const app    = require('../../app');
+const OpenAI = require('openai');
+const db     = require('../../db');
 const { signToken } = require('../../auth/jwt');
 
-const mockGenerateContent = GoogleGenerativeAI.__mockGenerateContent;
+const mockCreate = OpenAI.__mockCreate;
 const qb = db.__qb;
 
 // Two distinct users: CREATOR creates sessions, PLAYER requests to join
@@ -81,9 +74,7 @@ const SESSION_REQUEST = {
 };
 
 const AI_SCORE_RESPONSE = {
-  response: {
-    text: () => JSON.stringify({ score: 75, explication: 'Bonne compatibilité.' }),
-  },
+  choices: [{ message: { content: JSON.stringify({ score: 75, explication: 'Bonne compatibilité.' }) } }],
 };
 
 const NOTIFICATION = {
@@ -118,10 +109,10 @@ function resetQb() {
 //   returning() → notificationsRepo.create (notify session creator)
 // ---------------------------------------------------------------------------
 describe('POST /api/sessions/:id/requests', () => {
-  beforeEach(() => { jest.clearAllMocks(); resetQb(); mockGenerateContent.mockReset(); });
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); mockCreate.mockReset(); });
 
   it('CU-06: create request — 201 with AI score', async () => {
-    mockGenerateContent.mockResolvedValue(AI_SCORE_RESPONSE);
+    mockCreate.mockResolvedValue(AI_SCORE_RESPONSE);
     qb.first
       .mockResolvedValueOnce(SESSION)        // session exists
       .mockResolvedValueOnce(null)           // no duplicate
@@ -139,7 +130,7 @@ describe('POST /api/sessions/:id/requests', () => {
   });
 
   it('CU-06: create request — AI failure returns degraded score, never blocks', async () => {
-    mockGenerateContent.mockRejectedValue(new Error('Gemini down'));
+    mockCreate.mockRejectedValue(new Error('OpenAI down'));
     qb.first
       .mockResolvedValueOnce(SESSION)
       .mockResolvedValueOnce(null)
@@ -156,7 +147,7 @@ describe('POST /api/sessions/:id/requests', () => {
   });
 
   it('CU-06: create request — notification written to DB for session creator', async () => {
-    mockGenerateContent.mockResolvedValue(AI_SCORE_RESPONSE);
+    mockCreate.mockResolvedValue(AI_SCORE_RESPONSE);
     qb.first
       .mockResolvedValueOnce(SESSION)   // session exists
       .mockResolvedValueOnce(null)      // no duplicate
@@ -447,7 +438,7 @@ describe('PATCH /api/sessions/:id/requests/:requestId', () => {
 describe('POST /api/sessions/:id/requests — coach invite', () => {
   const COACH_ID = 'eeeeeeee-0000-0000-0000-000000000099';
 
-  beforeEach(() => { jest.clearAllMocks(); resetQb(); mockGenerateContent.mockReset(); });
+  beforeEach(() => { jest.clearAllMocks(); resetQb(); mockCreate.mockReset(); });
 
   it('CU-06: creator invites coach — 201', async () => {
     qb.first

@@ -5,11 +5,6 @@ process.env.COOKIE_SECURE = 'false';
 const request = require('supertest');
 
 // Minimal mocks for modules loaded transitively by app.js
-jest.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn().mockReturnValue({ generateContent: jest.fn() }),
-  })),
-}));
 jest.mock('multer', () => {
   const m = () => ({ single: () => (req, res, next) => next() });
   m.diskStorage = () => ({});

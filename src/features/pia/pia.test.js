@@ -1,28 +1,14 @@
-process.env.JWT_SECRET    = 'test-secret-that-is-at-least-64-characters-long-for-testing-purposes-00';
-process.env.NODE_ENV      = 'test';
-process.env.COOKIE_SECURE = 'false';
-process.env.GEMINI_API_KEY = 'test-key';
+process.env.JWT_SECRET     = 'test-secret-that-is-at-least-64-characters-long-for-testing-purposes-00';
+process.env.NODE_ENV       = 'test';
+process.env.COOKIE_SECURE  = 'false';
+process.env.OPENAI_API_KEY = 'test-key';
 
 const request = require('supertest');
 
-// ── Mock Google AI ─────────────────────────────────────────────────────────────
-const mockSendMessage = jest.fn().mockResolvedValue({
-  response: { text: jest.fn().mockReturnValue('Voici votre réponse PIA.') },
-});
-const mockStartChat       = jest.fn().mockReturnValue({ sendMessage: mockSendMessage });
-const mockGenerateContent = jest.fn().mockResolvedValue({
-  response: { text: jest.fn().mockReturnValue('Voici votre réponse PIA.') },
-});
-const mockGetModel = jest.fn().mockReturnValue({
-  startChat:       mockStartChat,
-  generateContent: mockGenerateContent,
-});
-
-jest.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-    getGenerativeModel: mockGetModel,
-  })),
-}));
+// ── OpenAI mock is auto-applied via moduleNameMapper (see package.json) ────────
+// Access the shared mockCreate so individual tests can configure AI responses.
+const OpenAI    = require('openai');
+const mockCreate = OpenAI.__mockCreate;
 
 jest.mock('multer', () => {
   const m = () => ({ single: () => (req, res, next) => next() });
@@ -120,9 +106,9 @@ describe('POST /api/pia/chat', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resetQb();
-    const aiResponse = { response: { text: jest.fn().mockReturnValue('Voici votre réponse PIA.') } };
-    mockSendMessage.mockResolvedValue(aiResponse);
-    mockGenerateContent.mockResolvedValue(aiResponse);
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: 'Voici votre réponse PIA.' } }],
+    });
   });
 
   it('CU-17: chat — 200 + AI response', async () => {

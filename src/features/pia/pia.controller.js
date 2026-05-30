@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const Joi = require('joi');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const OpenAI = require('openai');
 
 const authenticate    = require('../../middleware/authenticate');
 const profileRepo     = require('../profiles/profile.repository');
@@ -383,40 +383,31 @@ async function chatHandler(req, res, next) {
     const conversation = await getOrCreateConversation(userId, inputConvId);
 
     // Guard: API key required
-    if (!process.env.GEMINI_API_KEY) {
-      console.error('[PIA] GEMINI_API_KEY not set');
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('[PIA] OPENAI_API_KEY not set');
       return res.json({ response: 'PIA est temporairement indisponible. Veuillez réessayer plus tard. 🎾', conversation_id: conversation.id });
     }
 
     // Build context-aware system prompt for this role
-    const context    = await fetchContext(role, userId, orgId);
+    const context      = await fetchContext(role, userId, orgId);
     const systemPrompt = buildSystemPrompt(role, context);
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    // Try gemini-1.5-pro first, fall back to gemini-pro
-    let modelName = 'gemini-1.5-pro';
-    let model;
-    try {
-      model = genAI.getGenerativeModel({ model: modelName, systemInstruction: systemPrompt });
-      // Warm-up test omitted — model object creation doesn't throw; the actual call will
-    } catch {
-      modelName = 'gemini-pro';
-      model = genAI.getGenerativeModel({ model: modelName, systemInstruction: systemPrompt });
-    }
-    console.log('[PIA] Model being used:', modelName);
+    console.log('[PIA] Model being used: gpt-4o-mini');
 
-    // Sanitize history to guarantee strict user/model alternation,
-    // then pass everything as a single generateContent call.
-    // This avoids the startChat() history-validation errors that were
-    // causing all requests to fall into the catch block.
+    // Convert Gemini-format history (user/model + parts) to OpenAI messages (user/assistant + content)
     const validHistory = sanitizeHistory(history ?? []);
-    const contents = [
-      ...validHistory,
-      { role: 'user', parts: [{ text: message }] },
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...validHistory.map((msg) => ({
+        role:    msg.role === 'model' ? 'assistant' : 'user',
+        content: msg.parts?.[0]?.text ?? '',
+      })),
+      { role: 'user', content: message },
     ];
 
-    const result   = await model.generateContent({ contents });
-    const response = result.response.text();
+    const client     = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const completion = await client.chat.completions.create({ model: 'gpt-4o-mini', messages });
+    const response   = completion.choices[0].message.content;
 
     // Persist both messages to DB
     const now = new Date().toISOString();
@@ -500,77 +491,39 @@ async function conversationsHandler(req, res, next) {
   }
 }
 
-// ── Minimal Gemini smoke-test — hit GET /api/pia/test-gemini to check the key ─
+// ── OpenAI smoke-test — hit GET /api/pia/test-gemini to verify the key ───────
 async function testGeminiHandler(req, res) {
-  console.log('[PIA TEST] ── Starting minimal Gemini smoke-test ──');
-  console.log('[PIA TEST] Key exists:', !!process.env.GEMINI_API_KEY);
-  if (process.env.GEMINI_API_KEY) {
-    console.log('[PIA TEST] Key prefix:', process.env.GEMINI_API_KEY.substring(0, 10));
-    console.log('[PIA TEST] Key length:', process.env.GEMINI_API_KEY.length);
-  }
+  console.log('[PIA TEST] ── Starting OpenAI smoke-test ──');
+  console.log('[PIA TEST] Key exists:', !!process.env.OPENAI_API_KEY);
 
-  if (!process.env.GEMINI_API_KEY) {
-    console.error('[PIA TEST] FAIL — GEMINI_API_KEY is not set');
-    return res.json({ ok: false, error: 'GEMINI_API_KEY not configured' });
+  if (!process.env.OPENAI_API_KEY) {
+    console.error('[PIA TEST] FAIL — OPENAI_API_KEY is not set');
+    return res.json({ ok: false, error: 'OPENAI_API_KEY not configured' });
   }
 
   try {
-    console.log('[PIA TEST] Initializing GoogleGenerativeAI...');
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
-    console.log('[PIA] Model being used: gemini-1.5-pro');
-
-    console.log('[PIA TEST] Sending minimal prompt: "Say hello"');
-    const result = await model.generateContent('Say hello in one word.');
-    const text   = result.response.text();
-
-    console.log('[PIA TEST] SUCCESS — response:', text);
-    return res.json({ ok: true, response: text });
-  } catch (err) {
-    console.error('[PIA TEST] FAIL — err.message:', err?.message);
-    console.error('[PIA TEST] FAIL — err.stack:', err?.stack);
-    try {
-      console.error('[PIA TEST] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
-    } catch {
-      console.error('[PIA TEST] Full error (raw):', String(err));
-    }
-    return res.json({
-      ok:      false,
-      error:   err?.message ?? String(err),
-      name:    err?.name,
-      code:    err?.code,
-      status:  err?.status,
+    const client     = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const completion = await client.chat.completions.create({
+      model:    'gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Say hello in one word.' }],
     });
+    const text = completion.choices[0].message.content;
+    console.log('[PIA TEST] SUCCESS — response:', text);
+    return res.json({ ok: true, response: text, model: 'gpt-4o-mini' });
+  } catch (err) {
+    console.error('[PIA TEST] FAIL:', err?.message);
+    return res.json({ ok: false, error: err?.message ?? String(err) });
   }
 }
 
-// ── Models discovery — lists models available for the configured API key ──────
-// Uses the REST API directly because the SDK (v0.24.1) has no listModels().
+// ── Model info ─────────────────────────────────────────────────────────────────
 async function modelsHandler(req, res) {
-  if (!process.env.GEMINI_API_KEY) {
-    return res.json({ ok: false, error: 'GEMINI_API_KEY not configured', models: [] });
-  }
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`;
-    const response = await fetch(url);
-    const data     = await response.json();
-
-    if (!response.ok) {
-      return res.json({ ok: false, error: data?.error?.message ?? `HTTP ${response.status}`, models: [] });
-    }
-
-    const models = (data.models ?? []).map((m) => ({
-      name:               m.name,
-      displayName:        m.displayName,
-      supportedMethods:   m.supportedGenerationMethods ?? [],
-    }));
-
-    console.log(JSON.stringify({ level: 'info', msg: '[PIA] available models', count: models.length, models: models.map((m) => m.name) }));
-    return res.json({ ok: true, count: models.length, models });
-  } catch (err) {
-    console.error('[PIA] modelsHandler error:', err?.message);
-    return res.json({ ok: false, error: err?.message ?? String(err), models: [] });
-  }
+  return res.json({
+    ok:       true,
+    provider: 'OpenAI',
+    model:    'gpt-4o-mini',
+    key_set:  !!process.env.OPENAI_API_KEY,
+  });
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
