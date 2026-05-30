@@ -4,10 +4,10 @@ import {
   Building2, MapPin, Phone, Clock,
   AlertCircle, X, CreditCard, Banknote,
   CheckCircle2, ChevronLeft, ChevronRight, Calendar, ArrowLeft, Eye, Share2,
-  Bell, BellOff, ImageIcon,
+  Bell, BellOff, ImageIcon, Plus, Send, Trash2,
 } from 'lucide-react';
 import ShareContactPicker from '@/components/ShareContactPicker';
-import { getPublicClub, getClubSlots, getClubSubscriptionStatus, toggleClubSubscription, getClubPosts } from '@/api/clubs';
+import { getPublicClub, getClubSlots, getClubSubscriptionStatus, toggleClubSubscription, getClubPosts, createClubPost } from '@/api/clubs';
 import { getMySessions }               from '@/api/sessions';
 import { createBooking }               from '@/api/bookings';
 import { useAuth }                     from '@/App';
@@ -515,6 +515,8 @@ export default function ClubProfile() {
   const navigate         = useNavigate();
   const { user }         = useAuth();
   const isAdmin          = user?.role === 'super_admin';
+  // Manager = venue_admin whose organization_id matches this club id
+  const isManager        = user?.role === 'venue_admin' && user?.organization_id === id;
   const [searchParams]   = useSearchParams();
 
   // Deep-link: ?date=YYYY-MM-DD&slotId=<uuid>
@@ -542,8 +544,15 @@ export default function ClubProfile() {
   const [subLoading,  setSubLoading]  = useState(false);
 
   // Posts state
-  const [posts,       setPosts]       = useState([]);
-  const [postsLoading, setPostsLoading] = useState(true);
+  const [posts,         setPosts]         = useState([]);
+  const [postsLoading,  setPostsLoading]  = useState(true);
+
+  // Create post state (manager only)
+  const [showPostForm,  setShowPostForm]  = useState(false);
+  const [postContent,   setPostContent]   = useState('');
+  const [postPhotos,    setPostPhotos]    = useState([]); // base64 data URLs
+  const [postSubmitting, setPostSubmitting] = useState(false);
+  const [postError,     setPostError]     = useState(null);
 
   // Load club info once
   useEffect(() => {
@@ -593,6 +602,43 @@ export default function ClubProfile() {
       .catch(() => setSlotsData({ date: selectedDate, venues: [] }))
       .finally(() => setSlotsLoading(false));
   }, [id, selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = (e) => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handlePostPhotoChange(e) {
+    const files = Array.from(e.target.files ?? []).slice(0, 4 - postPhotos.length);
+    if (!files.length) return;
+    const dataUrls = await Promise.all(files.map(readFileAsDataURL));
+    setPostPhotos((prev) => [...prev, ...dataUrls].slice(0, 4));
+    e.target.value = '';
+  }
+
+  async function handleCreatePost() {
+    if (!postContent.trim() && postPhotos.length === 0) return;
+    setPostSubmitting(true);
+    setPostError(null);
+    try {
+      const { post } = await createClubPost(id, {
+        content: postContent.trim(),
+        photos:  postPhotos,
+      });
+      setPosts((prev) => [post, ...prev]);
+      setPostContent('');
+      setPostPhotos([]);
+      setShowPostForm(false);
+    } catch (err) {
+      setPostError(err.message || 'Erreur lors de la publication.');
+    } finally {
+      setPostSubmitting(false);
+    }
+  }
 
   async function handleToggleSubscription() {
     if (subLoading) return;
@@ -781,37 +827,122 @@ export default function ClubProfile() {
       )}
 
       {/* ── Club posts ───────────────────────────────────────────────────── */}
-      {!postsLoading && posts.length > 0 && (
+      {!postsLoading && (isManager || posts.length > 0) && (
         <div className="space-y-3">
-          <h2 className="text-base font-semibold text-foreground">Actualités</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-foreground">Actualités</h2>
+            {isManager && (
+              <button
+                type="button"
+                onClick={() => { setShowPostForm((v) => !v); setPostError(null); }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {showPostForm ? 'Annuler' : 'Nouvelle publication'}
+              </button>
+            )}
+          </div>
+
+          {/* ── Create post form (manager only) ──────────────────────── */}
+          {isManager && showPostForm && (
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+              {postError && (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />{postError}
+                </div>
+              )}
+
+              <textarea
+                value={postContent}
+                onChange={(e) => setPostContent(e.target.value)}
+                placeholder="Partagez une actualité, une offre, un événement…"
+                rows={3}
+                className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+
+              {/* Photo previews */}
+              {postPhotos.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {postPhotos.map((url, i) => (
+                    <div key={i} className="relative h-16 w-16 rounded-lg overflow-hidden border border-border shrink-0">
+                      <img src={url} alt="" className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setPostPhotos((prev) => prev.filter((_, j) => j !== i))}
+                        className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80"
+                      >
+                        <X className="h-2.5 w-2.5 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                {postPhotos.length < 4 && (
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer px-3 py-2 rounded-lg hover:bg-muted transition-colors">
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    Photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handlePostPhotoChange}
+                    />
+                  </label>
+                )}
+                <div className="flex-1" />
+                <button
+                  type="button"
+                  onClick={handleCreatePost}
+                  disabled={postSubmitting || (!postContent.trim() && postPhotos.length === 0)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary/90 px-4 py-2 rounded-lg transition-colors disabled:opacity-40"
+                >
+                  {postSubmitting ? (
+                    <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5" />
+                  )}
+                  Publier
+                </button>
+              </div>
+            </div>
+          )}
+
+          {posts.length === 0 && isManager && !showPostForm && (
+            <div className="rounded-xl border border-dashed border-border bg-card/50 p-8 text-center space-y-2">
+              <ImageIcon className="h-6 w-6 text-muted-foreground mx-auto" />
+              <p className="text-sm text-muted-foreground">Aucune publication. Créez votre première actualité !</p>
+            </div>
+          )}
+
           <div className="space-y-4">
             {posts.map((post) => {
-              const postPhotos = Array.isArray(post.photos) ? post.photos : [];
+              const imgs = Array.isArray(post.photos) ? post.photos : [];
               const postDate = new Date(post.created_at).toLocaleDateString('fr-FR', {
                 day: 'numeric', month: 'long', year: 'numeric',
               });
               return (
                 <div key={post.id} className="rounded-xl border border-border bg-card overflow-hidden">
-                  {postPhotos.length > 0 && (
+                  {imgs.length > 0 && (
                     <div className={cn(
                       'grid gap-0.5',
-                      postPhotos.length === 1 ? 'grid-cols-1' :
-                      postPhotos.length === 2 ? 'grid-cols-2' :
-                      'grid-cols-2'
+                      imgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2',
                     )}>
-                      {postPhotos.slice(0, 4).map((url, i) => (
+                      {imgs.slice(0, 4).map((url, i) => (
                         <div
                           key={url}
                           className={cn(
-                            'overflow-hidden bg-muted',
-                            postPhotos.length === 1 ? 'aspect-video' : 'aspect-square',
-                            postPhotos.length === 3 && i === 0 ? 'col-span-2 aspect-video' : ''
+                            'overflow-hidden bg-muted relative',
+                            imgs.length === 1 ? 'aspect-video' : 'aspect-square',
+                            imgs.length === 3 && i === 0 ? 'col-span-2 aspect-video' : '',
                           )}
                         >
                           <img src={url} alt="" className="h-full w-full object-cover" />
-                          {i === 3 && postPhotos.length > 4 && (
+                          {i === 3 && imgs.length > 4 && (
                             <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                              <span className="text-white text-lg font-bold">+{postPhotos.length - 4}</span>
+                              <span className="text-white text-lg font-bold">+{imgs.length - 4}</span>
                             </div>
                           )}
                         </div>

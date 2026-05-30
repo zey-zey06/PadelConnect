@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Building2, MapPin, Phone, ChevronRight, Eye, AlertCircle, Map, List, Heart } from 'lucide-react';
+import usePullToRefresh from '@/hooks/usePullToRefresh';
 import { listClubs, toggleClubFavorite, getClubFavoriteStatus } from '@/api/clubs';
 import { useAuth } from '@/App';
 import { Button } from '@/components/ui/button';
@@ -137,15 +138,29 @@ export default function Clubs() {
   const [error,    setError]    = useState(null);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
 
-  useEffect(() => {
-    listClubs()
-      .then(({ clubs: c }) => setClubs(c ?? []))
-      .catch((e) => setError(e.message || 'Erreur de chargement.'))
-      .finally(() => setLoading(false));
+  const fetchClubs = useCallback(async () => {
+    try {
+      const { clubs: c } = await listClubs();
+      setClubs(c ?? []);
+      setError(null);
+    } catch (e) {
+      setError(e.message || 'Erreur de chargement.');
+    }
   }, []);
+
+  useEffect(() => {
+    fetchClubs().finally(() => setLoading(false));
+  }, [fetchClubs]);
+
+  const { refreshing } = usePullToRefresh(fetchClubs);
 
   return (
     <div className="space-y-6">
+      {refreshing && (
+        <div className="flex items-center justify-center py-2">
+          <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
+      )}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('clubs.title')}</h1>
