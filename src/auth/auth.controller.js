@@ -9,8 +9,9 @@ const db = require('../db');
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure:   process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
   maxAge:   7 * 24 * 60 * 60 * 1000,
+  path:     '/',
 };
 
 async function signupHandler(req, res, next) {
@@ -51,6 +52,7 @@ async function loginHandler(req, res, next) {
       });
     }
 
+    console.log('[AUTH] JWT_SECRET exists:', !!process.env.JWT_SECRET);
     const user = await login(value);
     const token = signToken({
       sub: user.id,
@@ -59,6 +61,8 @@ async function loginHandler(req, res, next) {
     });
 
     res.cookie('token', token, COOKIE_OPTIONS);
+    console.log('[AUTH] Cookie set for user:', user.id);
+    console.log('[AUTH] Cookie options:', COOKIE_OPTIONS);
     return res.json({ user });
   } catch (err) {
     if (err.code === 'EMAIL_NOT_VERIFIED') {
@@ -141,6 +145,7 @@ async function verifyOtpHandler(req, res, next) {
     if (!email || !code) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Email et code requis.' });
     }
+    console.log('[AUTH] JWT_SECRET exists:', !!process.env.JWT_SECRET);
     const user = await verifyOtp(email.trim().toLowerCase(), String(code).trim());
     const token = signToken({
       sub:             user.id,
@@ -148,6 +153,8 @@ async function verifyOtpHandler(req, res, next) {
       organization_id: user.organization_id,
     });
     res.cookie('token', token, COOKIE_OPTIONS);
+    console.log('[AUTH] Cookie set for user:', user.id);
+    console.log('[AUTH] Cookie options:', COOKIE_OPTIONS);
     return res.json({ user: { id: user.id, email: user.email, role: user.role } });
   } catch (err) {
     if (err.code === 'INVALID_OTP' || err.code === 'EXPIRED_OTP') {
