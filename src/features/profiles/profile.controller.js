@@ -33,13 +33,17 @@ const generateSchema = Joi.object({
 }).or('description', 'qa_answers');
 
 const updateProfileSchema = Joi.object({
-  level:        Joi.number().integer().min(1).max(7),
-  style:        Joi.string().max(100),
-  strengths:    Joi.array().items(Joi.string()),
-  weaknesses:   Joi.array().items(Joi.string()),
-  description:  Joi.string().max(1000),
-  phone_number: Joi.string().max(20).optional().allow(null, ''),
-  bio:          Joi.string().max(150).optional().allow(null, ''),
+  level:             Joi.number().integer().min(1).max(7),
+  style:             Joi.string().max(100),
+  strengths:         Joi.array().items(Joi.string()),
+  weaknesses:        Joi.array().items(Joi.string()),
+  description:       Joi.string().max(1000),
+  phone_number:      Joi.string().max(20).optional().allow(null, ''),
+  bio:               Joi.string().max(150).optional().allow(null, ''),
+  preferred_time:    Joi.string().max(100).optional().allow(null, ''),
+  age_range:         Joi.string().max(50).optional().allow(null, ''),
+  availability:      Joi.string().max(100).optional().allow(null, ''),
+  motivation_answer: Joi.string().max(500).optional().allow(null, ''),
 }).min(1);
 
 const usernameSchema = Joi.object({

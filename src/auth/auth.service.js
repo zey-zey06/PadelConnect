@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const db = require('../db');
 const notificationsService = require('../features/notifications/notifications.service');
 const { sendVerificationEmail } = require('../emails/verification');
+const { sendWelcomeEmail }      = require('../emails/welcome');
 
 const BCRYPT_ROUNDS = 12;
 const VERIFICATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -264,6 +265,9 @@ async function verifyOtp(email, code) {
     email_verification_token:      null,
     email_verification_expires_at: null,
   });
+
+  // Non-fatal welcome email — never block the login
+  sendWelcomeEmail(user.email, user.first_name).catch(() => {});
 
   return user;
 }

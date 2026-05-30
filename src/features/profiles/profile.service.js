@@ -83,13 +83,17 @@ async function notifyAdminsOfNewUser(userId, motivationAnswer) {
 
 async function updateProfile(userId, data) {
   const profileData = {};
-  if (data.level        !== undefined) profileData.level        = data.level;
-  if (data.style        !== undefined) profileData.style        = data.style;
-  if (data.strengths    !== undefined) profileData.strengths    = data.strengths;
-  if (data.weaknesses   !== undefined) profileData.weaknesses   = data.weaknesses;
-  if (data.description  !== undefined) profileData.description  = data.description;
-  if (data.phone_number !== undefined) profileData.phone_number = data.phone_number || null;
-  if (data.bio          !== undefined) profileData.bio          = data.bio || null;
+  if (data.level             !== undefined) profileData.level             = data.level;
+  if (data.style             !== undefined) profileData.style             = data.style;
+  if (data.strengths         !== undefined) profileData.strengths         = data.strengths;
+  if (data.weaknesses        !== undefined) profileData.weaknesses        = data.weaknesses;
+  if (data.description       !== undefined) profileData.description       = data.description;
+  if (data.phone_number      !== undefined) profileData.phone_number      = data.phone_number      || null;
+  if (data.bio               !== undefined) profileData.bio               = data.bio               || null;
+  if (data.preferred_time    !== undefined) profileData.preferred_time    = data.preferred_time    || null;
+  if (data.age_range         !== undefined) profileData.age_range         = data.age_range         || null;
+  if (data.availability      !== undefined) profileData.availability      = data.availability      || null;
+  if (data.motivation_answer !== undefined) profileData.motivation_answer = data.motivation_answer || null;
 
   return profileRepo.upsert(userId, profileData);
 }
