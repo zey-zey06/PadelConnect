@@ -4,6 +4,7 @@ import Login            from '@/pages/Login';
 import Signup           from '@/pages/Signup';
 import AdminLogin       from '@/pages/AdminLogin';
 import VerifyEmail      from '@/pages/VerifyEmail';
+import ForgotPassword   from '@/pages/ForgotPassword';
 import ProfileSetup     from '@/pages/ProfileSetup';
 import Dashboard        from '@/pages/Dashboard';
 import Sessions         from '@/pages/Sessions';
@@ -194,8 +195,9 @@ export default function App() {
           {/* ── Public routes ──────────────────────────────────────── */}
           <Route path="/login"        element={<PublicRoute><Login  /></PublicRoute>} />
           <Route path="/signup"       element={<PublicRoute><Signup /></PublicRoute>} />
-          <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route path="/admin/login"  element={<AdminLogin />} />
+          <Route path="/verify-email"    element={<VerifyEmail />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/admin/login"     element={<AdminLogin />} />
 
           {/* ── Profile setup — auth required, profile not required ─ */}
           <Route

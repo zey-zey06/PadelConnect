@@ -1,4 +1,4 @@
-const OpenAI = require('openai');
+const Groq = require('groq-sdk');
 
 const DEGRADED = {
   niveau: 4,
@@ -8,13 +8,18 @@ const DEGRADED = {
   description_courte: 'Profil à compléter',
 };
 
+function parseJson(text) {
+  const clean = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+  return JSON.parse(clean);
+}
+
 async function generateProfile(description) {
-  if (!process.env.OPENAI_API_KEY) return { ...DEGRADED };
+  if (!process.env.GROQ_API_KEY) return { ...DEGRADED };
 
   try {
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const completion = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
       messages: [
         {
           role: 'system',
@@ -29,7 +34,7 @@ async function generateProfile(description) {
     });
 
     const text = completion.choices[0].message.content.trim();
-    const json = JSON.parse(text);
+    const json = parseJson(text);
 
     const niveau = Number(json.niveau);
     if (!Number.isInteger(niveau) || niveau < 1 || niveau > 7) {

@@ -61,3 +61,16 @@ export const resendVerification = (email) => client.post('/auth/resend-verificat
  * { email, code } → { user } + sets JWT cookie
  */
 export const verifyOtp = (email, code) => client.post('/auth/verify-otp', { email, code });
+
+/**
+ * POST /api/auth/forgot-password
+ * { email } → { ok: true }
+ */
+export const forgotPassword = (email) => client.post('/auth/forgot-password', { email });
+
+/**
+ * POST /api/auth/reset-password
+ * { email, code, newPassword } → { ok: true }
+ */
+export const resetPassword = (email, code, newPassword) =>
+  client.post('/auth/reset-password', { email, code, newPassword });

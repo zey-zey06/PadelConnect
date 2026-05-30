@@ -1,4 +1,4 @@
-const OpenAI = require('openai');
+const Groq = require('groq-sdk');
 
 function degradedFallback(session, eligibleProfiles) {
   const targetLevel = session.preferences?.level ?? 4;
@@ -12,15 +12,15 @@ function degradedFallback(session, eligibleProfiles) {
     .slice(0, 5);
 }
 
-/**
- * Ask GPT-4o-mini to rank the top 5 eligible players for a session.
- * Falls back to level-proximity sort if the API call fails or key is missing.
- */
+function parseJson(text) {
+  const clean = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+  return JSON.parse(clean);
+}
+
 async function findMatches({ session, eligibleProfiles }) {
   if (!eligibleProfiles.length) return [];
-  if (!process.env.OPENAI_API_KEY) return degradedFallback(session, eligibleProfiles);
+  if (!process.env.GROQ_API_KEY) return degradedFallback(session, eligibleProfiles);
 
-  // Cap candidates to keep prompt size manageable
   const candidates = eligibleProfiles.slice(0, 50).map((p) => ({
     user_id:     p.user_id,
     level:       p.level,
@@ -31,9 +31,9 @@ async function findMatches({ session, eligibleProfiles }) {
   }));
 
   try {
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const completion = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
       messages: [
         {
           role: 'system',
@@ -58,7 +58,7 @@ async function findMatches({ session, eligibleProfiles }) {
     });
 
     const text = completion.choices[0].message.content.trim();
-    const json = JSON.parse(text);
+    const json = parseJson(text);
 
     if (!Array.isArray(json.matches)) throw new Error('format invalide');
 

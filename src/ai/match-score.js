@@ -1,14 +1,19 @@
-const OpenAI = require('openai');
+const Groq = require('groq-sdk');
 
 const DEGRADED = { score: 50, explication: 'Compatibilité neutre' };
 
+function parseJson(text) {
+  const clean = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+  return JSON.parse(clean);
+}
+
 async function matchScore({ candidateProfile, acceptedProfiles, sessionPreferences }) {
-  if (!process.env.OPENAI_API_KEY) return { ...DEGRADED };
+  if (!process.env.GROQ_API_KEY) return { ...DEGRADED };
 
   try {
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const completion = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
       messages: [
         {
           role: 'system',
@@ -23,7 +28,7 @@ async function matchScore({ candidateProfile, acceptedProfiles, sessionPreferenc
     });
 
     const text = completion.choices[0].message.content.trim();
-    const json = JSON.parse(text);
+    const json = parseJson(text);
 
     const score = Number(json.score);
     if (!Number.isFinite(score) || score < 0 || score > 100) {

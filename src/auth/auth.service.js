@@ -2,8 +2,9 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const db = require('../db');
 const notificationsService = require('../features/notifications/notifications.service');
-const { sendVerificationEmail } = require('../emails/verification');
-const { sendWelcomeEmail }      = require('../emails/welcome');
+const { sendVerificationEmail }  = require('../emails/verification');
+const { sendWelcomeEmail }       = require('../emails/welcome');
+const { sendPasswordResetEmail } = require('../emails/password-reset');
 
 const BCRYPT_ROUNDS = 12;
 const VERIFICATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -272,4 +273,59 @@ async function verifyOtp(email, code) {
   return user;
 }
 
-module.exports = { signup, login, verifyEmail, getUserById, updateName, updateUsername, changePassword, softDeleteAccount, resendVerification, verifyOtp };
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+async function forgotPassword(email) {
+  const user = await db('users').where({ email }).whereNull('deleted_at').first();
+  // Silently succeed when email unknown — don't leak user existence
+  if (!user) return;
+
+  const code    = generateOtp();
+  const expires = new Date(Date.now() + RESET_TTL_MS);
+
+  await db('users').where({ id: user.id }).update({
+    password_reset_token:      code,
+    password_reset_expires_at: expires,
+  });
+
+  sendPasswordResetEmail(email, code).catch(() => {});
+}
+
+async function resetPassword(email, code, newPassword) {
+  const user = await db('users')
+    .where({ email })
+    .whereNull('deleted_at')
+    .first();
+
+  if (!user) {
+    const err = new Error('Code incorrect ou expiré.');
+    err.status = 400;
+    err.code = 'INVALID_RESET_CODE';
+    throw err;
+  }
+
+  if (user.password_reset_token !== String(code)) {
+    const err = new Error('Code incorrect.');
+    err.status = 400;
+    err.code = 'INVALID_RESET_CODE';
+    throw err;
+  }
+
+  if (!user.password_reset_expires_at || new Date(user.password_reset_expires_at) < new Date()) {
+    const err = new Error('Code expiré. Demandez un nouveau code.');
+    err.status = 400;
+    err.code = 'EXPIRED_RESET_CODE';
+    throw err;
+  }
+
+  const password_hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+
+  await db('users').where({ id: user.id }).update({
+    password_hash,
+    password_reset_token:      null,
+    password_reset_expires_at: null,
+    updated_at:                new Date(),
+  });
+}
+
+module.exports = { signup, login, verifyEmail, getUserById, updateName, updateUsername, changePassword, softDeleteAccount, resendVerification, verifyOtp, forgotPassword, resetPassword };

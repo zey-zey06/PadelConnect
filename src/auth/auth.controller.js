@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { signupSchema, loginSchema } = require('./auth.validation');
-const { signup, login, verifyEmail, getUserById, updateName, changePassword, softDeleteAccount, resendVerification, verifyOtp } = require('./auth.service');
+const { signup, login, verifyEmail, getUserById, updateName, changePassword, softDeleteAccount, resendVerification, verifyOtp, forgotPassword, resetPassword } = require('./auth.service');
 const { signToken } = require('./jwt');
 const authenticate = require('../middleware/authenticate');
 const notificationsService = require('../features/notifications/notifications.service');
@@ -208,5 +208,40 @@ async function deleteAccountHandler(req, res, next) {
 }
 
 router.delete('/me', authenticate, deleteAccountHandler);
+
+async function forgotPasswordHandler(req, res, next) {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Email requis.' });
+    }
+    await forgotPassword(email.trim().toLowerCase());
+    return res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function resetPasswordHandler(req, res, next) {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Email, code et nouveau mot de passe requis.' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Le mot de passe doit faire au moins 8 caractères.' });
+    }
+    await resetPassword(email.trim().toLowerCase(), String(code).trim(), newPassword);
+    return res.json({ ok: true });
+  } catch (err) {
+    if (err.code === 'INVALID_RESET_CODE' || err.code === 'EXPIRED_RESET_CODE') {
+      return res.status(400).json({ status: 400, error: err.code, message: err.message });
+    }
+    next(err);
+  }
+}
+
+router.post('/forgot-password', forgotPasswordHandler);
+router.post('/reset-password',  resetPasswordHandler);
 
 module.exports = router;
