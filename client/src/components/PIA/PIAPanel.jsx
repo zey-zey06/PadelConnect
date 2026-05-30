@@ -1,11 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Send, Sparkles, Plus, ExternalLink, History, ArrowLeft } from 'lucide-react';
+import { X, Send, Sparkles, Plus, ExternalLink, History, ArrowLeft, Clock, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { piaChatMessage, getPiaHistory, getPiaConversations } from '@/api/pia';
-import { useAuth } from '@/App';
+import { useAuth, usePlayerPanel } from '@/App';
+import { cn } from '@/lib/utils';
 
 const RATE_LIMIT = 20;
 const WELCOME    = 'Bonjour ! Je suis PIA, votre assistante PadelConnect. Comment puis-je vous aider ? 🎾';
+
+const LEVEL_LABELS = {
+  1: 'Débutant', 2: 'Débutant+', 3: 'Intermédiaire', 4: 'Inter+',
+  5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
+};
 
 const ROLE_LABELS = {
   player:      'Assistante joueur',
@@ -15,6 +21,71 @@ const ROLE_LABELS = {
   ball_picker: 'Assistante',
 };
 
+// ── Mini card components ──────────────────────────────────────────────────────
+
+function PlayerMiniCard({ player, onViewProfile }) {
+  const initials = (player.name || '??').slice(0, 2).toUpperCase();
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl border border-green-200 bg-white shadow-sm px-3 py-2">
+      <div className="h-9 w-9 rounded-full overflow-hidden bg-primary/10 ring-2 ring-green-200 shrink-0">
+        {player.photo_url ? (
+          <img src={player.photo_url} alt={player.name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+            <span className="text-[10px] font-bold text-primary select-none">{initials}</span>
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-foreground truncate leading-tight">{player.name}</p>
+        {player.level && (
+          <span className="text-[10px] font-medium text-green-700 bg-green-50 px-1.5 py-0.5 rounded-full inline-block mt-0.5">
+            Niv.{player.level} · {LEVEL_LABELS[player.level] ?? ''}
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => onViewProfile(player.id)}
+        className="text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1.5 rounded-lg transition-colors shrink-0"
+      >
+        Voir profil
+      </button>
+    </div>
+  );
+}
+
+function SlotMiniCard({ slot, onReserve }) {
+  const dateStr = slot.date
+    ? new Date(slot.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+    : '';
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl border border-primary/20 bg-white shadow-sm px-3 py-2">
+      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+        <Clock className="h-4 w-4 text-primary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-foreground truncate leading-tight">{slot.venue_name}</p>
+        <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+          {dateStr} · {slot.start_time}–{slot.end_time}
+        </p>
+        {slot.price > 0 && (
+          <p className="text-[10px] font-bold text-primary leading-tight">
+            {slot.price.toLocaleString('fr-FR')} FCFA
+          </p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => onReserve(slot)}
+        className="text-[11px] font-semibold text-white bg-primary hover:bg-primary/90 px-2 py-1.5 rounded-lg transition-colors shrink-0"
+      >
+        Réserver
+      </button>
+    </div>
+  );
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatMsgDate(ts) {
   if (!ts) return '';
@@ -23,7 +94,6 @@ function formatMsgDate(ts) {
   });
 }
 
-/** Group conversations by calendar date (label → [conv, ...]) */
 function groupByDate(conversations) {
   const groups = [];
   const seen   = {};
@@ -45,7 +115,6 @@ function shouldShowDateSeparator(msgs, idx) {
   return msgs[idx].ts.slice(0, 10) !== msgs[idx - 1].ts.slice(0, 10);
 }
 
-/** Detect keywords and return contextual navigation buttons. */
 function extractActions(text) {
   const actions = [];
   if (/\bsession/i.test(text))  actions.push({ label: 'Voir les sessions', path: '/sessions' });
@@ -55,8 +124,9 @@ function extractActions(text) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PIAPanel({ onClose }) {
-  const { user }  = useAuth();
-  const navigate  = useNavigate();
+  const { user }            = useAuth();
+  const navigate            = useNavigate();
+  const { openPlayerPanel } = usePlayerPanel();
 
   const [messages,        setMessages]        = useState([]);
   const [input,           setInput]           = useState('');
@@ -67,16 +137,14 @@ export default function PIAPanel({ onClose }) {
   const [rateLimited,     setRateLimited]     = useState(false);
   const [retryMinutes,    setRetryMinutes]    = useState(0);
 
-  // ── History panel ─────────────────────────────────────────────────────────
-  const [view,              setView]              = useState('chat');   // 'chat' | 'history'
-  const [conversations,     setConversations]     = useState([]);
-  const [convsLoading,      setConvsLoading]      = useState(false);
-  const [convsLoaded,       setConvsLoaded]       = useState(false); // avoid re-fetching
+  const [view,          setView]          = useState('chat');
+  const [conversations, setConversations] = useState([]);
+  const [convsLoading,  setConvsLoading]  = useState(false);
+  const [convsLoaded,   setConvsLoaded]   = useState(false);
 
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
-  // ── Load history on mount ─────────────────────────────────────────────────
   useEffect(() => {
     getPiaHistory()
       .then(({ messages: hist, conversation_id: convId }) => {
@@ -93,7 +161,6 @@ export default function PIAPanel({ onClose }) {
       .finally(() => setHistoryLoading(false));
   }, []);
 
-  // ── Animations ────────────────────────────────────────────────────────────
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 15);
     return () => clearTimeout(t);
@@ -107,7 +174,6 @@ export default function PIAPanel({ onClose }) {
     if (visible && !historyLoading) inputRef.current?.focus();
   }, [visible, historyLoading]);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
   function handleClose() {
     setVisible(false);
     setTimeout(onClose, 280);
@@ -163,16 +229,13 @@ export default function PIAPanel({ onClose }) {
     setLoading(true);
 
     try {
-      // Build Gemini history from all messages except the current one
-      // Skip the welcome message (it was not produced by the model)
       const history = newMessages
         .slice(0, -1)
         .filter((m) => m.text !== WELCOME)
         .map((m) => ({ role: m.role, parts: [{ text: m.text }] }));
 
-      const { response, conversation_id: convId } = await piaChatMessage(
-        text, history, conversationId,
-      );
+      const { response, conversation_id: convId, type: respType, data: respData } =
+        await piaChatMessage(text, history, conversationId);
 
       if (convId) setConversationId(convId);
 
@@ -183,14 +246,16 @@ export default function PIAPanel({ onClose }) {
           text:    response,
           ts:      new Date().toISOString(),
           actions: extractActions(response),
+          type:    respType ?? 'text',
+          data:    Array.isArray(respData) && respData.length > 0 ? respData : null,
         },
       ]);
     } catch (err) {
       if (err.status === 429 && err.data?.retry_after_minutes) {
         setRateLimited(true);
         setRetryMinutes(err.data.retry_after_minutes);
-        setMessages((prev) => prev.slice(0, -1)); // remove optimistic user msg
-        setInput(text);                            // restore input
+        setMessages((prev) => prev.slice(0, -1));
+        setInput(text);
       } else {
         setMessages((prev) => [
           ...prev,
@@ -210,9 +275,13 @@ export default function PIAPanel({ onClose }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
+  function handleSlotReserve(slot) {
+    navigate(`/clubs/${slot.club_id}?date=${slot.date}&slotId=${slot.id}`);
+    handleClose();
+  }
+
   const roleLabel = ROLE_LABELS[user?.role] ?? 'Assistante';
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
       {/* Backdrop */}
@@ -224,16 +293,18 @@ export default function PIAPanel({ onClose }) {
 
       {/* Chat panel */}
       <div
-        className={`fixed bottom-20 right-6 z-50
-          w-[380px] max-w-[calc(100vw-1.5rem)]
-          h-[520px] max-h-[calc(100vh-8rem)]
-          flex flex-col rounded-2xl shadow-2xl border border-border bg-white overflow-hidden
-          transform transition-all duration-[280ms] ease-out
-          ${visible ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-6 opacity-0 scale-95'}`}
+        className={cn(
+          'fixed bottom-20 right-6 z-50',
+          'w-[380px] max-w-[calc(100vw-1.5rem)]',
+          'h-[540px] max-h-[calc(100vh-8rem)]',
+          'flex flex-col rounded-2xl shadow-2xl border border-border bg-white overflow-hidden',
+          'transform transition-all duration-[280ms] ease-out',
+          visible ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-6 opacity-0 scale-95',
+        )}
         role="dialog"
         aria-label="PIA — Assistante PadelConnect"
       >
-        {/* ── Header ──────────────────────────────────────────────────── */}
+        {/* ── Header ────────────────────────────────────────────────── */}
         <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-violet-600 to-primary text-white shrink-0">
           {view === 'history' ? (
             <button
@@ -285,29 +356,22 @@ export default function PIAPanel({ onClose }) {
           </button>
         </div>
 
-        {/* ── Messages / History ──────────────────────────────────────── */}
+        {/* ── Messages / History ───────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
 
-          {/* ── History view ──────────────────────────────────────────── */}
+          {/* History view */}
           {view === 'history' && (
             convsLoading ? (
               <div className="flex items-center justify-center h-full gap-1">
                 {[0, 150, 300].map((d) => (
-                  <span
-                    key={d}
-                    className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce"
-                    style={{ animationDelay: `${d}ms` }}
-                  />
+                  <span key={d} className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: `${d}ms` }} />
                 ))}
               </div>
             ) : conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
                 <History className="h-8 w-8 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground">Aucune conversation enregistrée.</p>
-                <button
-                  onClick={() => setView('chat')}
-                  className="text-xs text-primary hover:underline"
-                >
+                <button onClick={() => setView('chat')} className="text-xs text-primary hover:underline">
                   Démarrer une conversation
                 </button>
               </div>
@@ -325,9 +389,7 @@ export default function PIAPanel({ onClose }) {
                           onClick={() => loadConversation(conv.id)}
                           className="w-full text-left rounded-xl border border-border bg-card hover:border-primary/30 hover:bg-accent px-3 py-2.5 transition-colors"
                         >
-                          <p className="text-sm font-medium text-foreground truncate leading-tight">
-                            {conv.title}
-                          </p>
+                          <p className="text-sm font-medium text-foreground truncate leading-tight">{conv.title}</p>
                           <p className="text-[11px] text-muted-foreground mt-0.5">
                             {conv.message_count} message{conv.message_count !== 1 ? 's' : ''}
                           </p>
@@ -340,28 +402,21 @@ export default function PIAPanel({ onClose }) {
             )
           )}
 
-          {/* ── Chat view ─────────────────────────────────────────────── */}
+          {/* Chat view */}
           {view === 'chat' && (historyLoading ? (
             <div className="flex items-center justify-center h-full gap-1">
               {[0, 150, 300].map((d) => (
-                <span
-                  key={d}
-                  className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce"
-                  style={{ animationDelay: `${d}ms` }}
-                />
+                <span key={d} className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: `${d}ms` }} />
               ))}
             </div>
           ) : (
             <>
               {messages.map((msg, i) => (
                 <div key={i}>
-                  {/* Date separator */}
                   {shouldShowDateSeparator(messages, i) && (
                     <div className="flex items-center gap-2 my-3">
                       <div className="flex-1 h-px bg-border" />
-                      <span className="text-[10px] text-muted-foreground px-1 shrink-0">
-                        {formatMsgDate(msg.ts)}
-                      </span>
+                      <span className="text-[10px] text-muted-foreground px-1 shrink-0">{formatMsgDate(msg.ts)}</span>
                       <div className="flex-1 h-px bg-border" />
                     </div>
                   )}
@@ -373,18 +428,44 @@ export default function PIAPanel({ onClose }) {
                       </div>
                     )}
 
-                    <div className="space-y-1.5 max-w-[75%]">
-                      <div
-                        className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap
-                          ${msg.role === 'user'
-                            ? 'bg-primary text-white rounded-br-sm'
-                            : 'bg-muted text-foreground rounded-bl-sm'
-                          }`}
-                      >
+                    <div className="space-y-1.5 max-w-[80%]">
+                      {/* Text bubble */}
+                      <div className={cn(
+                        'rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
+                        msg.role === 'user'
+                          ? 'bg-primary text-white rounded-br-sm'
+                          : 'bg-muted text-foreground rounded-bl-sm',
+                      )}>
                         {msg.text}
                       </div>
 
-                      {/* Contextual action buttons */}
+                      {/* Player suggestion cards */}
+                      {msg.role === 'model' && msg.type === 'players' && msg.data?.length > 0 && (
+                        <div className="space-y-1.5 pt-0.5">
+                          {msg.data.map((player) => (
+                            <PlayerMiniCard
+                              key={player.id}
+                              player={player}
+                              onViewProfile={(id) => { openPlayerPanel(id); }}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Slot suggestion cards */}
+                      {msg.role === 'model' && msg.type === 'slots' && msg.data?.length > 0 && (
+                        <div className="space-y-1.5 pt-0.5">
+                          {msg.data.map((slot) => (
+                            <SlotMiniCard
+                              key={slot.id}
+                              slot={slot}
+                              onReserve={handleSlotReserve}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Contextual navigation buttons */}
                       {msg.actions?.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 pl-0.5">
                           {msg.actions.map((action) => (
@@ -413,11 +494,7 @@ export default function PIAPanel({ onClose }) {
                   <div className="bg-muted rounded-2xl rounded-bl-sm px-3.5 py-2.5 flex items-center gap-2">
                     <div className="flex gap-1 items-center">
                       {[0, 150, 300].map((d) => (
-                        <span
-                          key={d}
-                          className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce"
-                          style={{ animationDelay: `${d}ms` }}
-                        />
+                        <span key={d} className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: `${d}ms` }} />
                       ))}
                     </div>
                     <span className="text-xs text-muted-foreground">PIA réfléchit…</span>
@@ -436,41 +513,39 @@ export default function PIAPanel({ onClose }) {
           </div>
         )}
 
-        {/* ── Input (hidden in history view) ──────────────────────────── */}
-        {view === 'chat' && <div className="shrink-0 px-3 py-3 border-t border-border bg-white">
-          <div className="flex items-end gap-2">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                rateLimited
-                  ? `Limite atteinte — ${retryMinutes} min`
-                  : 'Posez votre question…'
-              }
-              rows={1}
-              disabled={loading || rateLimited || historyLoading}
-              className="flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm
-                placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20
-                disabled:opacity-50 overflow-y-auto no-scrollbar"
-              style={{ minHeight: '38px', maxHeight: '96px' }}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || loading || rateLimited || historyLoading}
-              className="shrink-0 w-9 h-9 rounded-xl bg-primary hover:bg-primary/90
-                disabled:opacity-40 disabled:cursor-not-allowed
-                text-white flex items-center justify-center transition-colors"
-              aria-label="Envoyer"
-            >
-              <Send className="h-4 w-4" />
-            </button>
+        {/* Input */}
+        {view === 'chat' && (
+          <div className="shrink-0 px-3 py-3 border-t border-border bg-white">
+            <div className="flex items-end gap-2">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={rateLimited ? `Limite atteinte — ${retryMinutes} min` : 'Posez votre question…'}
+                rows={1}
+                disabled={loading || rateLimited || historyLoading}
+                className="flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm
+                  placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20
+                  disabled:opacity-50 overflow-y-auto no-scrollbar"
+                style={{ minHeight: '38px', maxHeight: '96px' }}
+              />
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || loading || rateLimited || historyLoading}
+                className="shrink-0 w-9 h-9 rounded-xl bg-primary hover:bg-primary/90
+                  disabled:opacity-40 disabled:cursor-not-allowed
+                  text-white flex items-center justify-center transition-colors"
+                aria-label="Envoyer"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground text-center mt-1.5">
+              PIA peut faire des erreurs. Vérifiez les informations importantes.
+            </p>
           </div>
-          <p className="text-[10px] text-muted-foreground text-center mt-1.5">
-            PIA peut faire des erreurs. Vérifiez les informations importantes.
-          </p>
-        </div>}
+        )}
       </div>
     </>
   );

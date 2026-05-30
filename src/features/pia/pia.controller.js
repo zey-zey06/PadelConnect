@@ -57,6 +57,92 @@ async function appendMessages(conversationId, newMessages) {
     });
 }
 
+// ── Intent detection ──────────────────────────────────────────────────────────
+const PARTNER_RE = /partenaire|joueur|joueuse|trouver|cherche|compatible|équipe|coéquipier|niveau|avec qui/i;
+const SLOT_RE    = /créneau|terrain|réserver|dispo|disponible|réservation|heure|planning|programme|slot/i;
+
+function detectIntent(message, role) {
+  if ((role === 'player' || role === 'coach') && PARTNER_RE.test(message)) return 'players';
+  if (role === 'venue_admin' && SLOT_RE.test(message)) return 'slots';
+  return 'text';
+}
+
+async function fetchCompatiblePlayers(userId, level, limit = 5) {
+  try {
+    const levels = level
+      ? [Math.max(1, level - 1), level, Math.min(7, level + 1)]
+      : [1, 2, 3, 4, 5, 6, 7];
+
+    const rows = await db('users')
+      .join('player_profiles', 'users.id', 'player_profiles.user_id')
+      .whereIn('player_profiles.level', levels)
+      .where('users.role', 'player')
+      .whereNot('users.id', userId)
+      .whereNull('users.deleted_at')
+      .orderByRaw('RANDOM()')
+      .limit(limit)
+      .select(
+        'users.id',
+        'users.first_name',
+        'users.last_name',
+        'users.username',
+        'player_profiles.level',
+        'player_profiles.style',
+        'player_profiles.photo_url',
+      );
+
+    return rows.map((p) => ({
+      id:        p.id,
+      name:      [p.first_name, p.last_name].filter(Boolean).join(' ') || p.username || 'Joueur',
+      username:  p.username,
+      level:     p.level,
+      style:     p.style,
+      photo_url: p.photo_url,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function fetchAvailableSlotsForClub(orgId, limit = 5) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows  = await db('venue_slots')
+      .join('venues',        'venue_slots.venue_id',        'venues.id')
+      .join('organizations', 'venues.organization_id',      'organizations.id')
+      .where('venues.organization_id', orgId)
+      .where('venue_slots.status', 'available')
+      .where('venue_slots.date', '>=', today)
+      .whereNull('venue_slots.deleted_at')
+      .orderBy('venue_slots.date',       'asc')
+      .orderBy('venue_slots.start_time', 'asc')
+      .limit(limit)
+      .select(
+        'venue_slots.id',
+        'venue_slots.date',
+        'venue_slots.start_time',
+        'venue_slots.end_time',
+        'venue_slots.price',
+        'venues.name as venue_name',
+        'organizations.id   as club_id',
+        'organizations.name as club_name',
+      );
+
+    return rows.map((s) => ({
+      id:         s.id,
+      date:       String(s.date).slice(0, 10),
+      start_time: String(s.start_time).slice(0, 5),
+      end_time:   String(s.end_time).slice(0, 5),
+      price:      Number(s.price ?? 0),
+      venue_name: s.venue_name,
+      club_id:    s.club_id,
+      club_name:  s.club_name,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // ── Security perimeter — shared base (applied to ALL agents) ─────────────────
 const BASE_RULES = `Tu réponds TOUJOURS en français, de façon concise et bienveillante.
 
@@ -354,9 +440,33 @@ async function chatHandler(req, res, next) {
       return res.json({ response: 'PIA est temporairement indisponible. Veuillez réessayer plus tard. 🎾', conversation_id: conversation.id });
     }
 
+    // ── Intent detection + data enrichment ────────────────────────────────────
+    const intent       = detectIntent(message, role);
+    let structuredData = null;
+    let dataContext    = '';
+
+    if (intent === 'players') {
+      const profile = await profileRepo.getByUserId(userId).catch(() => null);
+      const players = await fetchCompatiblePlayers(userId, profile?.level);
+      if (players.length > 0) {
+        structuredData = players;
+        dataContext = `\n\nJoueurs compatibles disponibles sur la plateforme :\n${
+          players.map((p) => `- ${p.name} (niveau ${p.level ?? '?'}, style: ${p.style ?? 'N/A'})`).join('\n')
+        }`;
+      }
+    } else if (intent === 'slots' && orgId) {
+      const slots = await fetchAvailableSlotsForClub(orgId);
+      if (slots.length > 0) {
+        structuredData = slots;
+        dataContext = `\n\nProchains créneaux disponibles :\n${
+          slots.map((s) => `- ${s.venue_name} le ${s.date} de ${s.start_time} à ${s.end_time} (${s.price.toLocaleString('fr-FR')} FCFA)`).join('\n')
+        }`;
+      }
+    }
+
     // Build context-aware system prompt for this role
     const context      = await fetchContext(role, userId, orgId);
-    const systemPrompt = buildSystemPrompt(role, context);
+    const systemPrompt = buildSystemPrompt(role, context + dataContext);
 
     console.log('[PIA] Model being used: llama-3.1-8b-instant');
 
@@ -382,7 +492,13 @@ async function chatHandler(req, res, next) {
       { role: 'model', text: response, ts: new Date().toISOString() },
     ]);
 
-    return res.json({ response, conversation_id: conversation.id });
+    const responsePayload = { response, conversation_id: conversation.id };
+    if (structuredData?.length > 0) {
+      responsePayload.type = intent;
+      responsePayload.data = structuredData;
+    }
+
+    return res.json(responsePayload);
   } catch (err) {
     console.error('[PIA] chatHandler error:', err?.message);
     if (!res.headersSent) {
