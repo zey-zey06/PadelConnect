@@ -298,6 +298,7 @@ export default function Messages() {
   const navigate       = useNavigate();
   const { user }       = useAuth();
 
+  const { openPlayerPanel } = usePlayerPanel();
   const [conversations,   setConversations]   = useState([]);
   const [selectedUserId,  setSelectedUserId]  = useState(searchParams.get('userId') || null);
   const [selectedPartner, setSelectedPartner] = useState(null);
@@ -491,10 +492,10 @@ export default function Messages() {
               const isFromMe   = conv.last_sender_id === user?.id;
 
               return (
-                <button
+                <div
                   key={conv.partner_id}
                   onClick={() => selectConversation(conv.partner_id)}
-                  className="w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-left transition-all duration-150"
+                  className="w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl cursor-pointer transition-all duration-150"
                   style={isSelected
                     ? { background: '#1A3D2B', boxShadow: '0 4px 14px rgba(26,61,43,0.28)' }
                     : { background: '#FFFFFF', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
@@ -502,23 +503,35 @@ export default function Messages() {
                   onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
                   onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'; }}
                 >
-                  <Avatar
-                    name={name}
-                    photo={conv.photo_url}
-                    dot
-                    dotBorder={isSelected ? '#1A3D2B' : '#ffffff'}
-                  />
+                  {/* Avatar — click opens player profile panel */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); openPlayerPanel(conv.partner_id); }}
+                    className="shrink-0"
+                    aria-label={`Voir le profil de ${name}`}
+                  >
+                    <Avatar
+                      name={name}
+                      photo={conv.photo_url}
+                      dot
+                      dotBorder={isSelected ? '#1A3D2B' : '#ffffff'}
+                    />
+                  </button>
+
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-1">
-                      <span
-                        className="text-sm truncate"
+                      {/* Name — click opens player profile panel */}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openPlayerPanel(conv.partner_id); }}
+                        className="text-sm truncate text-left"
                         style={{
                           fontWeight: conv.unread_count > 0 || isSelected ? 600 : 500,
                           color: isSelected ? '#ffffff' : '#1a1a1a',
                         }}
                       >
                         {name}
-                      </span>
+                      </button>
                       <span className="text-[10px] shrink-0" style={{ color: isSelected ? 'rgba(255,255,255,0.5)' : '#9CA3AF' }}>
                         {conv.last_at ? formatTime(conv.last_at) : ''}
                       </span>
@@ -541,7 +554,7 @@ export default function Messages() {
                       {conv.unread_count > 9 ? '9+' : conv.unread_count}
                     </span>
                   )}
-                </button>
+                </div>
               );
             })
           )}

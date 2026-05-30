@@ -71,7 +71,7 @@ function TagInput({ value = [], onChange, placeholder, colorClass }) {
 }
 
 // ── ProfileCard — unified card matching the design system ─────────────────────
-function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditClick, onPhotoUploaded, onFriendsClick }) {
+function ProfileCard({ profile, user, name, onEditClick, onPhotoUploaded }) {
   const coverInputRef  = useRef(null);
   const photoInputRef  = useRef(null);
   const [coverUploading, setCoverUploading] = useState(false);
@@ -199,25 +199,6 @@ function ProfileCard({ profile, user, name, bookingsCount, friendsCount, onEditC
               {style}
             </span>
           )}
-        </div>
-
-        {/* Stats row — Sessions + Amis */}
-        <div className="flex border border-border rounded-xl overflow-hidden mb-3">
-          <Link
-            to="/history/sessions"
-            className="flex-1 text-center py-2.5 hover:bg-muted/50 transition-colors"
-          >
-            <p className="text-lg font-bold text-foreground">{bookingsCount ?? 0}</p>
-            <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wide">Sessions</p>
-          </Link>
-          <div className="w-px bg-border" />
-          <button
-            onClick={onFriendsClick}
-            className="flex-1 text-center py-2.5 hover:bg-muted/50 transition-colors"
-          >
-            <p className="text-lg font-bold text-foreground">{friendsCount ?? 0}</p>
-            <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wide">Amis</p>
-          </button>
         </div>
 
         {/* Strengths & Weaknesses */}
@@ -1168,6 +1149,7 @@ function FriendsSlidePanel({ friends, onClose }) {
 // ── Profile page ──────────────────────────────────────────────────────────────
 export default function Profile() {
   const { user, setUser, profile: ctxProfile, setProfile } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const [profile,        setLocal]         = useState(ctxProfile ?? undefined);
@@ -1291,20 +1273,17 @@ export default function Profile() {
             profile={profile}
             user={user}
             name={name}
-            bookingsCount={bookings.length}
-            friendsCount={friends.length}
             onEditClick={() => setEditing(true)}
             onPhotoUploaded={(updated) => { setLocal(updated); setProfile(updated); }}
-            onFriendsClick={() => setShowFriendsPanel(true)}
           />
 
-          {/* Balance card */}
+          {/* Balance card + stats */}
           <div className="w-full max-w-sm mx-auto">
             <div className="rounded-xl border border-border bg-card px-5 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <Wallet className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">Mon solde</p>
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{t('profile.balance')}</p>
                   <p className="text-lg font-bold text-foreground leading-tight">
                     {Number(user?.balance ?? 0).toLocaleString('fr-FR')}
                     <span className="text-xs font-normal text-muted-foreground ml-1">FCFA</span>
@@ -1312,8 +1291,25 @@ export default function Profile() {
                 </div>
               </div>
               <Button size="sm" variant="outline" onClick={() => setShowRechargeModal(true)}>
-                Recharger
+                {t('profile.recharge')}
               </Button>
+            </div>
+
+            {/* Stats row — Sessions + Amis */}
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="bg-white rounded-xl p-4 text-center border border-border">
+                <Link to="/history/sessions">
+                  <span className="text-2xl font-bold text-foreground">{bookings.length}</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t('profile.sessions')}</p>
+                </Link>
+              </div>
+              <div
+                className="bg-white rounded-xl p-4 text-center border border-border cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => setShowFriendsPanel(true)}
+              >
+                <span className="text-2xl font-bold text-foreground">{friends.length}</span>
+                <p className="text-xs text-muted-foreground mt-0.5">{t('profile.friends')}</p>
+              </div>
             </div>
           </div>
         </div>

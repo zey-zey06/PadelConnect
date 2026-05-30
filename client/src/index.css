@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+/* RTL support for Arabic */
+[dir="rtl"] .flex { flex-direction: row-reverse; }
+[dir="rtl"] { text-align: right; }
+
 @layer utilities {
   /* Hide scrollbar while preserving scroll functionality */
   .no-scrollbar::-webkit-scrollbar { display: none; }
