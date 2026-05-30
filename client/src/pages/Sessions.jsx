@@ -198,6 +198,10 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
   const [participants,  setParticipants]  = useState(null);
   const [loadingPart,   setLoadingPart]   = useState(true);
 
+  // Swipe-right to close
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+
   const d         = parseSessionDate(session.date);
   const isOwner   = user?.id === session.creator_id;
   const filled    = session.current_players ?? 0;
@@ -234,12 +238,29 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
 
   const hasActiveBooking = booking && booking.status !== 'cancelled';
 
+  const players = (participants ?? []).filter((p) => p.role !== 'coach');
+  const coaches  = (participants ?? []).filter((p) => p.role === 'coach');
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/30 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-xl max-h-[88vh] flex flex-col">
+      <div
+        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-xl max-h-[88vh] flex flex-col"
+        onTouchStart={(e) => {
+          touchStartX.current = e.touches[0].clientX;
+          touchStartY.current = e.touches[0].clientY;
+        }}
+        onTouchEnd={(e) => {
+          if (touchStartX.current === null) return;
+          const dx = e.changedTouches[0].clientX - touchStartX.current;
+          const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+          if (dx > 80 && dx > dy) onClose();
+          touchStartX.current = null;
+          touchStartY.current = null;
+        }}
+      >
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
@@ -309,10 +330,10 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
             </button>
           </div>
 
-          {/* Participants */}
+          {/* Participants — players only */}
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
-              Participants · {filled}/{total}
+              Joueurs · {filled}/{total}
             </p>
             {loadingPart ? (
               <div className="flex gap-2">
@@ -320,7 +341,7 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
               </div>
             ) : (
               <div className="flex items-center gap-2 flex-wrap">
-                {(participants ?? []).map((p) => {
+                {players.map((p) => {
                   const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email?.split('@')[0] || 'Joueur';
                   return (
                     <button
@@ -340,13 +361,47 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
                     </button>
                   );
                 })}
-                {/* Empty spots */}
-                {Array.from({ length: Math.max(0, total - (participants?.length ?? 0)) }, (_, i) => (
+                {/* Empty player spots */}
+                {Array.from({ length: Math.max(0, total - players.length) }, (_, i) => (
                   <div key={`empty-${i}`} className="h-10 w-10 rounded-full border-2 border-dashed border-border/50 bg-background shrink-0" />
                 ))}
               </div>
             )}
           </div>
+
+          {/* Coaches — shown separately, only if any */}
+          {!loadingPart && coaches.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                Coachs · {coaches.length}
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {coaches.map((c) => {
+                  const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || c.email?.split('@')[0] || 'Coach';
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => openPlayerPanel(c.id)}
+                      title={name}
+                      className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3 py-1.5 hover:bg-muted transition-colors text-left"
+                    >
+                      <div className="h-7 w-7 rounded-full overflow-hidden bg-amber-100 ring-1 ring-border shrink-0">
+                        {c.photo_url ? (
+                          <img src={c.photo_url} alt={name} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center">
+                            <span className="text-[9px] font-bold text-amber-700 select-none">{name.slice(0, 2).toUpperCase()}</span>
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-xs font-medium text-foreground">{name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Booked venue */}
           {hasActiveBooking && (

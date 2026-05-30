@@ -171,7 +171,7 @@ async function getSessionParticipants(sessionId) {
       .leftJoin('player_profiles', 'users.id', 'player_profiles.user_id')
       .where({ 'session_requests.session_id': sessionId, 'session_requests.status': 'accepted' })
       .whereNull('session_requests.deleted_at')
-      .select('users.id', 'users.first_name', 'users.last_name', 'users.email', 'player_profiles.photo_url'),
+      .select('users.id', 'users.first_name', 'users.last_name', 'users.email', 'player_profiles.photo_url', 'session_requests.role'),
   ]);
 
   const participants = [];
