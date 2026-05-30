@@ -969,6 +969,14 @@ function HamburgerMenu({ open, onClose, onPassword, onDelete, onLogout }) {
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
             {t('profile.privacy')}
           </Link>
+          <Link
+            to="/terms"
+            onClick={onClose}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-foreground hover:bg-muted transition-colors"
+          >
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+            Conditions d'utilisation
+          </Link>
           <button
             onClick={() => { onClose(); onLogout(); }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-left"

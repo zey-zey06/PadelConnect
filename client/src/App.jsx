@@ -28,6 +28,7 @@ import PlayerProfile    from '@/pages/PlayerProfile';
 import Messages         from '@/pages/Messages';
 import Contact          from '@/pages/Contact';
 import Privacy          from '@/pages/Privacy';
+import Terms            from '@/pages/Terms';
 import Layout              from '@/components/Layout';
 import SplashScreen        from '@/components/SplashScreen';
 import PlayerProfilePanel  from '@/components/PlayerProfilePanel';
@@ -245,6 +246,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms"   element={<Terms />} />
 
           {/* ── Catch-all: role-aware redirect ──────────────────────── */}
           <Route path="*" element={<DefaultRedirect />} />

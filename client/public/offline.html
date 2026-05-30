@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1A3D2B" />
+  <title>PadelConnect — Hors ligne</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #faf8f5;
+      color: #1c1c1a;
+      padding: 24px;
+      text-align: center;
+      gap: 16px;
+    }
+    .logo {
+      width: 56px; height: 56px;
+      border-radius: 16px;
+      background: #1a3d2b;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; font-weight: 800; color: white;
+      margin-bottom: 4px;
+    }
+    .brand { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+    .brand span { color: #1a3d2b; }
+    h1 { font-size: 22px; font-weight: 700; margin-top: 8px; }
+    p { font-size: 15px; color: #6b7280; max-width: 300px; line-height: 1.6; }
+    button {
+      margin-top: 8px;
+      padding: 14px 28px;
+      border-radius: 14px;
+      background: #1a3d2b;
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.88; }
+  </style>
+</head>
+<body>
+  <div class="logo">P</div>
+  <p class="brand">Padel<span>Connect</span></p>
+  <h1>Vous êtes hors ligne 📶</h1>
+  <p>Vérifiez votre connexion internet et réessayez.</p>
+  <button onclick="location.reload()">Réessayer</button>
+</body>
+</html>

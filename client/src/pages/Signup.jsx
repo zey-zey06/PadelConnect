@@ -298,9 +298,9 @@ export default function Signup() {
 
               <p className="text-center text-xs text-muted-foreground">
                 En créant un compte, vous acceptez nos{' '}
-                <span className="text-foreground/70 underline underline-offset-2 cursor-pointer">
+                <Link to="/terms" className="text-primary underline underline-offset-2 hover:text-primary/80">
                   conditions d'utilisation
-                </span>.
+                </Link>.
               </p>
             </form>
 
