@@ -5,7 +5,7 @@ const notificationsService = require('../features/notifications/notifications.se
 const { sendVerificationEmail } = require('../emails/verification');
 
 const BCRYPT_ROUNDS = 12;
-const VERIFICATION_TTL_MS = 60 * 1000; // 60 seconds
+const VERIFICATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();

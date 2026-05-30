@@ -79,13 +79,14 @@ function VerifyingToken({ token }) {
 
 // ── OTP input — "check your email" state ─────────────────────────────────────
 const COOLDOWN_SECONDS = 60;
-const OTP_TTL_SECONDS  = 60;
+const OTP_TTL_SECONDS  = 600; // 10 minutes
 
 function CheckEmail({ email }) {
   const [digits,       setDigits]       = useState(Array(6).fill(''));
   const [submitStatus, setSubmitStatus] = useState('idle'); // idle | loading | error
   const [errorMsg,     setErrorMsg]     = useState('');
-  const [resendStatus, setResendStatus] = useState('idle'); // idle | loading | sent
+  const [resendStatus, setResendStatus] = useState('idle'); // idle | loading | sent | error
+  const [resendError,  setResendError]  = useState('');
   const [cooldown,     setCooldown]     = useState(0);
   const [otpCountdown, setOtpCountdown] = useState(OTP_TTL_SECONDS);
   const inputRefs      = useRef([]);
@@ -124,7 +125,7 @@ function CheckEmail({ email }) {
     try {
       await verifyOtp(email, codeStr);
       // JWT cookie set by backend — force full reload so auth context reinitialises
-      window.location.replace('/sessions');
+      window.location.replace('/profile/setup');
     } catch (err) {
       setErrorMsg(err.message || 'Code incorrect.');
       setSubmitStatus('error');
@@ -174,6 +175,7 @@ function CheckEmail({ email }) {
   async function handleResend() {
     if (cooldown > 0 || resendStatus === 'loading' || !email) return;
     setResendStatus('loading');
+    setResendError('');
     try {
       await resendVerification(email);
       setResendStatus('sent');
@@ -193,8 +195,9 @@ function CheckEmail({ email }) {
         setResendStatus('idle');
         inputRefs.current[0]?.focus();
       }, 3000);
-    } catch {
+    } catch (err) {
       setResendStatus('idle');
+      setResendError(err.message || 'Impossible de renvoyer le code. Réessayez.');
     }
   }
 
@@ -227,8 +230,11 @@ function CheckEmail({ email }) {
           </p>
         )}
         {otpCountdown > 0 ? (
-          <p className={cn('text-xs', otpCountdown < 10 ? 'text-red-500 font-medium' : 'text-muted-foreground')}>
-            Ce code expire dans {otpCountdown}s
+          <p className={cn('text-xs', otpCountdown < 60 ? 'text-red-500 font-medium' : 'text-muted-foreground')}>
+            Ce code expire dans{' '}
+            {otpCountdown >= 60
+              ? `${Math.floor(otpCountdown / 60)} min ${otpCountdown % 60}s`
+              : `${otpCountdown}s`}
           </p>
         ) : (
           <p className="text-xs text-red-500 font-medium">
@@ -290,7 +296,7 @@ function CheckEmail({ email }) {
       <button
         type="button"
         onClick={handleResend}
-        disabled={cooldown > 0 || resendStatus === 'loading'}
+        disabled={cooldown > 0 || resendStatus === 'loading' || !email}
         className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-default"
       >
         {resendStatus === 'sent' ? (
@@ -305,6 +311,9 @@ function CheckEmail({ email }) {
           'Renvoyer le code'
         )}
       </button>
+      {resendError && (
+        <p className="text-xs text-red-500">{resendError}</p>
+      )}
 
       <Link to="/login">
         <Button variant="ghost" size="sm" className="text-muted-foreground w-full">

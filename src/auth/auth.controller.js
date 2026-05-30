@@ -142,6 +142,7 @@ async function changePasswordHandler(req, res, next) {
 async function verifyOtpHandler(req, res, next) {
   try {
     const { email, code } = req.body;
+    console.log('[OTP] Received:', { email, code });
     if (!email || !code) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Email et code requis.' });
     }
