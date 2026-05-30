@@ -1,25 +1,21 @@
-﻿const nodemailer = require('nodemailer');
+﻿const SibApiV3Sdk = require('@sendinblue/client');
 
-const FROM = process.env.GMAIL_USER || 'padelconnectci@gmail.com';
+const FROM = 'padelconnectci@gmail.com';
 
-function getTransporter() {
-  return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_PASSWORD,
-    },
-  });
-}
+const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+apiInstance.setApiKey(SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
 
 async function sendEmail(mailOptions) {
   try {
-    const transporter = getTransporter();
     console.log('[MAILER] Attempting to send to:', mailOptions.to);
-    const result = await transporter.sendMail(mailOptions);
-    console.log('[MAILER] SUCCESS:', result.messageId);
+    const sendSmtpEmail = {
+      sender: { email: FROM, name: 'PadelConnect' },
+      to: [{ email: mailOptions.to }],
+      subject: mailOptions.subject,
+      htmlContent: mailOptions.html,
+    };
+    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log('[MAILER] SUCCESS:', result.body?.messageId);
     return result;
   } catch (err) {
     console.error('[MAILER] FAILED:', err.message);
