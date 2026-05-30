@@ -18,17 +18,52 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Skip non-GET and API requests — never cache those
   if (e.request.method !== 'GET') return;
   if (e.request.url.includes('/api/')) return;
 
   e.respondWith(
     fetch(e.request)
       .catch(() =>
-        // Network failed → serve offline page for navigation requests
         e.request.mode === 'navigate'
           ? caches.match(OFFLINE)
           : Response.error()
       )
+  );
+});
+
+// ── Push notification handler ─────────────────────────────────────────────────
+self.addEventListener('push', (e) => {
+  let data = {};
+  try { data = e.data?.json() ?? {}; } catch { data = { title: 'PadelConnect', body: e.data?.text() ?? '' }; }
+
+  const title   = data.title ?? 'PadelConnect';
+  const options = {
+    body:    data.body   ?? '',
+    icon:    '/icon-192x192.png',
+    badge:   '/favicon.svg',
+    tag:     data.type   ?? 'general',
+    data:    { url: data.url ?? '/' },
+    vibrate: [200, 100, 200],
+    renotify: true,
+  };
+
+  e.waitUntil(self.registration.showNotification(title, options));
+});
+
+// ── Notification click: open or focus the app ─────────────────────────────────
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = e.notification.data?.url ?? '/';
+
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const existing = clients.find((c) => c.url.includes(self.location.origin));
+      if (existing) {
+        existing.focus();
+        existing.navigate(url);
+      } else {
+        self.clients.openWindow(url);
+      }
+    })
   );
 });

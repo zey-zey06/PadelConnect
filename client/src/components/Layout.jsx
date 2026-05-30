@@ -15,6 +15,15 @@ import BottomNav          from '@/components/BottomNav';
 import SearchBar          from '@/components/SearchBar';
 import NetworkStatus      from '@/components/NetworkStatus';
 import ToastContainer     from '@/components/ToastNotification';
+import { getVapidKey, subscribePush } from '@/api/push';
+
+// Converts a URL-safe base64 VAPID public key to a Uint8Array for pushManager.subscribe
+function urlBase64ToUint8Array(base64String) {
+  const padding  = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64   = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData  = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
 
 const NOTIF_TITLE = {
   friend_request:    "Demande d'ami",
@@ -93,6 +102,37 @@ export default function Layout({ children }) {
     !piaOpen &&
     !mobileOpen;
   const { indicatorRef } = useSwipeBack({ enabled: swipeEnabled });
+
+  // ── Push notification subscription (once per session) ────────────────────
+  useEffect(() => {
+    if (!user || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (Notification.permission === 'denied') return;
+
+    async function trySubscribe() {
+      try {
+        const { enabled, publicKey } = await getVapidKey();
+        if (!enabled || !publicKey) return;
+
+        const reg = await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+
+        if (!sub) {
+          if (Notification.permission !== 'granted') {
+            const perm = await Notification.requestPermission();
+            if (perm !== 'granted') return;
+          }
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly:      true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey),
+          });
+        }
+
+        await subscribePush(sub.toJSON());
+      } catch { /* non-fatal */ }
+    }
+
+    trySubscribe();
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── On route change: refresh counts ─────────────────────────────────────────
   useEffect(() => {

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, Link } from 'react-router-dom';
+import Onboarding   from '@/components/Onboarding';
+import RatingPrompt from '@/components/RatingPrompt';
 import {
   listSessions, createSession, requestJoin, getMySessions,
   getSessionRequests, respondToRequest, cancelSession, inviteCoach, invitePlayer,
@@ -2825,6 +2827,22 @@ export default function Sessions() {
   const fromNotification = searchParams.get('tab') === 'mine';
   const [tab, setTab] = useState(fromNotification ? 'mine' : 'browse');
 
+  // ── Onboarding (first-time users) ─────────────────────────────────────────
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => !localStorage.getItem('onboarding_done')
+  );
+
+  // ── Rating prompt (after 3 sessions joined) ────────────────────────────────
+  const [showRating, setShowRating] = useState(false);
+  const sessionsJoined = Number(localStorage.getItem('sessions_joined') ?? 0);
+  const ratingThreshold = Number(localStorage.getItem('rating_threshold') ?? 3);
+  useEffect(() => {
+    if (!localStorage.getItem('rating_done') && sessionsJoined >= ratingThreshold && sessionsJoined > 0) {
+      const t = setTimeout(() => setShowRating(true), 3000);
+      return () => clearTimeout(t);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [sessions,    setSessions]    = useState([]);
   const [bookingMap,  setBookingMap]  = useState({});
   const [loading,     setLoading]     = useState(true);
@@ -2892,6 +2910,9 @@ export default function Sessions() {
 
   async function handleJoin(sessionId) {
     await requestJoin(sessionId);
+    // Increment sessions_joined counter for rating prompt
+    const cur = Number(localStorage.getItem('sessions_joined') ?? 0);
+    localStorage.setItem('sessions_joined', String(cur + 1));
     // Optimistically mark as pending so the button updates immediately
     setRequestStatusMap((prev) => {
       const next = { ...prev, [sessionId]: 'pending' };
@@ -2909,6 +2930,12 @@ export default function Sessions() {
 
   return (
     <div className="space-y-6">
+      {/* Onboarding overlay (first-time players) */}
+      {showOnboarding && <Onboarding onDone={() => setShowOnboarding(false)} />}
+
+      {/* App rating prompt */}
+      {showRating && !showOnboarding && <RatingPrompt onDismiss={() => setShowRating(false)} />}
+
       {/* Pull-to-refresh indicator */}
       {refreshing && (
         <div className="flex items-center justify-center py-2">

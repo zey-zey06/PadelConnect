@@ -1,4 +1,16 @@
 const notificationsRepo = require('./notifications.repository');
+const pushService       = require('../push/push.service');
+
+const PUSH_TITLES = {
+  friend_request:    "Demande d'ami",
+  session_request:   'Demande de session',
+  session_invite:    'Invitation de session',
+  request_accepted:  'Demande acceptée ! 🎉',
+  request_refused:   'Demande refusée',
+  session_complete:  'Session complète 🎾',
+  booking_confirmed: 'Réservation confirmée ✅',
+  club_post:         'Nouvelle publication',
+};
 
 function makeError(status, message) {
   const err = new Error(message);
@@ -12,11 +24,23 @@ function makeError(status, message) {
  */
 async function createNotification(userId, type, message, actorId = null, metadata = null) {
   try {
-    return await notificationsRepo.create({
+    const notif = await notificationsRepo.create({
       user_id: userId, type, message,
       actor_id: actorId || undefined,
       metadata: metadata || undefined,
     });
+
+    // Fire-and-forget push notification for relevant types
+    if (PUSH_TITLES[type]) {
+      pushService.sendPushToUser(userId, {
+        title: PUSH_TITLES[type],
+        body:  message ?? '',
+        type,
+        url:   '/',
+      }).catch(() => {});
+    }
+
+    return notif;
   } catch {
     // Non-fatal: notification failure must never block business operations
   }
