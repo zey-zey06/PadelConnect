@@ -1,19 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Bell, LogOut, Menu, X, User, ChevronLeft } from 'lucide-react';
 import { useAuth, usePlayerPanel } from '@/App';
 import { logout } from '@/api/auth';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
-import { getUnreadCount } from '@/api/notifications';
+import { getUnreadCount, getNotifications } from '@/api/notifications';
 import { getUnreadMsgCount } from '@/api/messages';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import PIAButton from '@/components/PIA/PIAButton';
 import PIAPanel from '@/components/PIA/PIAPanel';
-import BottomNav     from '@/components/BottomNav';
-import SearchBar     from '@/components/SearchBar';
-import NetworkStatus from '@/components/NetworkStatus';
+import BottomNav          from '@/components/BottomNav';
+import SearchBar          from '@/components/SearchBar';
+import NetworkStatus      from '@/components/NetworkStatus';
+import ToastContainer     from '@/components/ToastNotification';
+
+const NOTIF_TITLE = {
+  friend_request:    "Demande d'ami",
+  session_request:   'Demande de session',
+  session_invite:    'Invitation de session',
+  request_accepted:  'Demande acceptée',
+  request_refused:   'Demande refusée',
+  session_complete:  'Session complète',
+  booking_confirmed: 'Réservation confirmée',
+  club_post:         'Nouvelle publication',
+  club_ban:          'Compte suspendu',
+  late_cancel:       'Annulation tardive',
+  no_show:           'No-show enregistré',
+};
 
 // Nav link keys — labels resolved at render time via useTranslation()
 const PLAYER_NAV_KEYS = [
@@ -66,10 +81,11 @@ export default function Layout({ children }) {
 
   const navigate          = useNavigate();
   const location          = useLocation();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileOpen,     setMobileOpen]     = useState(false);
   const [unreadCount,    setUnreadCount]    = useState(0);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
-  const [piaOpen, setPiaOpen]               = useState(false);
+  const [piaOpen,        setPiaOpen]        = useState(false);
+  const [toasts,         setToasts]         = useState([]);
 
   const swipeEnabled =
     location.pathname !== '/sessions' &&
@@ -78,6 +94,7 @@ export default function Layout({ children }) {
     !mobileOpen;
   const { indicatorRef } = useSwipeBack({ enabled: swipeEnabled });
 
+  // ── On route change: refresh counts ─────────────────────────────────────────
   useEffect(() => {
     getUnreadCount()
       .then(({ count }) => setUnreadCount(count ?? 0))
@@ -86,6 +103,72 @@ export default function Layout({ children }) {
       .then(({ count }) => setUnreadMsgCount(count ?? 0))
       .catch(() => {});
   }, [location.pathname]);
+
+  // ── Toast helpers ─────────────────────────────────────────────────────────
+  const addToast = useCallback((toast) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev.slice(-2), { ...toast, id }]); // max 3 at once
+  }, []);
+
+  const dismissToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // ── Notification polling (every 30 s) ────────────────────────────────────
+  const prevNotifCountRef = useRef(null);
+  const prevMsgCountRef   = useRef(null);
+  const lastSeenTsRef     = useRef(new Date().toISOString());
+  const initializedRef    = useRef(false);
+
+  useEffect(() => {
+    async function poll() {
+      try {
+        const [{ count: nc }, { count: mc }] = await Promise.all([
+          getUnreadCount(),
+          getUnreadMsgCount(),
+        ]);
+
+        setUnreadCount(nc ?? 0);
+        setUnreadMsgCount(mc ?? 0);
+
+        if (!initializedRef.current) {
+          prevNotifCountRef.current = nc ?? 0;
+          prevMsgCountRef.current   = mc ?? 0;
+          initializedRef.current    = true;
+          return;
+        }
+
+        // ── New notification(s) ────────────────────────────────────────────
+        if ((nc ?? 0) > (prevNotifCountRef.current ?? 0)) {
+          try {
+            const { notifications } = await getNotifications();
+            const fresh = (notifications ?? []).filter(
+              (n) => !n.read && n.created_at > lastSeenTsRef.current
+            );
+            for (const n of fresh.slice(0, 2)) {
+              addToast({
+                type:    n.type,
+                title:   NOTIF_TITLE[n.type] ?? 'Notification',
+                message: n.message ?? '',
+              });
+            }
+          } catch { /* non-fatal */ }
+        }
+
+        // ── New message(s) ─────────────────────────────────────────────────
+        if ((mc ?? 0) > (prevMsgCountRef.current ?? 0)) {
+          addToast({ type: 'new_message', title: 'Nouveau message', message: '' });
+        }
+
+        prevNotifCountRef.current = nc ?? 0;
+        prevMsgCountRef.current   = mc ?? 0;
+        lastSeenTsRef.current     = new Date().toISOString();
+      } catch { /* non-fatal — ignore network errors */ }
+    }
+
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, [addToast]);
 
   async function handleLogout() {
     try { await logout(); } catch { /* non-fatal */ }
@@ -252,6 +335,9 @@ export default function Layout({ children }) {
       <main className={cn('mx-auto max-w-6xl px-4 sm:px-6 py-8', showBottomNav && 'pb-20 md:pb-8')}>
         {children}
       </main>
+
+      {/* ── Toast notifications ─────────────────────────────────────────── */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* ── PIA floating assistant ──────────────────────────────────────── */}
       <PIAButton onClick={() => setPiaOpen((o) => !o)} isOpen={piaOpen} />
