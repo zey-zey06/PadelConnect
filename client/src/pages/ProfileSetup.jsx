@@ -15,39 +15,42 @@ import DateScrollPicker from '@/components/DateScrollPicker';
 // ── Constants ────────────────────────────────────────────────────────────────
 const STEP_LABELS = ['Informations', 'Questions PIA', 'Photo & fin'];
 
-// Map Q2 level answer → DB integer
 const LEVEL_FROM_ANSWER = {
   'Débutant': 1, 'Débutant +': 2, 'Intermédiaire': 3,
   'Intermédiaire +': 4, 'Avancé': 6, 'Expert': 7,
 };
 
-// PIA interview — 9 QCM questions
 const QUESTIONS_QCM = [
   {
     key:     'experience',
     text:    'Depuis combien de temps jouez-vous au padel ?',
+    bubble:  'Dites-moi depuis quand vous pratiquez le padel.',
     options: ['Moins de 6 mois', '6 mois - 1 an', '1 - 3 ans', 'Plus de 3 ans'],
   },
   {
     key:     'level',
     text:    'Quel est votre niveau ?',
+    bubble:  'Soyez honnête, c\'est pour mieux vous matcher !',
     options: ['Débutant', 'Débutant +', 'Intermédiaire', 'Intermédiaire +', 'Avancé', 'Expert'],
   },
   {
     key:     'style',
     text:    'Quel est votre style de jeu ?',
+    bubble:  'Comment vous décririez-vous sur le court ?',
     options: ['Défensif', 'Attaquant', 'Polyvalent', 'Serveur-volleyeur'],
   },
   {
     key:        'strengths',
-    text:       'Vos points forts ? (max 3)',
+    text:       'Vos points forts ?',
+    bubble:     'Sélectionnez jusqu\'à 3 points forts.',
     options:    ['Smash', 'Volée', 'Service', 'Régularité', 'Placement', 'Vitesse'],
     multiSelect: true,
     maxSelect:   3,
   },
   {
     key:        'weaknesses',
-    text:       'Ce que vous voulez améliorer ? (max 3)',
+    text:       'Ce que vous voulez améliorer ?',
+    bubble:     'Sélectionnez jusqu\'à 3 axes de progression.',
     options:    ['Défense', 'Revers', 'Constance', 'Vitesse', 'Mental', 'Smash'],
     multiSelect: true,
     maxSelect:   3,
@@ -55,39 +58,31 @@ const QUESTIONS_QCM = [
   {
     key:     'preferred_time',
     text:    'Quand préférez-vous jouer ?',
+    bubble:  'Je noterai vos disponibilités préférées.',
     options: ['Matin', 'Après-midi', 'Soir', 'Week-end', 'Peu importe'],
   },
   {
     key:     'age_range',
     text:    'Votre tranche d\'âge ?',
+    bubble:  'Pour trouver des partenaires de votre génération.',
     options: ['Moins de 18 ans', '18-25 ans', '26-35 ans', '36-45 ans', 'Plus de 45 ans'],
     noAutre: true,
   },
   {
     key:     'motivation',
     text:    'Vous cherchez quoi sur PadelConnect ?',
+    bubble:  'Qu\'est-ce qui vous a amené ici ?',
     options: ['Trouver des partenaires', 'Progresser', 'Découvrir des clubs', "M'amuser", 'Compétition'],
   },
   {
     key:     'availability',
     text:    'Votre disponibilité habituelle ?',
+    bubble:  'Dernière question, promis ! 🎾',
     options: ['En semaine', 'Week-end uniquement', 'Tous les jours', 'Occasionnel'],
   },
 ];
 
-const ENCOURAGEMENTS = [
-  'Super, merci ! 🎾',
-  'Parfait !',
-  'Excellent ! 🙌',
-  "C'est noté !",
-  'Très bien !',
-  'Noté ! 👍',
-  'Super choix !',
-  'Très bien !',
-  'Parfait, merci ! Bienvenue sur PadelConnect 🎾',
-];
-
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Step 1 & 3 sub-components ─────────────────────────────────────────────────
 function StepIndicator({ current, total }) {
   return (
     <div className="flex items-center gap-2">
@@ -130,26 +125,6 @@ function ErrorBanner({ message, onClose }) {
   );
 }
 
-function ChatBubble({ role, text }) {
-  return (
-    <div className={`flex ${role === 'user' ? 'justify-end' : 'justify-start'}`}>
-      {role === 'model' && (
-        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-primary flex items-center justify-center mr-2 mt-0.5 shrink-0">
-          <Sparkles className="h-3 w-3 text-white" />
-        </div>
-      )}
-      <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap
-        ${role === 'user'
-          ? 'bg-primary text-white rounded-br-sm'
-          : 'bg-muted text-foreground rounded-bl-sm'
-        }`}
-      >
-        {text}
-      </div>
-    </div>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ProfileSetup() {
   const { user, setProfile } = useAuth();
@@ -163,15 +138,14 @@ export default function ProfileSetup() {
   const [birthDate,   setBirthDate]   = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  // ── Step 2: PIA interview (QCM) ───────────────────────────────────────────
-  const [chatMsgs,         setChatMsgs]         = useState([]);
-  const [chatBusy,         setChatBusy]         = useState(false);
-  const [qIndex,           setQIndex]           = useState(0);
-  const [qaAnswers,        setQaAnswers]        = useState([]);
-  const [saving,           setSaving]           = useState(false);
-  const [autreMode,        setAutreMode]        = useState(false);
-  const [autreText,        setAutreText]        = useState('');
+  // ── Step 2: QCM state ─────────────────────────────────────────────────────
+  const [qIndex,            setQIndex]            = useState(0);
+  const [qaAnswers,         setQaAnswers]         = useState([]);
+  const [selectedSingle,    setSelectedSingle]    = useState(null);
   const [multiSelectValues, setMultiSelectValues] = useState([]);
+  const [autreMode,         setAutreMode]         = useState(false);
+  const [autreText,         setAutreText]         = useState('');
+  const [saving,            setSaving]            = useState(false);
 
   // ── Step 3: photo upload ──────────────────────────────────────────────────
   const [photo,          setPhoto]          = useState(null);
@@ -181,26 +155,13 @@ export default function ProfileSetup() {
 
   const [step, setStep] = useState(1);
 
-  const chatBottomRef = useRef(null);
-
+  // Reset selection when question changes
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMsgs, chatBusy]);
-
-  // Initialise PIA when entering step 2
-  useEffect(() => {
-    if (step === 2) {
-      const greeting = firstName
-        ? `Bonjour ${firstName} ! Je suis PIA. Répondez aux questions pour créer votre profil. 🎾\n\n${QUESTIONS_QCM[0].text}`
-        : `Bonjour ! Je suis PIA. Répondez aux questions pour créer votre profil. 🎾\n\n${QUESTIONS_QCM[0].text}`;
-      setChatMsgs([{ role: 'model', text: greeting }]);
-      setQIndex(0);
-      setQaAnswers([]);
-      setMultiSelectValues([]);
-      setAutreMode(false);
-      setAutreText('');
-    }
-  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+    setSelectedSingle(null);
+    setMultiSelectValues([]);
+    setAutreMode(false);
+    setAutreText('');
+  }, [qIndex]);
 
   // ── Step 1 → 2 ────────────────────────────────────────────────────────────
   function handleStep1Next() {
@@ -209,88 +170,61 @@ export default function ProfileSetup() {
       return;
     }
     setError(null);
+    setQIndex(0);
+    setQaAnswers([]);
     setStep(2);
   }
 
-  // ── QCM: pick an answer (single-select) ──────────────────────────────────
-  function handlePickAnswer(answer) {
-    if (chatBusy || saving) return;
+  // ── QCM: pick an option ───────────────────────────────────────────────────
+  function handlePickAnswer(opt) {
+    if (saving) return;
     const q = QUESTIONS_QCM[qIndex];
     if (q.multiSelect) {
       setMultiSelectValues((prev) => {
-        if (prev.includes(answer)) return prev.filter((v) => v !== answer);
+        if (prev.includes(opt)) return prev.filter((v) => v !== opt);
         if (prev.length >= q.maxSelect) return prev;
-        return [...prev, answer];
-      });
-      return;
-    }
-    setAutreMode(false);
-    setAutreText('');
-    submitAnswer(answer);
-  }
-
-  // ── QCM: confirm multi-select selection ───────────────────────────────────
-  function handleMultiSelectConfirm() {
-    if (multiSelectValues.length === 0 || chatBusy || saving) return;
-    const values = [...multiSelectValues];
-    setMultiSelectValues([]);
-    setAutreMode(false);
-    setAutreText('');
-    submitAnswer(values);
-  }
-
-  // ── QCM: submit "Autre" custom text ──────────────────────────────────────
-  function handleAutreSubmit() {
-    const answer = autreText.trim();
-    if (!answer || chatBusy || saving) return;
-    const q = QUESTIONS_QCM[qIndex];
-    if (q.multiSelect) {
-      setMultiSelectValues((prev) => {
-        if (prev.includes(answer)) return prev;
-        if (prev.length >= q.maxSelect) return prev;
-        return [...prev, answer];
+        return [...prev, opt];
       });
       setAutreMode(false);
+    } else {
+      setSelectedSingle(opt);
+      setAutreMode(false);
       setAutreText('');
-      return;
     }
-    setAutreMode(false);
-    setAutreText('');
+  }
+
+  // ── QCM: "Suivant →" pressed ──────────────────────────────────────────────
+  function handleNext() {
+    if (saving) return;
+    const q = QUESTIONS_QCM[qIndex];
+    let answer;
+    if (q.multiSelect) {
+      if (autreMode && autreText.trim()) {
+        // add the custom text to multiselect
+        answer = [...multiSelectValues, autreText.trim()].slice(0, q.maxSelect);
+      } else {
+        answer = [...multiSelectValues];
+      }
+    } else {
+      answer = autreMode ? autreText.trim() : selectedSingle;
+    }
+    if (!answer || (Array.isArray(answer) && answer.length === 0)) return;
     submitAnswer(answer);
   }
 
   // ── Core submit ───────────────────────────────────────────────────────────
   function submitAnswer(answer) {
-    const displayText = Array.isArray(answer) ? answer.join(', ') : answer;
-    setChatBusy(true);
     const newAnswers = [...qaAnswers, { question: QUESTIONS_QCM[qIndex].text, answer }];
     setQaAnswers(newAnswers);
-    setChatMsgs((prev) => [...prev, { role: 'user', text: displayText }]);
-
     const isLast = qIndex === QUESTIONS_QCM.length - 1;
     if (isLast) {
-      setTimeout(() => {
-        setChatMsgs((prev) => [...prev, { role: 'model', text: ENCOURAGEMENTS[ENCOURAGEMENTS.length - 1] }]);
-        setTimeout(() => {
-          setChatMsgs((prev) => [...prev, { role: 'model', text: 'Enregistrement de votre profil… ✨' }]);
-          saveDirectProfile(newAnswers);
-        }, 700);
-      }, 600);
+      saveDirectProfile(newAnswers);
     } else {
-      const nextIndex = qIndex + 1;
-      setTimeout(() => {
-        setChatMsgs((prev) => [
-          ...prev,
-          { role: 'model', text: `${ENCOURAGEMENTS[qIndex % ENCOURAGEMENTS.length]}\n\n${QUESTIONS_QCM[nextIndex].text}` },
-        ]);
-        setQIndex(nextIndex);
-        setMultiSelectValues([]);
-        setChatBusy(false);
-      }, 600);
+      setQIndex(qIndex + 1);
     }
   }
 
-  // ── Save profile directly (no AI) ─────────────────────────────────────────
+  // ── Save profile directly ─────────────────────────────────────────────────
   async function saveDirectProfile(answers) {
     setSaving(true);
     try {
@@ -320,11 +254,9 @@ export default function ProfileSetup() {
 
       await updateProfile(profileData);
       await updateMe({ first_name: firstName.trim() || null, last_name: lastName.trim() || null });
-
       setStep(3);
     } catch (err) {
       setError(err.message || 'Erreur lors de la sauvegarde.');
-      setChatBusy(false);
     } finally {
       setSaving(false);
     }
@@ -334,10 +266,7 @@ export default function ProfileSetup() {
   async function handlePhotoChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setError('La photo ne doit pas dépasser 5 Mo.');
-      return;
-    }
+    if (file.size > 5 * 1024 * 1024) { setError('La photo ne doit pas dépasser 5 Mo.'); return; }
     setError(null);
     setPhoto(file);
     setPhotoPreview(URL.createObjectURL(file));
@@ -372,7 +301,251 @@ export default function ProfileSetup() {
     }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Can advance? ───────────────────────────────────────────────────────────
+  const q = QUESTIONS_QCM[qIndex];
+  const canNext = q?.multiSelect
+    ? multiSelectValues.length > 0 || (autreMode && autreText.trim().length > 0)
+    : selectedSingle !== null || (autreMode && autreText.trim().length > 0);
+
+  const progress = ((qIndex + 1) / QUESTIONS_QCM.length) * 100;
+
+  // ── STEP 2 — full-screen premium QCM ──────────────────────────────────────
+  if (step === 2) {
+    return (
+      <div
+        className="fixed inset-0 flex flex-col overflow-hidden"
+        style={{ background: 'linear-gradient(160deg, #0f2d1f 0%, #1a3d2b 100%)' }}
+      >
+        {/* Keyframe animations */}
+        <style>{`
+          @keyframes qFadeIn {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes btnSlideUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+          .q-enter { animation: qFadeIn 0.4s cubic-bezier(0.22,1,0.36,1) forwards; }
+          .btn-enter { animation: btnSlideUp 0.3s cubic-bezier(0.22,1,0.36,1) forwards; }
+        `}</style>
+
+        {/* Progress bar */}
+        <div className="relative h-[3px] w-full flex-shrink-0" style={{ background: 'rgba(255,255,255,0.12)' }}>
+          <div
+            className="absolute left-0 top-0 h-full transition-all duration-500 ease-out rounded-full"
+            style={{ width: `${progress}%`, background: '#74C69D' }}
+          />
+        </div>
+
+        {/* Back chevron */}
+        <button
+          type="button"
+          onClick={() => { setStep(1); setError(null); }}
+          className="absolute top-4 left-4 flex items-center gap-1.5 text-white/60 hover:text-white transition-colors text-sm z-10"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Retour
+        </button>
+
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-36 pt-4">
+          {saving ? (
+            /* ── Saving spinner ─────────────────────────────────────── */
+            <div className="flex flex-col items-center justify-center min-h-full gap-6 px-6">
+              <div
+                className="w-20 h-20 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(116,198,157,0.15)', border: '2px solid rgba(116,198,157,0.3)' }}
+              >
+                <span className="text-4xl">🎾</span>
+              </div>
+              <div className="text-center space-y-2">
+                <p className="text-white text-xl font-semibold">Création de votre profil…</p>
+                <p style={{ color: '#74C69D' }} className="text-sm">PIA analyse vos réponses</p>
+              </div>
+              <div className="flex gap-2">
+                {[0, 150, 300].map((d) => (
+                  <div
+                    key={d}
+                    className="w-2.5 h-2.5 rounded-full animate-bounce"
+                    style={{ background: '#74C69D', animationDelay: `${d}ms` }}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* ── Question card ──────────────────────────────────────── */
+            <div key={qIndex} className="q-enter px-5 pt-10 max-w-lg mx-auto w-full">
+
+              {/* PIA avatar + subtitle */}
+              <div className="flex flex-col items-center gap-3 mb-7">
+                <div
+                  className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
+                  style={{
+                    background: 'rgba(116,198,157,0.18)',
+                    border: '1.5px solid rgba(116,198,157,0.45)',
+                    boxShadow: '0 0 24px rgba(116,198,157,0.15)',
+                  }}
+                >
+                  <span className="text-2xl select-none">🎾</span>
+                </div>
+                <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: '#74C69D', letterSpacing: '0.12em' }}>
+                  Question {qIndex + 1} sur {QUESTIONS_QCM.length}
+                </p>
+              </div>
+
+              {/* Question text */}
+              <h1
+                className="text-[1.6rem] font-bold text-white text-center leading-tight mb-6"
+                style={{ fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '-0.01em' }}
+              >
+                {q.text}
+              </h1>
+
+              {/* PIA message bubble */}
+              <div
+                className="rounded-2xl px-4 py-3 mb-6 mx-auto max-w-xs text-center"
+                style={{ background: 'rgba(255,255,255,0.93)', boxShadow: '0 2px 12px rgba(0,0,0,0.18)' }}
+              >
+                <p className="text-sm font-medium" style={{ color: '#1a3d2b' }}>
+                  {q.bubble}
+                </p>
+              </div>
+
+              {/* Options */}
+              <div className="space-y-3">
+                {q.options.map((opt) => {
+                  const isSelected = q.multiSelect
+                    ? multiSelectValues.includes(opt)
+                    : selectedSingle === opt;
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => handlePickAnswer(opt)}
+                      className="w-full text-left flex items-center justify-between rounded-xl transition-all duration-150 active:scale-[0.985] focus:outline-none"
+                      style={{
+                        background: isSelected ? 'rgba(255,255,255,0.98)' : 'rgba(255,255,255,0.88)',
+                        padding: '16px 18px',
+                        borderLeft: isSelected ? '4px solid #16a34a' : '4px solid transparent',
+                        boxShadow: isSelected
+                          ? '0 4px 16px rgba(22,163,74,0.18), 0 1px 4px rgba(0,0,0,0.08)'
+                          : '0 1px 4px rgba(0,0,0,0.08)',
+                      }}
+                    >
+                      <span
+                        className="text-sm font-medium"
+                        style={{ color: isSelected ? '#15803d' : '#1f2937' }}
+                      >
+                        {opt}
+                      </span>
+                      {isSelected && (
+                        <CheckCircle2
+                          className="h-5 w-5 shrink-0 ml-2"
+                          style={{ color: '#16a34a' }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+
+                {/* "Autre" option */}
+                {!q.noAutre && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (q.multiSelect) {
+                        setAutreMode((v) => !v);
+                      } else {
+                        setAutreMode(true);
+                        setSelectedSingle(null);
+                      }
+                    }}
+                    className="w-full text-left flex items-center justify-between rounded-xl transition-all duration-150 active:scale-[0.985] focus:outline-none"
+                    style={{
+                      background: autreMode ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.18)',
+                      padding: '14px 18px',
+                      borderLeft: autreMode ? '4px solid #16a34a' : '4px solid transparent',
+                      border: autreMode ? undefined : '1.5px dashed rgba(255,255,255,0.3)',
+                      boxShadow: autreMode ? '0 2px 8px rgba(22,163,74,0.15)' : 'none',
+                    }}
+                  >
+                    <span
+                      className="text-sm font-medium"
+                      style={{ color: autreMode ? '#15803d' : 'rgba(255,255,255,0.65)' }}
+                    >
+                      Autre…
+                    </span>
+                    {autreMode && <CheckCircle2 className="h-5 w-5 shrink-0 ml-2" style={{ color: '#16a34a' }} />}
+                  </button>
+                )}
+
+                {/* "Autre" text input */}
+                {autreMode && (
+                  <input
+                    autoFocus
+                    value={autreText}
+                    onChange={(e) => setAutreText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && canNext) handleNext(); }}
+                    placeholder="Précisez votre réponse…"
+                    className="w-full rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2"
+                    style={{
+                      background: 'rgba(255,255,255,0.95)',
+                      padding: '14px 18px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      focusRingColor: '#74C69D',
+                    }}
+                  />
+                )}
+
+                {/* Multi-select count */}
+                {q.multiSelect && multiSelectValues.length > 0 && (
+                  <p className="text-center text-sm font-medium pt-1" style={{ color: '#74C69D' }}>
+                    {multiSelectValues.length}/{q.maxSelect} sélectionné(s)
+                  </p>
+                )}
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="mt-4 rounded-xl p-3 text-sm flex items-center gap-2" style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5' }}>
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Fixed "Suivant →" button */}
+        {canNext && !saving && (
+          <div
+            className="fixed bottom-0 left-0 right-0 px-5 pb-10 pt-6 btn-enter"
+            style={{ background: 'linear-gradient(to top, #0f2d1f 55%, transparent)' }}
+          >
+            <button
+              type="button"
+              onClick={handleNext}
+              className="w-full max-w-lg mx-auto flex items-center justify-center gap-2 rounded-2xl font-semibold text-base transition-all active:scale-[0.97] focus:outline-none"
+              style={{
+                display: 'flex',
+                background: '#74C69D',
+                color: '#0f2d1f',
+                padding: '17px 24px',
+                boxShadow: '0 4px 20px rgba(116,198,157,0.4)',
+                fontWeight: 700,
+                fontSize: '1rem',
+              }}
+            >
+              {qIndex === QUESTIONS_QCM.length - 1 ? 'Terminer mon profil ✓' : 'Suivant →'}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── STEP 1 & 3 — standard layout ──────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
@@ -471,156 +644,6 @@ export default function ProfileSetup() {
             </div>
           )}
 
-          {/* ── STEP 2 — PIA interview (QCM) ─────────────────────────── */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground tracking-tight flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  Entretien avec PIA
-                </h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {QUESTIONS_QCM.length} questions — PIA crée votre profil instantanément.
-                </p>
-              </div>
-
-              {/* Chat transcript */}
-              <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
-                <div className="h-56 overflow-y-auto p-4 space-y-3 no-scrollbar">
-                  {chatMsgs.map((msg, i) => (
-                    <ChatBubble key={i} role={msg.role} text={msg.text} />
-                  ))}
-                  {(chatBusy || saving) && (
-                    <div className="flex justify-start items-center">
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-primary flex items-center justify-center mr-2 shrink-0">
-                        <Sparkles className="h-3 w-3 text-white" />
-                      </div>
-                      <div className="bg-muted rounded-2xl rounded-bl-sm px-3.5 py-2.5 flex items-center gap-2">
-                        <div className="flex gap-1">
-                          {[0, 150, 300].map((d) => (
-                            <span key={d} className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: `${d}ms` }} />
-                          ))}
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {saving ? 'Enregistrement…' : 'PIA réfléchit…'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={chatBottomRef} />
-                </div>
-
-                {/* QCM answer chips */}
-                {!chatBusy && !saving && qIndex < QUESTIONS_QCM.length && (
-                  <div className="border-t border-border px-4 py-4 bg-background/50 space-y-3">
-                    {/* Progress */}
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold text-muted-foreground">
-                        Question {qIndex + 1} sur {QUESTIONS_QCM.length}
-                      </p>
-                      <div className="flex gap-1">
-                        {QUESTIONS_QCM.map((_, i) => (
-                          <div
-                            key={i}
-                            className={cn(
-                              'h-1.5 rounded-full transition-all duration-300',
-                              i < qIndex  ? 'w-4 bg-green-600'
-                              : i === qIndex ? 'w-6 bg-green-700'
-                              : 'w-4 bg-border'
-                            )}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Option chips */}
-                    <div key={qIndex} className="flex flex-wrap gap-2 animate-fade-in-up">
-                      {QUESTIONS_QCM[qIndex].options.map((opt) => {
-                        const isMulti    = !!QUESTIONS_QCM[qIndex].multiSelect;
-                        const isSelected = isMulti && multiSelectValues.includes(opt);
-                        return (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => handlePickAnswer(opt)}
-                            className={cn(
-                              'px-4 py-2.5 rounded-full border text-sm font-medium transition-all active:scale-95',
-                              isSelected
-                                ? 'border-green-700 bg-green-700 text-white'
-                                : 'border-green-600 bg-white text-green-700 hover:bg-green-700 hover:text-white hover:border-green-700',
-                            )}
-                          >
-                            {isSelected && '✓ '}{opt}
-                          </button>
-                        );
-                      })}
-                      {/* "Autre" button — hidden for questions with noAutre flag */}
-                      {!QUESTIONS_QCM[qIndex].noAutre && (
-                        <button
-                          type="button"
-                          onClick={() => { setAutreMode(true); setAutreText(''); }}
-                          className={cn(
-                            'px-4 py-2.5 rounded-full border text-sm font-medium transition-all active:scale-95',
-                            autreMode
-                              ? 'border-green-700 bg-green-700 text-white'
-                              : 'border-dashed border-gray-300 bg-gray-50 text-gray-500 hover:border-gray-400 hover:text-gray-700'
-                          )}
-                        >
-                          Autre…
-                        </button>
-                      )}
-                    </div>
-
-                    {/* "Autre" text input */}
-                    {autreMode && (
-                      <div className="flex gap-2 animate-fade-in-up">
-                        <input
-                          autoFocus
-                          value={autreText}
-                          onChange={(e) => setAutreText(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') handleAutreSubmit(); }}
-                          placeholder="Précisez…"
-                          className="flex-1 h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        />
-                        <button
-                          onClick={handleAutreSubmit}
-                          disabled={!autreText.trim()}
-                          className="h-9 px-4 rounded-xl bg-primary text-white text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors"
-                        >
-                          OK
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Multi-select confirm bar */}
-                    {QUESTIONS_QCM[qIndex].multiSelect && (
-                      <div className="flex items-center justify-between pt-1">
-                        <p className="text-xs text-muted-foreground">
-                          {multiSelectValues.length > 0
-                            ? `${multiSelectValues.length}/${QUESTIONS_QCM[qIndex].maxSelect} sélectionné(s)`
-                            : `Sélectionnez jusqu'à ${QUESTIONS_QCM[qIndex].maxSelect}`}
-                        </p>
-                        {multiSelectValues.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={handleMultiSelectConfirm}
-                            className="px-5 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
-                          >
-                            Confirmer →
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <Button variant="outline" onClick={() => { setStep(1); setError(null); }} className="gap-1">
-                <ChevronLeft className="h-4 w-4" /> Retour
-              </Button>
-            </div>
-          )}
-
           {/* ── STEP 3 — Photo upload ─────────────────────────────────── */}
           {step === 3 && (
             <div className="space-y-6">
@@ -633,7 +656,6 @@ export default function ProfileSetup() {
                 </p>
               </div>
 
-              {/* Photo upload */}
               <div className="flex flex-col items-center gap-4">
                 {photoPreview ? (
                   <img src={photoPreview} className="w-24 h-24 rounded-full object-cover border-4 border-green-200" alt="Aperçu" />
@@ -642,17 +664,10 @@ export default function ProfileSetup() {
                     <Camera className="w-8 h-8 text-gray-400" />
                   </div>
                 )}
-
                 <label className="cursor-pointer bg-green-700 text-white px-6 py-3 rounded-full font-medium">
                   {photoUploading ? 'Envoi...' : 'Ajouter une photo'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handlePhotoChange}
-                  />
+                  <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
                 </label>
-
                 {photoUploaded && (
                   <p className="text-sm text-green-600 flex items-center gap-1">
                     <CheckCircle2 className="h-4 w-4" /> Photo ajoutée !
