@@ -1,62 +1,29 @@
-const nodemailer = require('nodemailer');
 const { Resend } = require('resend');
 
 const FROM = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
-console.log('[MAILER] GMAIL_USER:', process.env.GMAIL_USER);
-console.log('[MAILER] GMAIL_PASSWORD length:', process.env.GMAIL_PASSWORD?.length);
-console.log('[MAILER] Using Gmail:', !!(process.env.GMAIL_USER && process.env.GMAIL_PASSWORD));
-
-const gmailTransport = (process.env.GMAIL_USER && process.env.GMAIL_PASSWORD)
-  ? nodemailer.createTransport({
-      host:   'smtp.gmail.com',
-      port:   587,
-      secure: false,
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_PASSWORD,
-      },
-    })
-  : null;
-
-// Nodemailer-compatible wrapper around the Resend SDK
-function createResendTransport() {
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  return {
-    sendMail: async ({ from, to, subject, html }) => {
-      const result = await resend.emails.send({ from: from || FROM, to, subject, html });
-      if (result.error) {
-        const err = new Error(result.error.message || 'Resend error');
-        err.code     = result.error.name;
-        err.response = result.error;
-        throw err;
-      }
-      return { messageId: result.data?.id };
-    },
-  };
-}
-
-async function getTransporter() {
-  if (gmailTransport) return gmailTransport;
-  return createResendTransport();
-}
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function sendEmail(mailOptions) {
   try {
-    const transporter = await getTransporter();
-    console.log('[MAILER] Attempting to send to:', mailOptions.to);
+    const result = await resend.emails.send({
+      from:    mailOptions.from || FROM,
+      to:      mailOptions.to,
+      subject: mailOptions.subject,
+      html:    mailOptions.html,
+    });
 
-    const result = await Promise.race([
-      transporter.sendMail({ from: FROM, ...mailOptions }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT after 10s')), 10000)),
-    ]);
+    if (result.error) {
+      const err = new Error(result.error.message || 'Resend error');
+      err.code     = result.error.name;
+      err.response = result.error;
+      throw err;
+    }
 
-    console.log('[MAILER] SUCCESS:', result.messageId);
-    return result;
+    console.log('[MAILER] sent to:', mailOptions.to, '— id:', result.data?.id);
+    return { messageId: result.data?.id };
   } catch (err) {
-    console.error('[MAILER] FAILED:', err.message);
-    console.error('[MAILER] Code:', err.code);
-    console.error('[MAILER] Response:', err.response);
+    console.error('[MAILER] FAILED to:', mailOptions.to, '—', err.message);
     throw err;
   }
 }
