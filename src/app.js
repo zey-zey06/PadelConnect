@@ -38,9 +38,17 @@ const app = express();
 // the same client and break the per-IP rate limiter).
 app.set('trust proxy', 1);
 
-// Static assets served first — no auth, no middleware overhead.
-// Must be registered before helmet/cors so /assets/* files are never
-// intercepted by the authentication middleware.
+// Explicit MIME types — must come BEFORE express.static so every static
+// file response carries the correct Content-Type header, preventing the
+// "CSS MIME type mismatch" error that some browsers enforce in strict mode.
+app.use((req, res, next) => {
+  if (req.path.endsWith('.css')) res.type('text/css');
+  else if (req.path.endsWith('.js')) res.type('application/javascript');
+  next();
+});
+
+// Static assets — registered before all other middleware so /assets/* are
+// served without auth overhead.  The MIME middleware above fires first.
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '../client/dist');
   app.use(express.static(distPath));

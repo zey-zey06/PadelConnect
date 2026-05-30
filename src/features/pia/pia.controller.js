@@ -393,10 +393,17 @@ async function chatHandler(req, res, next) {
     const systemPrompt = buildSystemPrompt(role, context);
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model:             'gemini-2.0-flash-exp',
-      systemInstruction: systemPrompt,
-    });
+    // Try gemini-1.5-pro first, fall back to gemini-pro
+    let modelName = 'gemini-1.5-pro';
+    let model;
+    try {
+      model = genAI.getGenerativeModel({ model: modelName, systemInstruction: systemPrompt });
+      // Warm-up test omitted — model object creation doesn't throw; the actual call will
+    } catch {
+      modelName = 'gemini-pro';
+      model = genAI.getGenerativeModel({ model: modelName, systemInstruction: systemPrompt });
+    }
+    console.log('[PIA] Model being used:', modelName);
 
     // Sanitize history to guarantee strict user/model alternation,
     // then pass everything as a single generateContent call.
@@ -510,7 +517,8 @@ async function testGeminiHandler(req, res) {
   try {
     console.log('[PIA TEST] Initializing GoogleGenerativeAI...');
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+    console.log('[PIA] Model being used: gemini-1.5-pro');
 
     console.log('[PIA TEST] Sending minimal prompt: "Say hello"');
     const result = await model.generateContent('Say hello in one word.');

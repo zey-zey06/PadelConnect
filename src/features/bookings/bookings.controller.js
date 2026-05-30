@@ -9,6 +9,7 @@ const createBookingSchema = Joi.object({
   venue_slot_id:  Joi.string().uuid().required(),
   payment_method: Joi.string().valid('card', 'on_arrival', 'wave', 'orange_money', 'balance').optional().default('on_arrival'),
   payment_phone:  Joi.string().optional().allow('', null),
+  total_price:    Joi.number().min(0).optional(), // slot price + addons, sent by client for reference
   addons: Joi.array().items(
     Joi.object({
       type:    Joi.string().valid('coach', 'ball_picker').required(),

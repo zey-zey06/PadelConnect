@@ -1237,6 +1237,12 @@ function TerrainPickerModal({ session, onClose, onBooked, bookingMode = 'session
     if (error) setError(null);
   }
 
+  // Grand total: base slot price + coach (10 000 FCFA each) + ball picker (5 000 FCFA)
+  const coachCost      = selectedCoaches.length * 10000;
+  const ballPickerCost = selectedBallPicker ? 5000 : 0;
+  const grandTotal     = (selectedSlot ? (selectedSlot.totalPrice ?? Number(selectedSlot.price ?? 0)) : 0)
+                       + coachCost + ballPickerCost;
+
   async function handleConfirm() {
     setError(null);
 
@@ -1264,23 +1270,27 @@ function TerrainPickerModal({ session, onClose, onBooked, bookingMode = 'session
         ? `+225${phoneDigits}`
         : undefined;
 
-      // Build addons list (coaches + optional ball picker) — attached to the first slot only
+      // Addons list (coaches 10 000 FCFA + optional ball picker 5 000 FCFA) — attached to first slot
       const addons = [
         ...selectedCoaches.map((c) => ({ type: 'coach', user_id: c.user_id, price: 10000 })),
         ...(selectedBallPicker ? [{ type: 'ball_picker', user_id: selectedBallPicker.user_id, price: 5000 }] : []),
       ];
 
-      // Book every slot in the chain; attach addons to the first slot booking
+      // Book every slot in the chain; attach addons + grand total to the first slot booking
+      const slots = selectedSlot.slots ?? [selectedSlot];
       const results = await Promise.all(
-        (selectedSlot.slots ?? [selectedSlot]).map((slot, idx) =>
-          createBooking({
+        slots.map((slot, idx) => {
+          const slotBase  = Number(slot.price ?? 0);
+          const slotTotal = idx === 0 ? slotBase + coachCost + ballPickerCost : slotBase;
+          return createBooking({
             session_id:     session.id,
             venue_slot_id:  slot.id,
             payment_method: payment,
+            total_price:    slotTotal,
             ...(payment_phone && { payment_phone }),
             ...(idx === 0 && addons.length > 0 && { addons }),
-          })
-        )
+          });
+        })
       );
       const { booking } = results[0];
       setConfirmedBk(booking);
@@ -1694,9 +1704,6 @@ function TerrainPickerModal({ session, onClose, onBooked, bookingMode = 'session
 
           {/* ── Step 4: Payment ───────────────────────────────────────── */}
           {step === 4 && selectedSlot && (() => {
-            const coachCost      = selectedCoaches.length * 10000;
-            const ballPickerCost = selectedBallPicker ? 5000 : 0;
-            const grandTotal     = (selectedSlot.totalPrice ?? Number(selectedSlot.price ?? 0)) + coachCost + ballPickerCost;
             return (
             <div className="space-y-4">
               {/* Summary */}
