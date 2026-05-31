@@ -357,7 +357,9 @@ export default function ProfileSetup() {
                 className="w-20 h-20 rounded-full flex items-center justify-center"
                 style={{ background: 'rgba(116,198,157,0.15)', border: '2px solid rgba(116,198,157,0.3)' }}
               >
-                <span className="text-4xl">🎾</span>
+                <div className="w-10 h-10 rounded-xl bg-[#74C69D] flex items-center justify-center shadow-sm">
+                  <span className="text-[#0f2d1f] font-black text-xl leading-none select-none">P</span>
+                </div>
               </div>
               <div className="text-center space-y-2">
                 <p className="text-white text-xl font-semibold">Création de votre profil…</p>
@@ -387,7 +389,7 @@ export default function ProfileSetup() {
                     boxShadow: '0 0 24px rgba(116,198,157,0.15)',
                   }}
                 >
-                  <span className="text-2xl select-none">🎾</span>
+                  <span className="text-base font-black text-[#74C69D] select-none leading-none">P</span>
                 </div>
                 <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: '#74C69D', letterSpacing: '0.12em' }}>
                   Question {qIndex + 1} sur {QUESTIONS_QCM.length}

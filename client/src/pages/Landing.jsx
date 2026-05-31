@@ -3,6 +3,23 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth, homeFor } from '@/App';
 import { cn } from '@/lib/utils';
 
+// Simple inline padel racket — renders identically on all platforms
+function RacketIcon({ className }) {
+  return (
+    <svg viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+      className={className} aria-hidden="true">
+      <ellipse cx="10" cy="8.5" rx="7.5" ry="8" stroke="currentColor" strokeWidth="1.6" />
+      <line x1="6.5" y1="5.5"  x2="13.5" y2="5.5"  stroke="currentColor" strokeWidth="0.8" strokeOpacity="0.55" />
+      <line x1="5.5" y1="8.5"  x2="14.5" y2="8.5"  stroke="currentColor" strokeWidth="0.8" strokeOpacity="0.55" />
+      <line x1="6.5" y1="11.5" x2="13.5" y2="11.5" stroke="currentColor" strokeWidth="0.8" strokeOpacity="0.55" />
+      <line x1="8"   y1="1"    x2="8"    y2="16"   stroke="currentColor" strokeWidth="0.8" strokeOpacity="0.55" />
+      <line x1="10"  y1="0.5"  x2="10"   y2="16.5" stroke="currentColor" strokeWidth="0.8" strokeOpacity="0.55" />
+      <line x1="12"  y1="1"    x2="12"   y2="16"   stroke="currentColor" strokeWidth="0.8" strokeOpacity="0.55" />
+      <line x1="10"  y1="16.5" x2="10"   y2="23"   stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function Landing() {
   const { user, loading } = useAuth();
 
@@ -70,7 +87,7 @@ export default function Landing() {
             to="/signup?role=player"
             className="flex items-center justify-center gap-2.5 w-full py-4 rounded-2xl bg-white text-[#1A3D2B] font-semibold text-base hover:bg-white/92 active:scale-[0.98] transition-all shadow-lg"
           >
-            <span className="text-xl select-none">🎾</span>
+            <RacketIcon className="w-5 h-5 text-[#1A3D2B]" />
             Je suis joueur
           </Link>
 

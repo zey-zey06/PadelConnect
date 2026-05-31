@@ -4,8 +4,8 @@ import { useNavigate } from 'react-router-dom';
 
 // ── Per-type configuration ────────────────────────────────────────────────────
 const TYPE_CONFIG = {
-  friend_request:    { accent: '#16a34a', icon: '🎾', title: "Demande d'ami",        path: '/notifications' },
-  session_request:   { accent: '#ea580c', icon: '🎾', title: 'Demande de session',   path: '/notifications' },
+  friend_request:    { accent: '#16a34a', icon: '🤝', title: "Demande d'ami",        path: '/notifications' },
+  session_request:   { accent: '#ea580c', icon: '👥', title: 'Demande de session',   path: '/notifications' },
   session_invite:    { accent: '#ea580c', icon: '🏓', title: 'Invitation de session',path: '/sessions'      },
   request_accepted:  { accent: '#16a34a', icon: '✅', title: 'Demande acceptée',     path: '/sessions'      },
   request_refused:   { accent: '#dc2626', icon: '❌', title: 'Demande refusée',      path: '/history/sessions' },
