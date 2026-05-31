@@ -40,13 +40,24 @@ const createClubSchema = Joi.object({
   amenities:   amenitiesSchema,
 });
 
+const dayHoursSchema = Joi.object({
+  open:   Joi.string().pattern(/^\d{2}:\d{2}$/).optional(),
+  close:  Joi.string().pattern(/^\d{2}:\d{2}$/).optional(),
+  closed: Joi.boolean().optional(),
+});
+
 const updateClubSchema = Joi.object({
-  name:        Joi.string().optional(),
-  description: Joi.string().optional().allow(null, ''),
-  address:     Joi.string().optional().allow(null, ''),
-  phone:       Joi.string().optional().allow(null, ''),
-  email:       Joi.string().email({ tlds: { allow: false } }).optional().allow(null, ''),
-  amenities:   amenitiesSchema,
+  name:          Joi.string().optional(),
+  description:   Joi.string().optional().allow(null, ''),
+  address:       Joi.string().optional().allow(null, ''),
+  phone:         Joi.string().optional().allow(null, ''),
+  email:         Joi.string().email({ tlds: { allow: false } }).optional().allow(null, ''),
+  amenities:     amenitiesSchema,
+  opening_hours: Joi.object({
+    monday: dayHoursSchema, tuesday: dayHoursSchema, wednesday: dayHoursSchema,
+    thursday: dayHoursSchema, friday: dayHoursSchema, saturday: dayHoursSchema,
+    sunday: dayHoursSchema,
+  }).optional().allow(null),
 }).min(1);
 
 // Memory storage — images are kept as base64 data-URLs in the DB so they
@@ -84,6 +95,12 @@ async function updateClubHandler(req, res, next) {
     const { error, value } = updateClubSchema.validate(req.body);
     if (error) {
       return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    }
+    // Serialize JSONB fields — knex needs a stringified value for jsonb columns
+    if (value.opening_hours !== undefined) {
+      value.opening_hours = value.opening_hours === null
+        ? null
+        : JSON.stringify(value.opening_hours);
     }
     const club = await clubsService.updateClub(req.params.id, req.user.organization_id, value);
     return res.json({ club });

@@ -60,3 +60,9 @@ export const getSessionHistory = () => client.get('/sessions/history');
 
 /** GET /api/sessions/:id/participants → { participants: [...] } */
 export const getSessionParticipants = (id) => client.get(`/sessions/${id}/participants`);
+
+/** POST /api/sessions/:id/ratings → { rating } */
+export const rateSession = (id, data) => client.post(`/sessions/${id}/ratings`, data);
+
+/** GET /api/sessions/:id/ratings → { count, organisation, niveau, ambiance, average } */
+export const getSessionRatings = (id) => client.get(`/sessions/${id}/ratings`);

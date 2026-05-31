@@ -353,6 +353,18 @@ function ReadView({ club }) {
 }
 
 // ── EditForm ──────────────────────────────────────────────────────────────────
+const DAYS = [
+  { key: 'monday',    label: 'Lundi'    },
+  { key: 'tuesday',   label: 'Mardi'    },
+  { key: 'wednesday', label: 'Mercredi' },
+  { key: 'thursday',  label: 'Jeudi'    },
+  { key: 'friday',    label: 'Vendredi' },
+  { key: 'saturday',  label: 'Samedi'   },
+  { key: 'sunday',    label: 'Dimanche' },
+];
+
+const DEFAULT_HOURS = { open: '08:00', close: '22:00', closed: false };
+
 function EditForm({ club, onSave, onCancel }) {
   const [form, setForm] = useState({
     name:        club.name        ?? '',
@@ -363,10 +375,24 @@ function EditForm({ club, onSave, onCancel }) {
     latitude:    club.latitude  != null ? String(club.latitude)  : '',
     longitude:   club.longitude != null ? String(club.longitude) : '',
   });
-  const [amenities, setAmenities] = useState(club.amenities ?? {});
+  const [amenities,     setAmenities]     = useState(club.amenities ?? {});
+  const [openingHours,  setOpeningHours]  = useState(() => {
+    const base = club.opening_hours ?? {};
+    return DAYS.reduce((acc, { key }) => ({
+      ...acc,
+      [key]: base[key] ?? { ...DEFAULT_HOURS },
+    }), {});
+  });
   const [localClub, setLocalClub] = useState(club);
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState(null);
+
+  function setDayHours(day, field, value) {
+    setOpeningHours((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], [field]: value },
+    }));
+  }
 
   function set(field) { return (e) => setForm((f) => ({ ...f, [field]: e.target.value })); }
 
@@ -384,14 +410,15 @@ function EditForm({ club, onSave, onCancel }) {
       const latVal = parseFloat(form.latitude);
       const lngVal = parseFloat(form.longitude);
       const { club: updated } = await updateClub(club.id, {
-        name:        form.name.trim(),
-        description: form.description.trim() || null,
-        address:     form.address.trim()     || null,
-        phone:       form.phone.trim()       || null,
-        email:       form.email.trim()       || null,
-        amenities:   hasAmenities ? amenities : null,
-        latitude:    form.latitude.trim()  && !isNaN(latVal) ? latVal : null,
-        longitude:   form.longitude.trim() && !isNaN(lngVal) ? lngVal : null,
+        name:          form.name.trim(),
+        description:   form.description.trim() || null,
+        address:       form.address.trim()     || null,
+        phone:         form.phone.trim()       || null,
+        email:         form.email.trim()       || null,
+        amenities:     hasAmenities ? amenities : null,
+        latitude:      form.latitude.trim()  && !isNaN(latVal) ? latVal : null,
+        longitude:     form.longitude.trim() && !isNaN(lngVal) ? lngVal : null,
+        opening_hours: openingHours,
       });
       onSave(updated);
     } catch (err) {
@@ -560,6 +587,50 @@ function EditForm({ club, onSave, onCancel }) {
         <div className="px-6 py-6 space-y-4">
           <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">Équipements</p>
           <AmenitiesToggle value={amenities} onChange={setAmenities} />
+        </div>
+
+        {/* ── Section: Horaires ────────────────────────────────────── */}
+        <div className="px-6 py-6 space-y-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">Horaires d'ouverture</p>
+          <div className="space-y-2">
+            {DAYS.map(({ key, label }) => {
+              const day = openingHours[key];
+              return (
+                <div key={key} className="flex items-center gap-3">
+                  <span className="w-20 text-xs font-medium text-foreground shrink-0">{label}</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!day.closed}
+                      onChange={(e) => setDayHours(key, 'closed', !e.target.checked)}
+                      className="w-3.5 h-3.5 rounded accent-primary"
+                    />
+                    <span className="text-xs text-muted-foreground">Ouvert</span>
+                  </label>
+                  {!day.closed && (
+                    <div className="flex items-center gap-1.5 flex-1">
+                      <input
+                        type="time"
+                        value={day.open}
+                        onChange={(e) => setDayHours(key, 'open', e.target.value)}
+                        className="flex-1 h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      />
+                      <span className="text-xs text-muted-foreground">–</span>
+                      <input
+                        type="time"
+                        value={day.close}
+                        onChange={(e) => setDayHours(key, 'close', e.target.value)}
+                        className="flex-1 h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      />
+                    </div>
+                  )}
+                  {day.closed && (
+                    <span className="text-xs text-muted-foreground/50 italic">Fermé</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 

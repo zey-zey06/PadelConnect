@@ -626,6 +626,54 @@ const PENALTY_LABELS = {
   app_ban:    'Ban application',
 };
 
+// ── Availability toggle ────────────────────────────────────────────────────────
+function AvailabilityToggle({ value, onChange }) {
+  const [optimistic, setOptimistic] = useState(value);
+
+  function handleToggle() {
+    const next = !optimistic;
+    setOptimistic(next);
+    onChange(next);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleToggle}
+      className={cn(
+        'w-full mt-3 flex items-center gap-3 rounded-xl border px-4 py-3 transition-all text-left',
+        optimistic
+          ? 'border-green-200 bg-green-50 hover:bg-green-100'
+          : 'border-border bg-card hover:bg-muted/50',
+      )}
+    >
+      {/* Dot indicator */}
+      <span className={cn(
+        'w-3 h-3 rounded-full shrink-0 transition-colors',
+        optimistic ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]' : 'bg-muted-foreground/30',
+      )} />
+      <div className="flex-1 min-w-0">
+        <p className={cn('text-sm font-semibold leading-tight', optimistic ? 'text-green-800' : 'text-foreground')}>
+          {optimistic ? 'Disponible pour jouer' : 'Indisponible pour jouer'}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {optimistic ? 'Les autres joueurs peuvent vous inviter' : 'Tapez pour indiquer votre disponibilité'}
+        </p>
+      </div>
+      {/* Toggle pill */}
+      <div className={cn(
+        'w-11 h-6 rounded-full relative shrink-0 transition-colors',
+        optimistic ? 'bg-green-500' : 'bg-muted-foreground/30',
+      )}>
+        <span className={cn(
+          'absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all',
+          optimistic ? 'left-[calc(100%-1.375rem)]' : 'left-0.5',
+        )} />
+      </div>
+    </button>
+  );
+}
+
 function PenaltiesSection({ penalties, onPaid }) {
   const unpaid = penalties.filter((p) => !p.paid);
   if (unpaid.length === 0) return null;
@@ -1304,6 +1352,20 @@ export default function Profile() {
                 {t('profile.recharge')}
               </Button>
             </div>
+
+            {/* Availability toggle */}
+            {user?.role === 'player' && (
+              <AvailabilityToggle
+                value={profile?.is_available ?? false}
+                onChange={async (val) => {
+                  try {
+                    const { profile: updated } = await updateProfile({ is_available: val });
+                    setLocal(updated);
+                    setProfile(updated);
+                  } catch { /* non-fatal */ }
+                }}
+              />
+            )}
 
             {/* Stats row — Sessions + Amis */}
             <div className="grid grid-cols-2 gap-3 mt-3">

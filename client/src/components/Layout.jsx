@@ -272,9 +272,11 @@ export default function Layout({ children }) {
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
                   <span
-                    className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary"
-                    aria-hidden="true"
-                  />
+                    className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-0.5"
+                    aria-label={`${unreadCount} notifications non lues`}
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
                 )}
               </Button>
             </Link>
@@ -384,7 +386,7 @@ export default function Layout({ children }) {
       {piaOpen && <PIAPanel onClose={() => setPiaOpen(false)} />}
 
       {/* ── Mobile bottom navigation (players + coaches only) ───────────── */}
-      {showBottomNav && <BottomNav unreadMsgCount={unreadMsgCount} />}
+      {showBottomNav && <BottomNav unreadMsgCount={unreadMsgCount} unreadNotifCount={unreadCount} />}
 
       {/* ── Swipe-back edge indicator (mobile only) ─────────────────────── */}
       <div

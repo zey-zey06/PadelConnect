@@ -9,7 +9,7 @@ function isActive(pathname, path) {
   return pathname === path || pathname.startsWith(path + '/');
 }
 
-export default function BottomNav({ unreadMsgCount = 0 }) {
+export default function BottomNav({ unreadMsgCount = 0, unreadNotifCount = 0 }) {
   const { pathname } = useLocation();
   const navigate     = useNavigate();
   const { t }        = useTranslation();
@@ -19,7 +19,7 @@ export default function BottomNav({ unreadMsgCount = 0 }) {
     { to: '/clubs',    Icon: Building2,     labelKey: 'nav.clubs'    },
     null, // centre "+"
     { to: '/messages', Icon: MessageSquare, labelKey: 'nav.messages', badge: unreadMsgCount },
-    { to: '/profile',  Icon: User,          labelKey: 'nav.profile'  },
+    { to: '/profile',  Icon: User,          labelKey: 'nav.profile',  badge: unreadNotifCount },
   ];
 
   return (

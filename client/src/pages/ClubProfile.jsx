@@ -768,6 +768,22 @@ export default function ClubProfile() {
               })}
             </div>
           )}
+          {/* Opening hours — today's status */}
+          {club.opening_hours && (() => {
+            const DAY_KEYS = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+            const TODAY_KEY = DAY_KEYS[new Date().getDay()];
+            const hours = club.opening_hours[TODAY_KEY];
+            if (!hours) return null;
+            const isOpen = !hours.closed;
+            return (
+              <div className="flex items-center gap-2 text-sm">
+                <span className={cn('w-2 h-2 rounded-full shrink-0', isOpen ? 'bg-green-500' : 'bg-red-400')} />
+                <span className={cn('font-medium', isOpen ? 'text-green-700' : 'text-red-600')}>
+                  {isOpen ? `Ouvert · jusqu'à ${hours.close ?? ''}` : 'Fermé aujourd\'hui'}
+                </span>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

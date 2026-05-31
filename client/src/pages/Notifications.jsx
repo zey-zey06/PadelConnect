@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getNotifications, markAsRead } from '@/api/notifications';
@@ -46,6 +46,174 @@ const TYPE_LABELS = {
   // Club
   club_new_post:             'Nouvelle publication',
 };
+
+// ── Date grouping ─────────────────────────────────────────────────────────────
+function getGroup(createdAt) {
+  const d     = new Date(createdAt);
+  const now   = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffMs = today - new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (diffMs === 0)          return 'Aujourd\'hui';
+  if (diffMs === 86_400_000) return 'Hier';
+  if (diffMs < 7 * 86_400_000) return 'Cette semaine';
+  return 'Plus ancien';
+}
+
+const GROUP_ORDER = ["Aujourd'hui", 'Hier', 'Cette semaine', 'Plus ancien'];
+
+function groupNotifications(notifications) {
+  const map = {};
+  for (const n of notifications) {
+    const g = getGroup(n.created_at);
+    if (!map[g]) map[g] = [];
+    map[g].push(n);
+  }
+  return GROUP_ORDER.filter((g) => map[g]).map((g) => ({ label: g, items: map[g] }));
+}
+
+// ── Swipeable notification card ───────────────────────────────────────────────
+function SwipeableNotif({ n, onDismiss, children }) {
+  const startX  = useRef(null);
+  const startY  = useRef(null);
+  const [dx, setDx] = useState(0);
+  const THRESHOLD = 80;
+
+  function onTouchStart(e) {
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+  }
+  function onTouchMove(e) {
+    if (startX.current === null) return;
+    const deltaX = e.touches[0].clientX - startX.current;
+    const deltaY = Math.abs(e.touches[0].clientY - startY.current);
+    if (deltaX < 0 && Math.abs(deltaX) > deltaY) {
+      setDx(Math.max(deltaX, -120));
+    }
+  }
+  function onTouchEnd() {
+    if (dx < -THRESHOLD) {
+      onDismiss(n.id);
+    } else {
+      setDx(0);
+    }
+    startX.current = null;
+  }
+
+  return (
+    <div
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      style={{ transform: `translateX(${dx}px)`, transition: dx === 0 ? 'transform 0.2s ease' : 'none' }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ── Full notification list with date groups ───────────────────────────────────
+function NotificationList({ notifications, friendActionLoading, bpActionLoading, onMarkRead, onFriendAction, onBallPickerAction, onDismiss, t }) {
+  const groups = groupNotifications(notifications);
+
+  return (
+    <div className="space-y-6">
+      {groups.map(({ label, items }) => (
+        <div key={label} className="space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">{label}</p>
+          {items.map((n) => {
+            const actorName = n.message?.split(' ')[0] ?? 'Ce joueur';
+            return (
+              <SwipeableNotif key={n.id} n={n} onDismiss={async (id) => {
+                await onMarkRead(id).catch(() => {});
+                onDismiss(id);
+              }}>
+                <div
+                  className={cn(
+                    'flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5 transition-colors',
+                    !n.read && 'border-primary/20 bg-primary/[0.03]'
+                  )}
+                >
+                  <div className="mt-0.5 shrink-0">
+                    {n.read
+                      ? <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                      : <span className="block w-2 h-2 rounded-full bg-primary mt-1" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {n.type && (
+                      <p className="text-xs font-medium text-primary mb-0.5">
+                        {TYPE_LABELS[n.type] ?? n.type}
+                      </p>
+                    )}
+                    <p className={cn('text-sm', n.read ? 'text-muted-foreground' : 'text-foreground font-medium')}>
+                      {n.message}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(n.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {n.type === 'session_request' && (
+                      <Link to="/sessions?tab=mine">
+                        <Button size="sm" variant="outline" className="text-xs h-7 px-2">Gérer</Button>
+                      </Link>
+                    )}
+                    {n.type === 'friend_request' && n.actor_id && (
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="default" className="text-xs h-7 px-2 gap-1 bg-green-600 hover:bg-green-700"
+                          disabled={!!friendActionLoading[n.id]}
+                          onClick={() => onFriendAction(n.id, n.actor_id, actorName, 'accept')}>
+                          {friendActionLoading[n.id] === 'accept'
+                            ? <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin" />
+                            : <UserCheck className="h-3 w-3" />}
+                          {t('notifications.accept')}
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-xs h-7 px-2 gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                          disabled={!!friendActionLoading[n.id]}
+                          onClick={() => onFriendAction(n.id, n.actor_id, actorName, 'refuse')}>
+                          {friendActionLoading[n.id] === 'refuse'
+                            ? <span className="w-3 h-3 border border-red-400/50 border-t-transparent rounded-full animate-spin" />
+                            : <UserX className="h-3 w-3" />}
+                          {t('notifications.refuse')}
+                        </Button>
+                      </div>
+                    )}
+                    {n.type === 'ball_picker_invitation' && (
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="default" className="text-xs h-7 px-2 gap-1 bg-green-600 hover:bg-green-700"
+                          disabled={!!bpActionLoading[n.id]}
+                          onClick={() => onBallPickerAction(n.id, n.metadata?.invitation_id ?? n.id, 'accepted')}>
+                          {bpActionLoading[n.id] === 'accepted'
+                            ? <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin" />
+                            : <UserCheck className="h-3 w-3" />}
+                          {t('notifications.accept')}
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-xs h-7 px-2 gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                          disabled={!!bpActionLoading[n.id]}
+                          onClick={() => onBallPickerAction(n.id, n.metadata?.invitation_id ?? n.id, 'refused')}>
+                          {bpActionLoading[n.id] === 'refused'
+                            ? <span className="w-3 h-3 border border-red-400/50 border-t-transparent rounded-full animate-spin" />
+                            : <UserX className="h-3 w-3" />}
+                          {t('notifications.refuse')}
+                        </Button>
+                      </div>
+                    )}
+                    {!n.read && n.type !== 'friend_request' && n.type !== 'ball_picker_invitation' && (
+                      <Button size="sm" variant="ghost" onClick={() => onMarkRead(n.id)}
+                        className="text-xs text-muted-foreground">
+                        {t('notifications.markRead')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </SwipeableNotif>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ── Invite to session modal ────────────────────────────────────────────────────
 function InviteToSessionModal({ actorId, actorName, onClose }) {
@@ -282,131 +450,16 @@ export default function Notifications() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {notifications.map((n) => {
-            // Try to extract actor name from notification message
-            const actorName = n.message?.split(' ')[0] ?? 'Ce joueur';
-            return (
-              <div
-                key={n.id}
-                className={cn(
-                  'flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5 transition-all',
-                  !n.read && 'border-primary/20 bg-primary/[0.03]'
-                )}
-              >
-                {/* Indicator */}
-                <div className="mt-0.5 shrink-0">
-                  {n.read
-                    ? <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                    : <span className="block w-2 h-2 rounded-full bg-primary mt-1" />
-                  }
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  {n.type && (
-                    <p className="text-xs font-medium text-primary mb-0.5">
-                      {TYPE_LABELS[n.type] ?? n.type}
-                    </p>
-                  )}
-                  <p className={cn(
-                    'text-sm',
-                    n.read ? 'text-muted-foreground' : 'text-foreground font-medium'
-                  )}>
-                    {n.message}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(n.created_at).toLocaleDateString('fr-FR', {
-                      day: 'numeric', month: 'short',
-                      hour: '2-digit', minute: '2-digit',
-                    })}
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-1 shrink-0">
-                  {n.type === 'session_request' && (
-                    <Link to="/sessions?tab=mine">
-                      <Button size="sm" variant="outline" className="text-xs h-7 px-2">
-                        Gérer
-                      </Button>
-                    </Link>
-                  )}
-                  {n.type === 'friend_request' && n.actor_id && (
-                    <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="text-xs h-7 px-2 gap-1 bg-green-600 hover:bg-green-700"
-                        disabled={!!friendActionLoading[n.id]}
-                        onClick={() => handleFriendAction(n.id, n.actor_id, actorName, 'accept')}
-                      >
-                        {friendActionLoading[n.id] === 'accept'
-                          ? <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin" />
-                          : <UserCheck className="h-3 w-3" />
-                        }
-                        {t('notifications.accept')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs h-7 px-2 gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                        disabled={!!friendActionLoading[n.id]}
-                        onClick={() => handleFriendAction(n.id, n.actor_id, actorName, 'refuse')}
-                      >
-                        {friendActionLoading[n.id] === 'refuse'
-                          ? <span className="w-3 h-3 border border-red-400/50 border-t-transparent rounded-full animate-spin" />
-                          : <UserX className="h-3 w-3" />
-                        }
-                        {t('notifications.refuse')}
-                      </Button>
-                    </div>
-                  )}
-                  {n.type === 'ball_picker_invitation' && (
-                    <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="text-xs h-7 px-2 gap-1 bg-green-600 hover:bg-green-700"
-                        disabled={!!bpActionLoading[n.id]}
-                        onClick={() => handleBallPickerAction(n.id, n.metadata?.invitation_id ?? n.id, 'accepted')}
-                      >
-                        {bpActionLoading[n.id] === 'accepted'
-                          ? <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin" />
-                          : <UserCheck className="h-3 w-3" />
-                        }
-                        {t('notifications.accept')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs h-7 px-2 gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                        disabled={!!bpActionLoading[n.id]}
-                        onClick={() => handleBallPickerAction(n.id, n.metadata?.invitation_id ?? n.id, 'refused')}
-                      >
-                        {bpActionLoading[n.id] === 'refused'
-                          ? <span className="w-3 h-3 border border-red-400/50 border-t-transparent rounded-full animate-spin" />
-                          : <UserX className="h-3 w-3" />
-                        }
-                        {t('notifications.refuse')}
-                      </Button>
-                    </div>
-                  )}
-                  {!n.read && n.type !== 'friend_request' && n.type !== 'ball_picker_invitation' && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleMarkRead(n.id)}
-                      className="text-xs text-muted-foreground"
-                    >
-                      {t('notifications.markRead')}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <NotificationList
+          notifications={notifications}
+          friendActionLoading={friendActionLoading}
+          bpActionLoading={bpActionLoading}
+          onMarkRead={handleMarkRead}
+          onFriendAction={handleFriendAction}
+          onBallPickerAction={handleBallPickerAction}
+          onDismiss={(id) => setNotifications((prev) => prev.filter((n) => n.id !== id))}
+          t={t}
+        />
       )}
 
       {/* Invite to session modal (shown after accepting friend request) */}

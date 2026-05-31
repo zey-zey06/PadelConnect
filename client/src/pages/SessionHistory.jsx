@@ -1,12 +1,89 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Calendar, Clock, Users, MapPin, AlertCircle,
+  Calendar, Clock, Users, MapPin, AlertCircle, Star, X,
 } from 'lucide-react';
-import { getSessionHistory } from '@/api/sessions';
+import { getSessionHistory, rateSession } from '@/api/sessions';
 import { useAuth } from '@/App';
 import { cn } from '@/lib/utils';
 import PageSkeleton from '@/components/PageSkeleton';
+
+// ── Rate session modal ────────────────────────────────────────────────────────
+function RateModal({ session, onClose, onRated }) {
+  const [stars, setStars] = useState({ organisation: 0, niveau: 0, ambiance: 0 });
+  const [loading, setLoading] = useState(false);
+  const [done,    setDone]    = useState(false);
+
+  const criteria = [
+    { key: 'organisation', label: 'Organisation' },
+    { key: 'niveau',       label: 'Niveau des joueurs' },
+    { key: 'ambiance',     label: 'Ambiance' },
+  ];
+
+  const canSubmit = Object.values(stars).every((v) => v > 0);
+
+  async function handleSubmit() {
+    if (!canSubmit || loading) return;
+    setLoading(true);
+    try {
+      await rateSession(session.id, stars);
+      setDone(true);
+      onRated?.(session.id);
+      setTimeout(onClose, 1500);
+    } catch { /* non-fatal */ }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/30 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+            <h2 className="text-sm font-semibold text-foreground">Évaluer la session</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          {done ? (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm font-medium text-green-700">
+              <Star className="h-5 w-5 fill-amber-400 text-amber-400" /> Merci pour votre avis !
+            </div>
+          ) : (
+            <>
+              {criteria.map(({ key, label }) => (
+                <div key={key} className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
+                  <div className="flex gap-1.5">
+                    {[1,2,3,4,5].map((v) => (
+                      <button key={v} type="button" onClick={() => setStars((s) => ({ ...s, [key]: v }))}
+                        className="transition-transform active:scale-110">
+                        <Star className={cn('h-7 w-7', v <= stars[key] ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30')} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!canSubmit || loading}
+                className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm disabled:opacity-40 transition-opacity mt-2"
+              >
+                {loading ? 'Envoi…' : 'Envoyer mon avis'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -58,13 +135,14 @@ const TABS = [
 
 // ── Session history card ──────────────────────────────────────────────────────
 
-function SessionHistoryCard({ session, userId }) {
+function SessionHistoryCard({ session, userId, canRate, onRate }) {
   const navigate   = useNavigate();
   const d          = parseDate(session.date);
   const role       = getUserRole(session, userId);
   const cfg        = ROLE_CONFIG[role] ?? ROLE_CONFIG.pending;
   const isOwner    = session.creator_id === userId;
   const levelMin   = session.preferences?.level_min;
+  const isPast     = new Date(session.date + 'T23:59:59') < new Date();
 
   const creatorName =
     [session.creator_first_name, session.creator_last_name].filter(Boolean).join(' ') ||
@@ -175,6 +253,18 @@ function SessionHistoryCard({ session, userId }) {
           )}
         </div>
       )}
+
+      {/* ── Rate button ──────────────────────────────────────────── */}
+      {isPast && canRate && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRate(session); }}
+          className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-lg transition-colors w-fit"
+        >
+          <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+          Évaluer la session
+        </button>
+      )}
     </div>
   );
 }
@@ -185,10 +275,14 @@ export default function SessionHistory() {
   const { user }   = useAuth();
   const navigate   = useNavigate();
 
-  const [sessions, setSessions] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(null);
-  const [tab,      setTab]      = useState('all');
+  const [sessions,  setSessions]  = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(null);
+  const [tab,       setTab]       = useState('all');
+  const [rateTarget, setRateTarget] = useState(null); // session to rate
+  const [ratedIds,   setRatedIds]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem('rated_sessions') ?? '[]'); } catch { return []; }
+  });
 
   useEffect(() => {
     getSessionHistory()
@@ -276,13 +370,36 @@ export default function SessionHistory() {
               </div>
 
               <div className="space-y-3">
-                {group.sessions.map((s) => (
-                  <SessionHistoryCard key={s.id} session={s} userId={user?.id} />
-                ))}
+                {group.sessions.map((s) => {
+                  const participated = s.creator_id === user?.id || s.request_status === 'accepted';
+                  const canRate      = participated && !ratedIds.includes(s.id);
+                  return (
+                    <SessionHistoryCard
+                      key={s.id}
+                      session={s}
+                      userId={user?.id}
+                      canRate={canRate}
+                      onRate={setRateTarget}
+                    />
+                  );
+                })}
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {/* Rating modal */}
+      {rateTarget && (
+        <RateModal
+          session={rateTarget}
+          onClose={() => setRateTarget(null)}
+          onRated={(id) => {
+            const next = [...ratedIds, id];
+            setRatedIds(next);
+            localStorage.setItem('rated_sessions', JSON.stringify(next));
+          }}
+        />
       )}
     </div>
   );
