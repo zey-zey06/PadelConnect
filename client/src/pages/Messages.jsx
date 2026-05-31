@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Send, ArrowLeft, AlertCircle, Smile, Calendar, Clock, Building2, User } from 'lucide-react';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
-import EmojiPicker from 'emoji-picker-react';
+
+// Lazy-load the emoji picker (~34 MB) — only fetched when user first opens it
+const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { getConversations, getMessages, sendMessage, markAsRead } from '@/api/messages';
 import { getUserProfile } from '@/api/profile';
 import { useAuth, usePlayerPanel } from '@/App';
@@ -686,19 +688,25 @@ export default function Messages() {
               className="shrink-0 bg-white"
               style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}
             >
-              {/* Emoji picker — floats above the input bar */}
+              {/* Emoji picker — floats above the input bar, loaded lazily */}
               {showEmoji && (
                 <div
                   ref={emojiRef}
                   className="absolute bottom-[70px] left-4 z-50 md:bottom-[70px]"
                 >
-                  <EmojiPicker
-                    onEmojiClick={handleEmojiClick}
-                    skinTonesDisabled
-                    searchDisabled={false}
-                    height={340}
-                    width={300}
-                  />
+                  <Suspense fallback={
+                    <div className="w-[300px] h-[340px] rounded-xl bg-card border border-border flex items-center justify-center">
+                      <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    </div>
+                  }>
+                    <EmojiPicker
+                      onEmojiClick={handleEmojiClick}
+                      skinTonesDisabled
+                      searchDisabled={false}
+                      height={340}
+                      width={300}
+                    />
+                  </Suspense>
                 </div>
               )}
 

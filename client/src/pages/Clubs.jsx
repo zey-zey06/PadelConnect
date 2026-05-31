@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Building2, MapPin, Phone, ChevronRight, Eye, AlertCircle, Map, List, Heart } from 'lucide-react';
@@ -11,7 +11,7 @@ import PageSkeleton from '@/components/PageSkeleton';
 import { MultiClubMap } from '@/components/ClubMap';
 
 // ── Club card ─────────────────────────────────────────────────────────────────
-function ClubCard({ club, isAdmin }) {
+const ClubCard = memo(function ClubCard({ club, isAdmin }) {
   const { t } = useTranslation();
   const photo      = club.logo_url || (Array.isArray(club.photos_urls) && club.photos_urls[0]) || null;
   const venueCount = parseInt(club.venue_count ?? 0, 10);
@@ -124,7 +124,7 @@ function ClubCard({ club, isAdmin }) {
       </div>
     </div>
   );
-}
+});
 
 // ── Clubs page ────────────────────────────────────────────────────────────────
 export default function Clubs() {

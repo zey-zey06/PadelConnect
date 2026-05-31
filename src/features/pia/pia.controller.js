@@ -468,8 +468,6 @@ async function chatHandler(req, res, next) {
     const context      = await fetchContext(role, userId, orgId);
     const systemPrompt = buildSystemPrompt(role, context + dataContext);
 
-    console.log('[PIA] Model being used: llama-3.1-8b-instant');
-
     // Convert Gemini-format history (user/model + parts) to Groq messages (user/assistant + content)
     const validHistory = sanitizeHistory(history ?? []);
     const messages = [

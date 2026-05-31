@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
+import { useHaptic } from '@/hooks/useHaptic';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, Link } from 'react-router-dom';
 import Onboarding   from '@/components/Onboarding';
@@ -2822,7 +2823,8 @@ function MySessions({ autoOpen = false }) {
 
 // ── Sessions page ─────────────────────────────────────────────────────────────
 export default function Sessions() {
-  const { t } = useTranslation();
+  const { t }    = useTranslation();
+  const haptic   = useHaptic();
   const [searchParams] = useSearchParams();
   const fromNotification = searchParams.get('tab') === 'mine';
   const [tab, setTab] = useState(fromNotification ? 'mine' : 'browse');
@@ -2909,7 +2911,9 @@ export default function Sessions() {
   const { refreshing } = usePullToRefresh(load);
 
   async function handleJoin(sessionId) {
+    haptic.medium();
     await requestJoin(sessionId);
+    haptic.success();
     // Increment sessions_joined counter for rating prompt
     const cur = Number(localStorage.getItem('sessions_joined') ?? 0);
     localStorage.setItem('sessions_joined', String(cur + 1));
