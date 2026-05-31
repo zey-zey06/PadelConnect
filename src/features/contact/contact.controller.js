@@ -3,8 +3,9 @@ const { Resend } = require('resend');
 const adminRepo            = require('../admin/admin.repository');
 const notificationsService = require('../notifications/notifications.service');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM   = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+const resend      = new Resend(process.env.RESEND_API_KEY);
+const FROM        = process.env.EMAIL_FROM  || 'onboarding@resend.dev';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'bourjizeinab@icloud.com';
 
 const router = Router();
 
@@ -30,7 +31,7 @@ router.post('/', async (req, res, next) => {
 
     await resend.emails.send({
       from:     FROM,
-      to:       FROM,
+      to:       ADMIN_EMAIL,
       replyTo:  email,
       subject:  `[PadelConnect Contact] ${subject}`,
       html: `

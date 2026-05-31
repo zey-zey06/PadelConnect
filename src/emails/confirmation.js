@@ -1,5 +1,7 @@
 const { sendEmail, FROM } = require('./mailer');
 
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'bourjizeinab@icloud.com';
+
 function devTo(recipients) {
   if (process.env.NODE_ENV === 'production' && recipients.length > 0) return recipients;
   return FROM;
@@ -130,7 +132,7 @@ async function sendManagerBookingNotification({ booking, session, slot, venue, b
 async function sendNewUserAdminNotification({ displayName, email, motivation, adminEmail, date }) {
   await sendEmail({
     from:    FROM,
-    to:      devTo([adminEmail]),
+    to:      devTo([ADMIN_EMAIL]),
     subject: `Nouvel inscrit PadelConnect — ${displayName}`,
     html: `
       <h1 style="color:#7c3aed">Nouvel inscrit sur PadelConnect 🎾</h1>

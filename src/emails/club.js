@@ -1,5 +1,7 @@
 const { sendEmail, FROM } = require('./mailer');
 
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'bourjizeinab@icloud.com';
+
 function devTo(recipients) {
   if (process.env.NODE_ENV === 'production' && recipients.length > 0) return recipients;
   return FROM;
@@ -15,7 +17,7 @@ function fmtDate(dateVal) {
 async function sendNewClubAdminAlert({ clubName, managerEmail, managerName, phone, address, courtsCount, adminEmail }) {
   await sendEmail({
     from:    FROM,
-    to:      devTo([adminEmail]),
+    to:      devTo([ADMIN_EMAIL]),
     subject: `Nouveau club en attente de validation - ${clubName}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px 24px">
