@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const db = require('../db');
 const notificationsService = require('../features/notifications/notifications.service');
 const { sendVerificationEmail }  = require('../emails/verification');
-const { sendWelcomeEmail }       = require('../emails/welcome');
+const { sendWelcomeEmail, sendManagerWelcomeEmail } = require('../emails/welcome');
 const { sendPasswordResetEmail } = require('../emails/password-reset');
 
 const BCRYPT_ROUNDS = 12;
@@ -108,6 +108,16 @@ async function login({ email, password }) {
     err.status = 401;
     err.code = 'EMAIL_NOT_VERIFIED';
     throw err;
+  }
+
+  const isFirstLogin = user.last_login == null;
+
+  // Update last_login timestamp
+  await db('users').where({ id: user.id }).update({ last_login: new Date() });
+
+  // First-login welcome email for venue_admin
+  if (isFirstLogin && user.role === 'venue_admin') {
+    sendManagerWelcomeEmail(user.email, user.first_name ?? null).catch(() => {});
   }
 
   return {

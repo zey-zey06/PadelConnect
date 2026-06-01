@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import PIAButton from '@/components/PIA/PIAButton';
 import PIAPanel from '@/components/PIA/PIAPanel';
 import BottomNav          from '@/components/BottomNav';
+import ManagerBottomNav   from '@/components/ManagerBottomNav';
 import SearchBar          from '@/components/SearchBar';
 import NetworkStatus      from '@/components/NetworkStatus';
 import ToastContainer     from '@/components/ToastNotification';
@@ -85,8 +86,10 @@ export default function Layout({ children }) {
     }),
   }));
 
-  // Bottom nav is shown only for players and coaches
-  const showBottomNav = user?.role === 'player' || user?.role === 'coach';
+  // Bottom nav variants
+  const showBottomNav        = user?.role === 'player' || user?.role === 'coach';
+  const showManagerBottomNav = user?.role === 'venue_admin';
+  const useBottomNav         = showBottomNav || showManagerBottomNav;
 
   const navigate          = useNavigate();
   const location          = useLocation();
@@ -301,7 +304,7 @@ export default function Layout({ children }) {
               </span>
             </Link>
 
-            {/* Logout — desktop always, mobile only for managers/admins */}
+            {/* Logout — desktop always, mobile only for super_admin */}
             <Button
               variant="ghost"
               size="icon"
@@ -309,14 +312,14 @@ export default function Layout({ children }) {
               aria-label="Se déconnecter"
               className={cn(
                 'text-foreground/60 hover:text-foreground hover:bg-accent ml-0.5',
-                showBottomNav ? 'hidden md:flex' : ''
+                useBottomNav ? 'hidden md:flex' : ''
               )}
             >
               <LogOut className="h-4 w-4" />
             </Button>
 
-            {/* Mobile hamburger — managers/admins only (players/coaches use bottom nav) */}
-            {!showBottomNav && (
+            {/* Mobile hamburger — super_admin only (players/coaches/managers use bottom nav) */}
+            {!useBottomNav && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -335,8 +338,8 @@ export default function Layout({ children }) {
           <SearchBar className="w-full" />
         </div>
 
-        {/* Mobile nav drawer — managers/admins only */}
-        {!showBottomNav && mobileOpen && (
+        {/* Mobile nav drawer — super_admin only */}
+        {!useBottomNav && mobileOpen && (
           <nav className="md:hidden border-t border-border bg-white px-4 py-3 space-y-0.5">
             {NAV_LINKS.map(({ to, label }) => (
               <NavLink
@@ -374,7 +377,7 @@ export default function Layout({ children }) {
 
       {/* ── Page content ────────────────────────────────────────────────── */}
       {/* pb-20 on mobile gives breathing room above the fixed bottom nav */}
-      <main className={cn('mx-auto max-w-6xl px-4 sm:px-6 py-8', showBottomNav && 'pb-20 md:pb-8')}>
+      <main className={cn('mx-auto max-w-6xl px-4 sm:px-6 py-8', useBottomNav && 'pb-20 md:pb-8')}>
         {children}
       </main>
 
@@ -385,8 +388,9 @@ export default function Layout({ children }) {
       <PIAButton onClick={() => setPiaOpen((o) => !o)} isOpen={piaOpen} />
       {piaOpen && <PIAPanel onClose={() => setPiaOpen(false)} />}
 
-      {/* ── Mobile bottom navigation (players + coaches only) ───────────── */}
-      {showBottomNav && <BottomNav unreadMsgCount={unreadMsgCount} unreadNotifCount={unreadCount} />}
+      {/* ── Mobile bottom navigation ────────────────────────────────────── */}
+      {showBottomNav        && <BottomNav unreadMsgCount={unreadMsgCount} unreadNotifCount={unreadCount} />}
+      {showManagerBottomNav && <ManagerBottomNav unreadMsgCount={unreadMsgCount} />}
 
       {/* ── Swipe-back edge indicator (mobile only) ─────────────────────── */}
       <div
