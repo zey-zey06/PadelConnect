@@ -4,6 +4,7 @@ import {
   ShieldAlert, AlertCircle, ChevronDown, Trash2, CheckCircle,
   Ban, XCircle, Search, Calendar, Filter, Activity,
   UserCheck, Clock, LogOut, Settings, CreditCard, RefreshCw,
+  Home, User,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, usePlayerPanel } from '@/App';
@@ -191,11 +192,10 @@ const USER_STATUS_OPTIONS = [
   { value: 'banned',    label: 'Bannir'     },
 ];
 
-function UsersTab() {
+function UsersTab({ search = '' }) {
   const [users,    setUsers]    = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
-  const [search,   setSearch]   = useState('');
   const [roleF,    setRoleF]    = useState('');
   const [statusF,  setStatusF]  = useState('');
 
@@ -229,15 +229,6 @@ function UsersTab() {
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Rechercher par nom ou email…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-9 text-sm w-72"
-          />
-        </div>
         <select
           value={roleF}
           onChange={(e) => setRoleF(e.target.value)}
@@ -378,7 +369,7 @@ function UserRow({ user: u, onStatusChange }) {
 }
 
 // ── Sessions tab ──────────────────────────────────────────────────────────────
-function SessionsTab() {
+function SessionsTab({ search = '' }) {
   const [sessions, setSessions] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
@@ -399,7 +390,14 @@ function SessionsTab() {
     setSessions((prev) => prev.filter((s) => s.id !== id));
   }, []);
 
-  const filtered = statusF ? sessions.filter((s) => s.status === statusF) : sessions;
+  const filtered = sessions.filter((s) => {
+    if (statusF && s.status !== statusF) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!s.creator_email?.toLowerCase().includes(q) && !s.date?.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-4">
@@ -464,7 +462,7 @@ function SessionsTab() {
 }
 
 // ── Clubs tab ─────────────────────────────────────────────────────────────────
-function ClubsTab() {
+function ClubsTab({ search = '' }) {
   const [clubs,   setClubs]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -487,14 +485,19 @@ function ClubsTab() {
     setClubs((prev) => prev.map((c) => c.id === id ? { ...c, status: 'active' } : c));
   }, []);
 
-  const pending = clubs.filter((c) => c.status === 'pending_validation');
+  const displayClubs = search
+    ? clubs.filter((c) =>
+        c.name?.toLowerCase().includes(search.toLowerCase()) ||
+        c.slug?.toLowerCase().includes(search.toLowerCase()))
+    : clubs;
+  const pending = displayClubs.filter((c) => c.status === 'pending_validation');
 
   return (
     <div className="space-y-4">
       {loading ? <Skeleton /> : error ? <ErrorBanner message={error} /> : (
         <>
           <div className="flex items-center gap-3">
-            <p className="text-xs text-slate-400">{clubs.length} club{clubs.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-slate-400">{displayClubs.length} club{displayClubs.length !== 1 ? 's' : ''}</p>
             {pending.length > 0 && (
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
                 {pending.length} en attente de validation
@@ -513,9 +516,9 @@ function ClubsTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {clubs.length === 0 ? (
+                {displayClubs.length === 0 ? (
                   <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400 text-sm">Aucun club.</td></tr>
-                ) : clubs.map((c) => (
+                ) : displayClubs.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -1032,9 +1035,12 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
 
   const [tab,     setTab]     = useState('overview');
+  const [search,  setSearch]  = useState('');
   const [stats,   setStats]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
+
+  function switchTab(key) { setTab(key); setSearch(''); }
 
   useEffect(() => {
     getDashboard()
@@ -1051,13 +1057,20 @@ export default function AdminDashboard() {
 
   const ActiveTab = {
     overview:  <OverviewTab stats={stats} />,
-    users:     <UsersTab />,
-    sessions:  <SessionsTab />,
-    clubs:     <ClubsTab />,
+    users:     <UsersTab search={search} />,
+    sessions:  <SessionsTab search={search} />,
+    clubs:     <ClubsTab search={search} />,
     bookings:       <BookingsTab />,
     sanctions:      <SanctionsTab />,
     subscriptions:  <SubscriptionsTab />,
   }[tab] ?? null;
+
+  const searchableTabs = ['users', 'sessions', 'clubs'];
+  const searchPlaceholder = {
+    users:    'Rechercher un utilisateur…',
+    sessions: 'Rechercher par créateur ou date…',
+    clubs:    'Rechercher un club…',
+  }[tab] ?? 'Rechercher…';
 
   return (
     <div className="flex gap-6 min-h-[calc(100vh-4rem)]">
@@ -1074,7 +1087,7 @@ export default function AdminDashboard() {
         {NAV.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
-            onClick={() => setTab(key)}
+            onClick={() => switchTab(key)}
             className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors w-full text-left ${
               tab === key
                 ? 'bg-amber-500 text-white shadow-sm shadow-amber-200'
@@ -1107,23 +1120,18 @@ export default function AdminDashboard() {
       {/* ── Main content ───────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 space-y-6">
 
-        {/* Mobile horizontal tab bar (small scroll) */}
-        <div className="lg:hidden flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
-          {NAV.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors shrink-0 ${
-                tab === key
-                  ? 'bg-amber-500 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* Global search bar */}
+        {searchableTabs.includes(tab) && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            <Input
+              placeholder={searchPlaceholder}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-10 text-sm"
+            />
+          </div>
+        )}
 
         {/* Page title */}
         <div className="flex items-center justify-between">
@@ -1149,11 +1157,11 @@ export default function AdminDashboard() {
       {/* ── Mobile bottom nav ────────────────────────────────────────────── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 flex items-center justify-around px-2" style={{ paddingBottom: 'env(safe-area-inset-bottom)', height: '64px' }}>
         {[
-          { key: 'overview',       label: 'Dashboard',    icon: LayoutDashboard },
-          { key: 'users',          label: 'Utilisateurs', icon: Users           },
-          { key: 'sessions',       label: 'Sessions',     icon: Layers          },
-          { key: 'clubs',          label: 'Clubs',        icon: Building2       },
-          { key: 'profile',        label: 'Profil',       icon: Settings        },
+          { key: 'overview',  label: 'Dashboard',    icon: Home      },
+          { key: 'users',     label: 'Utilisateurs', icon: Users     },
+          { key: 'sessions',  label: 'Sessions',     icon: Calendar  },
+          { key: 'clubs',     label: 'Clubs',        icon: Building2 },
+          { key: 'profile',   label: 'Profil',       icon: User      },
         ].map(({ key, label, icon: Icon }) => (
           key === 'profile' ? (
             <Link
@@ -1167,7 +1175,7 @@ export default function AdminDashboard() {
           ) : (
             <button
               key={key}
-              onClick={() => setTab(key)}
+              onClick={() => switchTab(key)}
               className={`flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 transition-colors ${
                 tab === key ? 'text-amber-600' : 'text-slate-400 hover:text-slate-600'
               }`}
