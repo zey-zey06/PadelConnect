@@ -4,10 +4,10 @@ import {
   Building2, MapPin, Phone, Clock,
   AlertCircle, X, CreditCard, Banknote,
   CheckCircle2, ChevronLeft, ChevronRight, Calendar, ArrowLeft, Eye, Share2,
-  Bell, BellOff, ImageIcon, Plus, Send, Trash2, Star,
+  Bell, BellOff, ImageIcon, Plus, Send, Trash2, Star, MessageSquare, Dumbbell,
 } from 'lucide-react';
 import ShareContactPicker from '@/components/ShareContactPicker';
-import { getPublicClub, getClubSlots, getClubSubscriptionStatus, toggleClubSubscription, getClubPosts, createClubPost } from '@/api/clubs';
+import { getPublicClub, getClubSlots, getClubSubscriptionStatus, toggleClubSubscription, getClubPosts, createClubPost, getClubCoaches } from '@/api/clubs';
 import { getReviews, createReview } from '@/api/reviews';
 import { getMySessions }               from '@/api/sessions';
 import { createBooking }               from '@/api/bookings';
@@ -510,6 +510,153 @@ function BookingModal({ slot, venueName, onClose, onBooked }) {
   );
 }
 
+// ── Reviews modal ─────────────────────────────────────────────────────────────
+function ReviewsModal({ clubId, reviews, average, count, user, isManager, reviewDone,
+  onClose, onReviewSubmit }) {
+  const [rating,     setRating]     = useState(0);
+  const [comment,    setComment]    = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error,      setError]      = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (rating < 1) { setError('Sélectionnez une note.'); return; }
+    setSubmitting(true); setError(null);
+    try {
+      await onReviewSubmit({ target_id: clubId, target_type: 'club', rating, comment: comment.trim() || null });
+      setRating(0); setComment('');
+    } catch (err) {
+      setError(err.message || 'Erreur lors de l\'envoi.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/30 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-xl max-h-[88vh] flex flex-col">
+        {/* Drag handle (mobile) */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <div>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
+              Avis clients
+            </h2>
+            {count > 0 && (
+              <p className="text-xs text-muted-foreground mt-0.5">{average}/5 · {count} avis</p>
+            )}
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {/* Review form */}
+          {user && !isManager && !reviewDone && (
+            <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+              <p className="text-sm font-semibold text-foreground">Votre avis</p>
+              {error && (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />{error}
+                </div>
+              )}
+              <div className="flex gap-1.5">
+                {[1,2,3,4,5].map((n) => (
+                  <button key={n} type="button" onClick={() => setRating(n)}
+                    className="p-0.5 transition-transform hover:scale-110">
+                    <Star className="h-7 w-7" style={{
+                      fill: n <= rating ? '#f59e0b' : 'transparent',
+                      color: n <= rating ? '#f59e0b' : '#d1d5db',
+                    }} />
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                maxLength={500}
+                rows={2}
+                placeholder="Partagez votre expérience…"
+                className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={onClose}
+                  className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors">
+                  Annuler
+                </button>
+                <button type="submit" disabled={submitting || rating < 1}
+                  className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-40">
+                  {submitting ? 'Envoi…' : 'Publier'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {reviewDone && (
+            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />Merci pour votre avis !
+            </div>
+          )}
+
+          {/* Reviews list */}
+          {reviews.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
+              <Star className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Aucun avis pour l'instant.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {reviews.map((r) => {
+                const rName = [r.reviewer_first_name, r.reviewer_last_name].filter(Boolean).join(' ') || 'Joueur';
+                const dateStr = new Date(r.created_at).toLocaleDateString('fr-FR', {
+                  day: 'numeric', month: 'long', year: 'numeric',
+                });
+                return (
+                  <div key={r.id} className="rounded-xl border border-border bg-card p-4 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                        {r.reviewer_photo_url
+                          ? <img src={r.reviewer_photo_url} alt={rName} className="h-full w-full object-cover" />
+                          : <span className="text-xs font-bold text-primary">{rName.slice(0,2).toUpperCase()}</span>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{rName}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex gap-0.5">
+                            {[1,2,3,4,5].map((n) => (
+                              <Star key={n} className="h-3 w-3" style={{
+                                fill: n <= r.rating ? '#f59e0b' : 'transparent',
+                                color: n <= r.rating ? '#f59e0b' : '#d1d5db',
+                              }} />
+                            ))}
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">{dateStr}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {r.comment && (
+                      <p className="text-sm text-foreground/80 leading-relaxed">{r.comment}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── ClubProfile page ──────────────────────────────────────────────────────────
 export default function ClubProfile() {
   const { id }           = useParams();
@@ -553,12 +700,17 @@ export default function ClubProfile() {
   const [reviewsAvg,     setReviewsAvg]     = useState(null);
   const [reviewsCount,   setReviewsCount]   = useState(0);
   const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewRating,   setReviewRating]   = useState(0);
   const [reviewComment,  setReviewComment]  = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError,    setReviewError]    = useState(null);
   const [reviewDone,     setReviewDone]     = useState(false);
+
+  // Coaches state
+  const [coaches,        setCoaches]        = useState([]);
+  const [coachesLoading, setCoachesLoading] = useState(true);
 
   // Create post state (manager only)
   const [showPostForm,  setShowPostForm]  = useState(false);
@@ -602,6 +754,15 @@ export default function ClubProfile() {
       })
       .catch(() => {})
       .finally(() => setReviewsLoading(false));
+  }, [id]);
+
+  // Load coaches
+  useEffect(() => {
+    setCoachesLoading(true);
+    getClubCoaches(id)
+      .then(({ coaches: c }) => setCoaches(c ?? []))
+      .catch(() => setCoaches([]))
+      .finally(() => setCoachesLoading(false));
   }, [id]);
 
   // Reload slots whenever date changes
@@ -676,17 +837,18 @@ export default function ClubProfile() {
     finally { setSubLoading(false); }
   }
 
-  async function handleSubmitReview(e) {
-    e.preventDefault();
-    if (reviewRating < 1) { setReviewError('Sélectionnez une note.'); return; }
+  async function handleSubmitReview({ target_id, target_type, rating: r, comment: c } = {}) {
+    const reviewRatingVal = r ?? reviewRating;
+    const reviewCommentVal = c ?? reviewComment;
+    if (reviewRatingVal < 1) { setReviewError('Sélectionnez une note.'); return; }
     setReviewSubmitting(true);
     setReviewError(null);
     try {
       const { review } = await createReview({
-        target_id:   id,
-        target_type: 'club',
-        rating:      reviewRating,
-        comment:     reviewComment.trim() || null,
+        target_id:   target_id ?? id,
+        target_type: target_type ?? 'club',
+        rating:      reviewRatingVal,
+        comment:     reviewCommentVal?.trim() || null,
       });
       const reviewerName = [user?.first_name, user?.last_name].filter(Boolean).join(' ');
       const newReview = {
@@ -704,6 +866,7 @@ export default function ClubProfile() {
       setReviewsCount(newCount);
       setReviewDone(true);
       setShowReviewForm(false);
+      setShowReviewsModal(false);
       setReviewRating(0);
       setReviewComment('');
     } catch (err) {
@@ -797,21 +960,29 @@ export default function ClubProfile() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">{club.name}</h1>
             {/* Star rating summary */}
-            {!reviewsLoading && reviewsCount > 0 && (
-              <div className="flex items-center gap-1.5 mt-1">
+            {!reviewsLoading && (
+              <button
+                type="button"
+                onClick={() => setShowReviewsModal(true)}
+                className="flex items-center gap-1 mt-1 hover:opacity-75 transition-opacity"
+                title="Voir les avis"
+              >
                 {[1,2,3,4,5].map((n) => (
                   <Star
                     key={n}
                     className="h-3.5 w-3.5"
                     style={{
-                      fill: n <= Math.round(reviewsAvg ?? 0) ? '#f59e0b' : 'transparent',
-                      color: n <= Math.round(reviewsAvg ?? 0) ? '#f59e0b' : '#d1d5db',
+                      fill: reviewsCount > 0 && n <= Math.round(reviewsAvg ?? 0) ? '#f59e0b' : 'transparent',
+                      color: reviewsCount > 0 && n <= Math.round(reviewsAvg ?? 0) ? '#f59e0b' : '#d1d5db',
                     }}
                   />
                 ))}
-                <span className="text-sm font-semibold text-foreground">{reviewsAvg}</span>
-                <span className="text-xs text-muted-foreground">({reviewsCount} avis)</span>
-              </div>
+                {reviewsCount > 0 ? (
+                  <span className="text-xs text-muted-foreground ml-1">{reviewsAvg} ({reviewsCount} avis)</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground ml-1">Aucun avis</span>
+                )}
+              </button>
             )}
             {club.description && (
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{club.description}</p>
@@ -918,6 +1089,62 @@ export default function ClubProfile() {
                 <img src={url} alt="" className="h-full w-full object-cover" />
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Coaches section ─────────────────────────────────────────────── */}
+      {!coachesLoading && coaches.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Dumbbell className="h-4 w-4 text-primary" />
+            Coachs
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {coaches.map((coach) => {
+              const coachName = [coach.user_first_name, coach.user_last_name].filter(Boolean).join(' ')
+                || coach.user_email?.split('@')[0] || 'Coach';
+              const initials = coachName.slice(0, 2).toUpperCase();
+              return (
+                <div
+                  key={coach.id}
+                  className="rounded-xl border border-border bg-card p-4 flex items-center gap-3"
+                >
+                  {/* Photo */}
+                  <div className="h-11 w-11 rounded-full overflow-hidden bg-amber-100 shrink-0 flex items-center justify-center border border-border">
+                    {coach.user_photo_url
+                      ? <img src={coach.user_photo_url} alt={coachName} className="h-full w-full object-cover" />
+                      : <span className="text-sm font-bold text-amber-700">{initials}</span>}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{coachName}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {coach.specialty || 'Coach padel'}
+                    </p>
+                    {coach.rate != null && (
+                      <p className="text-xs font-semibold text-primary mt-0.5">
+                        {Number(coach.rate).toLocaleString('fr-FR')} FCFA/h
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Contact button */}
+                  {user && !isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/messages?userId=${coach.user_id}`)}
+                      className="shrink-0 flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary transition-colors"
+                      title="Contacter ce coach"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      Contacter
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1069,166 +1296,29 @@ export default function ClubProfile() {
         </div>
       )}
 
-      {/* ── Reviews section ─────────────────────────────────────────────── */}
-      {!isAdmin && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-              <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
-              Avis
-              {reviewsCount > 0 && (
-                <span className="text-sm font-normal text-muted-foreground">
-                  ({reviewsCount} · {reviewsAvg}/5)
-                </span>
-              )}
-            </h2>
-            {user && !isManager && !reviewDone && (
-              <button
-                type="button"
-                onClick={() => { setShowReviewForm((v) => !v); setReviewError(null); }}
-                className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                <Star className="h-3 w-3" />
-                {showReviewForm ? 'Annuler' : 'Laisser un avis'}
-              </button>
-            )}
-          </div>
-
-          {/* Review form */}
-          {showReviewForm && (
-            <form onSubmit={handleSubmitReview} className="rounded-xl border border-border bg-card p-4 space-y-4">
-              {reviewError && (
-                <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />{reviewError}
-                </div>
-              )}
-
-              {/* Star picker */}
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-foreground">Votre note</p>
-                <div className="flex gap-1.5">
-                  {[1,2,3,4,5].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => setReviewRating(n)}
-                      className="p-0.5 transition-transform hover:scale-110"
-                    >
-                      <Star
-                        className="h-7 w-7 transition-colors"
-                        style={{
-                          fill: n <= reviewRating ? '#f59e0b' : 'transparent',
-                          color: n <= reviewRating ? '#f59e0b' : '#d1d5db',
-                        }}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Comment */}
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-foreground">
-                  Commentaire <span className="font-normal text-muted-foreground">(optionnel)</span>
-                </p>
-                <textarea
-                  value={reviewComment}
-                  onChange={(e) => setReviewComment(e.target.value)}
-                  maxLength={500}
-                  rows={3}
-                  placeholder="Partagez votre expérience avec ce club…"
-                  className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => setShowReviewForm(false)} className="flex-1">
-                  Annuler
-                </Button>
-                <Button type="submit" disabled={reviewSubmitting || reviewRating < 1} className="flex-1">
-                  {reviewSubmitting ? 'Envoi…' : 'Publier l\'avis'}
-                </Button>
-              </div>
-            </form>
-          )}
-
-          {/* Review posted success */}
-          {reviewDone && (
-            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              Merci pour votre avis !
-            </div>
-          )}
-
-          {/* Reviews list */}
-          {reviewsLoading ? (
-            <div className="space-y-2">
-              {[1,2].map((i) => (
-                <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />
-              ))}
-            </div>
-          ) : reviews.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border bg-card/50 p-8 text-center">
-              <Star className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Aucun avis pour l'instant. Soyez le premier !</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {reviews.map((r) => {
-                const reviewerName = [r.reviewer_first_name, r.reviewer_last_name].filter(Boolean).join(' ') || 'Joueur';
-                const initials     = reviewerName.slice(0, 2).toUpperCase();
-                const dateStr      = new Date(r.created_at).toLocaleDateString('fr-FR', {
-                  day: 'numeric', month: 'long', year: 'numeric',
-                });
-                return (
-                  <div key={r.id} className="rounded-xl border border-border bg-card p-4 space-y-2">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                        {r.reviewer_photo_url
-                          ? <img src={r.reviewer_photo_url} alt={reviewerName} className="h-full w-full object-cover" />
-                          : <span className="text-xs font-bold text-primary">{initials}</span>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{reviewerName}</p>
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-0.5">
-                            {[1,2,3,4,5].map((n) => (
-                              <Star
-                                key={n}
-                                className="h-3 w-3"
-                                style={{
-                                  fill: n <= r.rating ? '#f59e0b' : 'transparent',
-                                  color: n <= r.rating ? '#f59e0b' : '#d1d5db',
-                                }}
-                              />
-                            ))}
-                          </div>
-                          <span className="text-[11px] text-muted-foreground">{dateStr}</span>
-                        </div>
-                      </div>
-                    </div>
-                    {r.comment && (
-                      <p className="text-sm text-foreground/80 leading-relaxed">{r.comment}</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── Booking success banner ───────────────────────────────────────── */}
       {booked && (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-5 py-4 flex items-center gap-3">
-          <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-green-800">Réservation confirmée !</p>
-            <p className="text-xs text-green-700 mt-0.5">Un email de confirmation vous a été envoyé.</p>
+        <div className="rounded-xl border border-green-200 bg-green-50 px-5 py-4 space-y-2">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-green-800">Réservation confirmée !</p>
+              <p className="text-xs text-green-700 mt-0.5">Un email de confirmation vous a été envoyé.</p>
+            </div>
+            <button onClick={() => setBooked(false)} className="text-green-600 hover:text-green-800 shrink-0">
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button onClick={() => setBooked(false)} className="text-green-600 hover:text-green-800 shrink-0">
-            <X className="h-4 w-4" />
-          </button>
+          {!reviewDone && (
+            <button
+              type="button"
+              onClick={() => setShowReviewsModal(true)}
+              className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-green-300 bg-white/60 hover:bg-white px-3 py-2 text-xs font-medium text-green-800 transition-colors"
+            >
+              <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+              Laisser un avis sur ce club
+            </button>
+          )}
         </div>
       )}
 
@@ -1351,6 +1441,21 @@ export default function ClubProfile() {
           </div>
         )}
       </div>}
+
+      {/* ── Reviews modal ───────────────────────────────────────────────── */}
+      {showReviewsModal && (
+        <ReviewsModal
+          clubId={id}
+          reviews={reviews}
+          average={reviewsAvg}
+          count={reviewsCount}
+          user={user}
+          isManager={isManager}
+          reviewDone={reviewDone}
+          onClose={() => setShowReviewsModal(false)}
+          onReviewSubmit={handleSubmitReview}
+        />
+      )}
 
       {/* ── Booking modal — hidden for admin and suspended clubs ─────────── */}
       {booking && !isAdmin && club.subscription_status !== 'suspended' && (

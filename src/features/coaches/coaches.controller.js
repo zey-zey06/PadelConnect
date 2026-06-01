@@ -177,6 +177,19 @@ coachesRouter.get('/me', authenticate, requireRole('coach'), async (req, res, ne
     next(err);
   }
 });
+coachesRouter.patch('/me', authenticate, requireRole('coach'), async (req, res, next) => {
+  try {
+    const { rate } = req.body;
+    const rateNum = rate === null || rate === '' ? null : Number(rate);
+    if (rateNum !== null && (isNaN(rateNum) || rateNum < 0)) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'Tarif invalide.' });
+    }
+    const coach = await coachesService.updateMyProfile(req.user.sub, { rate: rateNum });
+    return res.json({ coach });
+  } catch (err) {
+    next(err);
+  }
+});
 coachesRouter.get('/:id/sessions', authenticate, getCoachSessionsHandler);
 coachesRouter.get('/:id', authenticate, getCoachHandler);
 coachesRouter.put('/:id/availability', authenticate, updateAvailabilityHandler);

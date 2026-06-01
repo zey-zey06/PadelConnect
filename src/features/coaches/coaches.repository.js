@@ -80,6 +80,18 @@ async function getByUserId(userId) {
   return db('coach_profiles').where({ user_id: userId }).whereNull('deleted_at').first();
 }
 
+async function updateProfile(userId, data) {
+  const allowed = {};
+  if ('rate' in data) allowed.rate = data.rate;
+  if ('specialty' in data) allowed.specialty = data.specialty;
+  if ('bio' in data) allowed.bio = data.bio;
+  const [row] = await db('coach_profiles')
+    .where({ user_id: userId })
+    .update({ ...allowed, updated_at: new Date() })
+    .returning('*');
+  return row;
+}
+
 async function getSessionsByCoach(coachProfileId) {
   return db('sessions')
     .join('bookings', 'sessions.id', 'bookings.session_id')
@@ -205,7 +217,7 @@ async function deleteInvitation(id, organizationId) {
 }
 
 module.exports = {
-  listAvailable, getById, getByUserId, updateAvailability, getByOrg,
+  listAvailable, getById, getByUserId, updateAvailability, updateProfile, getByOrg,
   getCoachUser, getCoachUserByEmail, getUserByEmail,
   attachToClub, detachFromClub, getSessionsByCoach,
   createInvitation, getPendingInvitationsByCoach, getPendingBallPickerInvitations,

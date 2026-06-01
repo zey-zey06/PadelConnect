@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Dumbbell, CalendarDays, Users, AlertCircle, Clock, Building2, CheckCircle2, XCircle } from 'lucide-react';
+import { Dumbbell, CalendarDays, Users, AlertCircle, Clock, Building2, CheckCircle2, XCircle, Pencil, X } from 'lucide-react';
 import { useAuth } from '@/App';
-import { getMyCoachProfile, getCoachSessions, getMyInvitations, respondToInvitation } from '@/api/coaches';
+import { getMyCoachProfile, getCoachSessions, getMyInvitations, respondToInvitation, updateMyCoachProfile } from '@/api/coaches';
 import PageSkeleton from '@/components/PageSkeleton';
 
 const LEVEL_LABELS = {
@@ -63,6 +63,11 @@ export default function CoachDashboard() {
   const [invLoading,  setInvLoading]  = useState(false);
   const [invAction,   setInvAction]   = useState(null); // id of invitation being processed
 
+  // Rate editor
+  const [editingRate,  setEditingRate]  = useState(false);
+  const [rateInput,    setRateInput]    = useState('');
+  const [rateSaving,   setRateSaving]   = useState(false);
+
   useEffect(() => {
     async function load() {
       try {
@@ -99,6 +104,22 @@ export default function CoachDashboard() {
     }
   }
 
+  async function handleSaveRate() {
+    const val = rateInput.trim();
+    const num = val === '' ? null : Number(val);
+    if (num !== null && (isNaN(num) || num < 0)) return;
+    setRateSaving(true);
+    try {
+      const { coach: updated } = await updateMyCoachProfile({ rate: num });
+      setCoach((prev) => ({ ...prev, rate: updated?.rate ?? num }));
+      setEditingRate(false);
+    } catch {
+      // silently ignore
+    } finally {
+      setRateSaving(false);
+    }
+  }
+
   const displayed = tab === 'upcoming' ? sessions.upcoming : sessions.past;
 
   return (
@@ -122,19 +143,68 @@ export default function CoachDashboard() {
         </div>
       ) : (
         <>
-          {/* Coach info */}
+          {/* Coach info + rate editor */}
           {coach && (
-            <div className="rounded-xl border border-border bg-card p-5 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Dumbbell className="h-6 w-6 text-primary" />
+            <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <Dumbbell className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-foreground">{coach.specialty ?? 'Coach padel'}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {coach.is_independent ? 'Coach indépendant' : 'Coach en club'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-semibold text-foreground">{coach.specialty ?? 'Coach padel'}</p>
-                <p className="text-sm text-muted-foreground">
-                  {coach.is_independent ? 'Coach indépendant' : 'Coach en club'}
-                  {coach.rate != null && ` · ${Number(coach.rate).toLocaleString('fr-FR')} FCFA/h`}
-                </p>
-              </div>
+
+              {/* Hourly rate */}
+              {editingRate ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Tarif horaire (FCFA)"
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value)}
+                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveRate(); if (e.key === 'Escape') setEditingRate(false); }}
+                  />
+                  <span className="text-xs text-muted-foreground shrink-0">FCFA/h</span>
+                  <button
+                    type="button"
+                    onClick={handleSaveRate}
+                    disabled={rateSaving}
+                    className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    {rateSaving ? '…' : 'Sauvegarder'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingRate(false)}
+                    className="rounded-lg border border-border px-2 py-2 text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2">
+                  <p className="text-sm text-foreground">
+                    {coach.rate != null
+                      ? <><span className="font-semibold">{Number(coach.rate).toLocaleString('fr-FR')} FCFA</span>/h</>
+                      : <span className="text-muted-foreground text-xs">Tarif non défini</span>}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setRateInput(coach.rate != null ? String(coach.rate) : ''); setEditingRate(true); }}
+                    className="flex items-center gap-1 text-xs text-primary hover:underline transition-colors"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    {coach.rate != null ? 'Modifier' : 'Définir le tarif'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

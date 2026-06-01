@@ -3,6 +3,9 @@ import client from './client';
 /** GET /api/coaches/me → { coach } (coach role only) */
 export const getMyCoachProfile = () => client.get('/coaches/me');
 
+/** PATCH /api/coaches/me { rate } → { coach } */
+export const updateMyCoachProfile = (data) => client.patch('/coaches/me', data);
+
 /** GET /api/coaches/:id/sessions → { sessions: { upcoming, past } } */
 export const getCoachSessions = (id) => client.get(`/coaches/${id}/sessions`);
 

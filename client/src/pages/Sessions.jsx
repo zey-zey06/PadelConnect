@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Users, Plus, AlertCircle, X,
   CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2, Calendar,
-  ChevronLeft, ChevronRight, Banknote, CreditCard, Share2, Pencil,
+  ChevronLeft, ChevronRight, Banknote, CreditCard, Share2, Pencil, Link2, Copy,
 } from 'lucide-react';
 import ShareContactPicker from '@/components/ShareContactPicker';
 import { useAuth, usePlayerPanel } from '@/App';
@@ -42,6 +42,28 @@ const LEVEL_LABELS = {
 function parseSessionDate(dateVal) {
   const str = (dateVal ?? '').toString().slice(0, 10); // "YYYY-MM-DD"
   return new Date(str + 'T00:00:00');                  // local midnight
+}
+
+/**
+ * Returns a human-readable countdown string to the session, or null if past.
+ * e.g. "Maintenant !", "Dans 45 min", "Dans 3 h", "Dans 2 jours"
+ */
+function sessionCountdown(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return null;
+  const dt = new Date(
+    String(dateStr).slice(0, 10) + 'T' + String(timeStr).slice(0, 5) + ':00',
+  );
+  if (isNaN(dt.getTime())) return null;
+  const diffMs = dt - Date.now();
+  if (diffMs < -30 * 60 * 1000) return null; // more than 30 min past
+  if (diffMs <= 30 * 60 * 1000) return 'Maintenant !';
+  if (diffMs < 60 * 60 * 1000) return `Dans ${Math.round(diffMs / 60000)} min`;
+  if (diffMs < 24 * 60 * 60 * 1000) {
+    const h = Math.round(diffMs / 3600000);
+    return `Dans ${h} h`;
+  }
+  const d = Math.round(diffMs / 86400000);
+  return `Dans ${d} jour${d > 1 ? 's' : ''}`;
 }
 
 // French day abbreviations (index = getDay(), 0 = Sunday)
@@ -517,6 +539,7 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [showSharePicker,   setShowSharePicker]   = useState(false);
   const [showDetail,        setShowDetail]        = useState(false);
+  const [copied,            setCopied]            = useState(false);
 
   const hasBooking = !!booking;
   const isOwner = user?.id === session.creator_id;
@@ -533,6 +556,16 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
   const levelMin  = session.preferences?.level_min;
   const gender    = session.preferences?.gender;
   const spots     = Array.from({ length: total }, (_, i) => i < filled);
+
+  const countdown = sessionCountdown(session.date, session.time);
+
+  function handleCopyLink() {
+    const url = `${window.location.origin}/sessions/${session.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  }
 
   async function handleJoin() {
     setState('loading');
@@ -614,7 +647,7 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
             </span>
             <span className="text-[17px] font-extrabold text-primary leading-none mt-0.5">{d.getDate()}</span>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-foreground capitalize leading-snug truncate">
               {d.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })}
               {session.time ? ` · ${session.time.slice(0, 5).replace(':', 'h')}` : ''}
@@ -625,6 +658,19 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
               </p>
             )}
           </div>
+          {/* Countdown chip */}
+          {countdown && (
+            <span className={cn(
+              'shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border',
+              countdown === 'Maintenant !'
+                ? 'bg-red-50 text-red-600 border-red-200 animate-pulse'
+                : countdown.includes('min') || countdown.includes('h')
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-blue-50 text-blue-700 border-blue-200',
+            )}>
+              {countdown}
+            </span>
+          )}
         </div>
 
         {/* Tags: level + gender + location */}
@@ -734,8 +780,19 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
           )}
         </div>
 
-        {/* Share */}
-        <div className="flex justify-end pt-0.5" onClick={(e) => e.stopPropagation()}>
+        {/* Share + Copy link */}
+        <div className="flex items-center justify-end gap-3 pt-0.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className={cn(
+              'flex items-center gap-1 text-xs transition-colors py-1 px-1 rounded',
+              copied ? 'text-green-600' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? 'Copié !' : 'Copier le lien'}
+          </button>
           <button
             type="button"
             onClick={() => setShowSharePicker(true)}

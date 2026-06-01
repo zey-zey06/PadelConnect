@@ -6,7 +6,11 @@ import { acceptFriendRequest, refuseFriendRequest } from '@/api/friends';
 import { getMySessions, invitePlayer } from '@/api/sessions';
 import { respondToBallPickerInvitation } from '@/api/coaches';
 import { Button } from '@/components/ui/button';
-import { Bell, CheckCircle2, AlertCircle, UserCheck, UserX, Users, X } from 'lucide-react';
+import {
+  Bell, CheckCircle2, AlertCircle, UserCheck, UserX, Users, X,
+  UserPlus, CalendarDays, CalendarCheck, CalendarX, CreditCard,
+  MessageSquare, Building2, Shield, Sparkles, Zap,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PageSkeleton from '@/components/PageSkeleton';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
@@ -46,6 +50,44 @@ const TYPE_LABELS = {
   // Club
   club_new_post:             'Nouvelle publication',
 };
+
+// ── Notification type icon config ────────────────────────────────────────────
+function getTypeIcon(type) {
+  switch (type) {
+    // Social
+    case 'friend_request':    return { Icon: UserPlus,      color: '#3b82f6' }; // blue
+    case 'friend_accepted':   return { Icon: UserCheck,     color: '#16a34a' }; // green
+    // Sessions
+    case 'session_request':   return { Icon: CalendarDays,  color: '#1A3D2B' }; // primary
+    case 'request_accepted':  return { Icon: CalendarCheck, color: '#16a34a' };
+    case 'request_refused':   return { Icon: CalendarX,     color: '#dc2626' };
+    case 'session_complete':  return { Icon: Users,          color: '#1A3D2B' };
+    case 'session_cancelled': return { Icon: CalendarX,     color: '#dc2626' };
+    case 'session_invite':    return { Icon: CalendarDays,  color: '#3b82f6' };
+    case 'session_cancelled_admin': return { Icon: CalendarX, color: '#dc2626' };
+    // Bookings
+    case 'new_booking':       return { Icon: CreditCard,    color: '#3b82f6' };
+    case 'booking_confirmed': return { Icon: CalendarCheck, color: '#16a34a' };
+    case 'booking_cancelled': return { Icon: CalendarX,     color: '#dc2626' };
+    case 'slot_cancelled':    return { Icon: CalendarX,     color: '#f59e0b' };
+    // Staff
+    case 'coach_invite':           return { Icon: Users,    color: '#f59e0b' };
+    case 'club_invitation':        return { Icon: Building2, color: '#1A3D2B' };
+    case 'ball_picker_invitation': return { Icon: Zap,      color: '#f59e0b' };
+    // Sanctions
+    case 'late_cancel': return { Icon: AlertCircle, color: '#f59e0b' };
+    case 'no_show':     return { Icon: AlertCircle, color: '#dc2626' };
+    case 'club_ban':    return { Icon: Shield,      color: '#dc2626' };
+    case 'app_ban':     return { Icon: Shield,      color: '#dc2626' };
+    case 'ban':         return { Icon: Shield,      color: '#dc2626' };
+    // Club
+    case 'club_new_post': return { Icon: Bell,      color: '#1A3D2B' };
+    // System
+    case 'welcome':     return { Icon: Sparkles,   color: '#1A3D2B' };
+    case 'new_user':    return { Icon: UserPlus,   color: '#1A3D2B' };
+    default:            return { Icon: Bell,       color: '#9CA3AF' };
+  }
+}
 
 // ── Date grouping ─────────────────────────────────────────────────────────────
 function getGroup(createdAt) {
@@ -133,12 +175,23 @@ function NotificationList({ notifications, friendActionLoading, bpActionLoading,
                     !n.read && 'border-primary/20 bg-primary/[0.03]'
                   )}
                 >
-                  <div className="mt-0.5 shrink-0">
-                    {n.read
-                      ? <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                      : <span className="block w-2 h-2 rounded-full bg-primary mt-1" />
-                    }
-                  </div>
+                  {/* Type icon */}
+                  {(() => {
+                    const { Icon, color } = getTypeIcon(n.type);
+                    return (
+                      <div className="relative mt-0.5 shrink-0">
+                        <div
+                          className="h-8 w-8 rounded-full flex items-center justify-center"
+                          style={{ backgroundColor: `${color}18` }}
+                        >
+                          <Icon className="h-4 w-4" style={{ color }} />
+                        </div>
+                        {!n.read && (
+                          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary border-2 border-card" />
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div className="flex-1 min-w-0">
                     {n.type && (
                       <p className="text-xs font-medium text-primary mb-0.5">

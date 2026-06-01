@@ -77,6 +77,10 @@ async function removeCoachFromClub(clubId, userOrgId, coachUserId) {
   return coachesRepo.detachFromClub(coachUserId);
 }
 
+async function updateMyProfile(userId, data) {
+  return coachesRepo.updateProfile(userId, data);
+}
+
 async function getMyCoachProfile(userId) {
   const profile = await coachesRepo.getByUserId(userId);
   if (!profile) {
@@ -279,7 +283,7 @@ async function respondToBallPickerInvitation(invitationId, userId, status) {
 }
 
 module.exports = {
-  listAvailableCoaches, getCoach, getMyCoachProfile, updateAvailability, getClubCoaches,
+  listAvailableCoaches, getCoach, getMyCoachProfile, updateMyProfile, updateAvailability, getClubCoaches,
   addCoachToClub, removeCoachFromClub, getCoachSessions,
   sendClubInvitation, getPendingInvitations, getClubPendingInvitations, cancelInvitation, respondToInvitation,
   sendBallPickerInvitation, getPendingBallPickerInvitations, getClubPendingBallPickerInvitations, respondToBallPickerInvitation,

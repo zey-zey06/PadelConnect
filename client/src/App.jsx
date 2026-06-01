@@ -8,6 +8,7 @@ import ForgotPassword   from '@/pages/ForgotPassword';
 import ProfileSetup     from '@/pages/ProfileSetup';
 import Dashboard        from '@/pages/Dashboard';
 import Sessions         from '@/pages/Sessions';
+import SessionDetail    from '@/pages/SessionDetail';
 import Calendar         from '@/pages/Calendar';
 import Clubs            from '@/pages/Clubs';
 import Notifications    from '@/pages/Notifications';
@@ -214,7 +215,8 @@ export default function App() {
 
           {/* ── Player + coach routes ───────────────────────────────── */}
           <Route path="/dashboard" element={<DefaultRedirect />} />
-          <Route path="/sessions"  element={<PlayerRoute><Layout><Sessions /></Layout></PlayerRoute>} />
+          <Route path="/sessions"      element={<PlayerRoute><Layout><Sessions /></Layout></PlayerRoute>} />
+          <Route path="/sessions/:id"  element={<PlayerRoute><Layout><SessionDetail /></Layout></PlayerRoute>} />
           <Route path="/calendar"  element={<PlayerRoute><Layout><Calendar /></Layout></PlayerRoute>} />
           <Route path="/history"          element={<PlayerRoute><Layout><History /></Layout></PlayerRoute>} />
           <Route path="/history/sessions" element={<PlayerRoute><Layout><SessionHistory /></Layout></PlayerRoute>} />
