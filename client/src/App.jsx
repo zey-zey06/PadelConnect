@@ -217,7 +217,7 @@ export default function App() {
           {/* ── Player + coach routes ───────────────────────────────── */}
           <Route path="/dashboard" element={<DefaultRedirect />} />
           <Route path="/sessions"      element={<PlayerRoute><Layout><Sessions /></Layout></PlayerRoute>} />
-          <Route path="/sessions/:id"  element={<PlayerRoute><Layout><SessionDetail /></Layout></PlayerRoute>} />
+          <Route path="/sessions/:id"  element={<Layout><SessionDetail /></Layout>} />
           <Route path="/calendar"  element={<PlayerRoute><Layout><Calendar /></Layout></PlayerRoute>} />
           <Route path="/history"           element={<PlayerRoute><Layout><History /></Layout></PlayerRoute>} />
           <Route path="/history/sessions" element={<PlayerRoute><Layout><SessionHistory /></Layout></PlayerRoute>} />
