@@ -2,11 +2,11 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Sparkles, Upload, CheckCircle2, ChevronRight, ChevronLeft,
-  AlertCircle, X, Phone, Camera,
+  AlertCircle, X, Phone, Camera, AtSign,
 } from 'lucide-react';
 import { useAuth } from '@/App';
 import { updateProfile, uploadPhoto, getProfile } from '@/api/profile';
-import { updateMe } from '@/api/auth';
+import { updateMe, checkUsername } from '@/api/auth';
 import { Button }   from '@/components/ui/button';
 import { Label }    from '@/components/ui/label';
 import { cn }       from '@/lib/utils';
@@ -133,10 +133,14 @@ export default function ProfileSetup() {
   const [error, setError] = useState(null);
 
   // ── Step 1: basic info ────────────────────────────────────────────────────
-  const [firstName,   setFirstName]   = useState(user?.first_name ?? '');
-  const [lastName,    setLastName]    = useState(user?.last_name  ?? '');
-  const [birthDate,   setBirthDate]   = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [firstName,        setFirstName]        = useState(user?.first_name ?? '');
+  const [lastName,         setLastName]         = useState(user?.last_name  ?? '');
+  const [birthDate,        setBirthDate]        = useState('');
+  const [phoneNumber,      setPhoneNumber]      = useState('');
+  const [username,         setUsername]         = useState('');
+  // null | 'checking' | 'available' | 'taken' | 'invalid'
+  const [usernameStatus,   setUsernameStatus]   = useState(null);
+  const usernameTimerRef = useRef(null);
 
   // ── Step 2: QCM state ─────────────────────────────────────────────────────
   const [qIndex,            setQIndex]            = useState(0);
@@ -155,6 +159,9 @@ export default function ProfileSetup() {
 
   const [step, setStep] = useState(1);
 
+  // Cleanup username debounce timer on unmount
+  useEffect(() => () => { if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current); }, []);
+
   // Reset selection when question changes
   useEffect(() => {
     setSelectedSingle(null);
@@ -163,10 +170,49 @@ export default function ProfileSetup() {
     setAutreText('');
   }, [qIndex]);
 
+  // ── Username input handler (auto-format + debounced availability check) ──
+  function handleUsernameChange(e) {
+    const raw = e.target.value;
+    // Auto-lowercase, replace spaces with _, strip invalid chars
+    const clean = raw.toLowerCase().replace(/\s/g, '_').replace(/[^a-z0-9_]/g, '');
+    setUsername(clean);
+
+    if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current);
+
+    if (clean.length === 0) { setUsernameStatus(null); return; }
+    if (clean.length < 3)   { setUsernameStatus('invalid'); return; }
+
+    setUsernameStatus('checking');
+    usernameTimerRef.current = setTimeout(async () => {
+      try {
+        const { available } = await checkUsername(clean);
+        setUsernameStatus(available ? 'available' : 'taken');
+      } catch {
+        setUsernameStatus(null);
+      }
+    }, 500);
+  }
+
   // ── Step 1 → 2 ────────────────────────────────────────────────────────────
   function handleStep1Next() {
     if (!firstName.trim() || !lastName.trim() || !birthDate) {
       setError('Veuillez renseigner votre prénom, nom et date de naissance.');
+      return;
+    }
+    if (!username || username.length < 3) {
+      setError('Veuillez choisir un nom d\'utilisateur (3 caractères minimum).');
+      return;
+    }
+    if (usernameStatus === 'checking') {
+      setError('Vérification du nom d\'utilisateur en cours, patientez un instant.');
+      return;
+    }
+    if (usernameStatus === 'taken') {
+      setError('Ce nom d\'utilisateur est déjà pris. Veuillez en choisir un autre.');
+      return;
+    }
+    if (usernameStatus !== 'available') {
+      setError('Veuillez attendre la vérification du nom d\'utilisateur.');
       return;
     }
     setError(null);
@@ -253,7 +299,11 @@ export default function ProfileSetup() {
       if (avail)               profileData.availability      = avail;
 
       await updateProfile(profileData);
-      await updateMe({ first_name: firstName.trim() || null, last_name: lastName.trim() || null });
+      await updateMe({
+        first_name: firstName.trim() || null,
+        last_name:  lastName.trim()  || null,
+        username:   username.trim()  || null,
+      });
       setStep(3);
     } catch (err) {
       setError(err.message || 'Erreur lors de la sauvegarde.');
@@ -609,6 +659,49 @@ export default function ProfileSetup() {
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     />
                   </div>
+                </div>
+
+                {/* Username */}
+                <div className="space-y-2">
+                  <Label htmlFor="username">
+                    Nom d'utilisateur <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <input
+                      id="username"
+                      type="text"
+                      value={username}
+                      onChange={handleUsernameChange}
+                      placeholder="kofi_padel"
+                      maxLength={20}
+                      autoComplete="username"
+                      className="flex h-10 w-full rounded-md border border-input bg-background pl-9 pr-9 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    />
+                    {usernameStatus && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                        {usernameStatus === 'checking' && (
+                          <span className="block w-4 h-4 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
+                        )}
+                        {usernameStatus === 'available' && (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        )}
+                        {(usernameStatus === 'taken' || usernameStatus === 'invalid') && (
+                          <X className="h-4 w-4 text-red-500" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <p className={cn('text-xs', {
+                    'text-green-600':          usernameStatus === 'available',
+                    'text-red-500':            usernameStatus === 'taken' || usernameStatus === 'invalid',
+                    'text-muted-foreground':   !usernameStatus || usernameStatus === 'checking',
+                  })}>
+                    {usernameStatus === 'available' && 'Disponible !'}
+                    {usernameStatus === 'taken'     && 'Ce nom d\'utilisateur est déjà pris.'}
+                    {usernameStatus === 'invalid'   && 'Minimum 3 caractères — lettres minuscules, chiffres et _.'}
+                    {(!usernameStatus || usernameStatus === 'checking') && 'Lettres minuscules, chiffres et _ (3-20 caractères).'}
+                  </p>
                 </div>
 
                 <div className="space-y-2">

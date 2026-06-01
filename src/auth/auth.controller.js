@@ -1,6 +1,34 @@
 const { Router } = require('express');
 const { signupSchema, loginSchema } = require('./auth.validation');
-const { signup, login, verifyEmail, getUserById, updateName, changePassword, softDeleteAccount, resendVerification, verifyOtp, forgotPassword, resetPassword } = require('./auth.service');
+const { signup, login, verifyEmail, getUserById, updateName, updateUsername, changePassword, softDeleteAccount, resendVerification, verifyOtp, forgotPassword, resetPassword } = require('./auth.service');
+const UAParser = require('ua-parser-js');
+
+function formatDeviceInfo(uaString) {
+  try {
+    const p = new UAParser(uaString);
+    const { name: bName, major: bMajor } = p.getBrowser();
+    const { name: osName, version: osVersion } = p.getOS();
+    const { vendor, model } = p.getDevice();
+    const parts = [];
+    if (vendor || model) {
+      parts.push([vendor, model].filter(Boolean).join(' '));
+    } else if (osName?.toLowerCase().includes('mac')) {
+      parts.push('Mac');
+    } else if (osName?.toLowerCase().includes('windows')) {
+      parts.push('Windows PC');
+    } else {
+      parts.push(osName ?? 'Appareil inconnu');
+    }
+    if (bName) parts.push(bMajor ? `${bName} ${bMajor}` : bName);
+    if (osName) {
+      const major = osVersion?.split('.')[0];
+      if (major) parts.push(`${osName} ${major}`);
+    }
+    return parts.join(' · ') || (uaString ?? 'Inconnu').slice(0, 80);
+  } catch {
+    return (uaString ?? 'Inconnu').slice(0, 80);
+  }
+}
 const { signToken } = require('./jwt');
 const authenticate = require('../middleware/authenticate');
 const notificationsService = require('../features/notifications/notifications.service');
@@ -63,13 +91,20 @@ async function loginHandler(req, res, next) {
     res.cookie('token', token, COOKIE_OPTIONS);
 
     if (user.role === 'super_admin') {
-      const ip        = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || 'Inconnue';
-      const userAgent = req.headers['user-agent'] || 'Inconnu';
-      const date      = new Date().toLocaleString('fr-FR', {
-        day: '2-digit', month: 'long', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Abidjan',
+      const ip         = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || 'Inconnue';
+      const rawUA      = req.headers['user-agent'] || '';
+      const deviceInfo = formatDeviceInfo(rawUA);
+      const now        = new Date();
+      const datePart   = now.toLocaleDateString('fr-FR', {
+        weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+        timeZone: 'Africa/Abidjan',
       });
-      sendAdminLoginAlert({ ip, userAgent, date }).catch(() => {});
+      const timePart = now.toLocaleTimeString('fr-FR', {
+        hour: '2-digit', minute: '2-digit', hour12: false,
+        timeZone: 'Africa/Abidjan',
+      }).replace(':', 'h');
+      const date = `${datePart} à ${timePart}`;
+      sendAdminLoginAlert({ ip, deviceInfo, date }).catch(() => {});
     }
 
     return res.json({ user });
@@ -123,7 +158,10 @@ async function meHandler(req, res, next) {
 
 async function updateMeHandler(req, res, next) {
   try {
-    const { first_name, last_name } = req.body;
+    const { first_name, last_name, username } = req.body;
+    if (username !== undefined) {
+      await updateUsername(req.user.sub, username);
+    }
     await updateName(req.user.sub, first_name, last_name);
     const user = await getUserById(req.user.sub);
     return res.json({ user });
@@ -248,5 +286,27 @@ async function resetPasswordHandler(req, res, next) {
 
 router.post('/forgot-password', forgotPasswordHandler);
 router.post('/reset-password',  resetPasswordHandler);
+
+async function checkUsernameHandler(req, res, next) {
+  try {
+    const { username } = req.query;
+    if (!username || typeof username !== 'string') {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: 'username requis.' });
+    }
+    const clean = username.trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,20}$/.test(clean)) {
+      return res.json({ available: false });
+    }
+    const query = db('users').where({ username: clean }).whereNull('deleted_at');
+    // Exclude current user so they can keep/reuse their existing username
+    if (req.user?.sub) query.whereNot('id', req.user.sub);
+    const existing = await query.first();
+    return res.json({ available: !existing });
+  } catch (err) {
+    next(err);
+  }
+}
+
+router.get('/check-username', authenticate, checkUsernameHandler);
 
 module.exports = router;

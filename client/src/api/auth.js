@@ -74,3 +74,10 @@ export const forgotPassword = (email) => client.post('/auth/forgot-password', { 
  */
 export const resetPassword = (email, code, newPassword) =>
   client.post('/auth/reset-password', { email, code, newPassword });
+
+/**
+ * GET /api/auth/check-username?username=...  (requires auth)
+ * → { available: boolean }
+ */
+export const checkUsername = (username) =>
+  client.get(`/auth/check-username?username=${encodeURIComponent(username)}`);
