@@ -42,7 +42,7 @@ async function sendBookingConfirmation({ booking, session, slot, venue, players 
   await sendEmail({
     from:    FROM,
     to:      devTo(recipients),
-    subject: 'Réservation confirmée - PadelConnect',
+    subject: 'Réservation confirmée - PadelConnect 🎾',
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px 24px">
         <div style="margin-bottom:24px">

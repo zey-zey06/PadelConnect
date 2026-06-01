@@ -99,10 +99,10 @@ function SlotBtn({ slot, venueName, clubName, onBook, onShare, isMyBooking }) {
 
   if (isMyBooking) {
     return (
-      <div className="inline-flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-3 py-2">
-        <span className="text-xs font-medium text-green-800 flex items-center gap-1">
+      <div className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+        <span className="text-xs font-medium text-blue-800 flex items-center gap-1">
           <CheckCircle2 className="h-3 w-3 shrink-0" />
-          Terrain réservé ✓
+          Ma réservation
         </span>
         <button
           type="button"
@@ -116,7 +116,7 @@ function SlotBtn({ slot, venueName, clubName, onBook, onShare, isMyBooking }) {
             });
             downloadICS(ics, `padel-${slot.date}.ics`);
           }}
-          className="flex items-center gap-0.5 text-xs text-green-700 underline hover:text-green-900 transition-colors"
+          className="flex items-center gap-0.5 text-xs text-blue-700 underline hover:text-blue-900 transition-colors"
         >
           <Calendar className="h-3 w-3" />
           Calendrier
@@ -125,7 +125,7 @@ function SlotBtn({ slot, venueName, clubName, onBook, onShare, isMyBooking }) {
           type="button"
           onClick={() => onShare?.(slot, venueName)}
           title="Partager ce créneau"
-          className="flex items-center gap-0.5 text-xs text-green-700 hover:text-green-900 transition-colors"
+          className="flex items-center gap-0.5 text-xs text-blue-700 hover:text-blue-900 transition-colors"
         >
           <Share2 className="h-3 w-3" />
         </button>
@@ -1052,62 +1052,73 @@ export default function ClubProfile() {
           </div>
         ) : (
           <div className="space-y-4">
-            {slotsData.venues.map((venue) => {
-              const availCount = venue.slots.filter((s) => s.status === 'available').length;
-              return (
-                <div key={venue.id} className="rounded-xl border border-border bg-card overflow-hidden">
-                  {/* Court header */}
-                  <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <p className="text-sm font-semibold text-foreground">{venue.name}</p>
-                    {venue.description && (
-                      <p className="text-xs text-muted-foreground truncate">{venue.description}</p>
-                    )}
-                    {venue.slots.length > 0 && (
-                      <span className="ml-auto text-xs text-muted-foreground shrink-0">
-                        {availCount} disponible{availCount !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </div>
+            {(() => {
+              const nowMins = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
+              return slotsData.venues.map((venue) => {
+                // For today: hide slots whose start time has already passed
+                const visibleSlots = selectedDate === today
+                  ? venue.slots.filter((s) => {
+                      const [h, m] = (s.start_time || '00:00').slice(0, 5).split(':').map(Number);
+                      return h * 60 + m >= nowMins;
+                    })
+                  : venue.slots;
 
-                  {/* Slots — horizontal flex-wrap */}
-                  <div className="px-5 py-4">
-                    {venue.slots.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Aucun créneau pour cette date.</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {venue.slots.map((slot) => (
-                          isAdmin ? (
-                            /* Admin: read-only slot pill */
-                            <div
-                              key={slot.id}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500"
-                            >
-                              <Eye className="h-3 w-3 shrink-0" />
-                              {slot.start_time?.slice(0, 5)}–{slot.end_time?.slice(0, 5)}
-                              {' '}·{' '}
-                              <span className={slot.status === 'available' ? 'text-emerald-600' : 'text-slate-400'}>
-                                {slot.status === 'available' ? 'Libre' : 'Réservé'}
-                              </span>
-                            </div>
-                          ) : (
-                            <SlotBtn
-                              key={slot.id}
-                              slot={slot}
-                              venueName={venue.name}
-                              clubName={club.name}
-                              isMyBooking={myBooking?.venue_slot_id === slot.id}
-                              onBook={(s, name) => setBooking({ slot: s, venueName: name })}
-                              onShare={(s, name) => setShareSlot({ slot: s, venueName: name })}
-                            />
-                          )
-                        ))}
-                      </div>
-                    )}
+                const availCount = visibleSlots.filter((s) => s.status === 'available').length;
+                return (
+                  <div key={venue.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                    {/* Court header */}
+                    <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center gap-2">
+                      <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <p className="text-sm font-semibold text-foreground">{venue.name}</p>
+                      {venue.description && (
+                        <p className="text-xs text-muted-foreground truncate">{venue.description}</p>
+                      )}
+                      {visibleSlots.length > 0 && (
+                        <span className="ml-auto text-xs text-muted-foreground shrink-0">
+                          {availCount} disponible{availCount !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Slots — horizontal flex-wrap */}
+                    <div className="px-5 py-4">
+                      {visibleSlots.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Aucun créneau pour cette date.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {visibleSlots.map((slot) => (
+                            isAdmin ? (
+                              /* Admin: read-only slot pill */
+                              <div
+                                key={slot.id}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500"
+                              >
+                                <Eye className="h-3 w-3 shrink-0" />
+                                {slot.start_time?.slice(0, 5)}–{slot.end_time?.slice(0, 5)}
+                                {' '}·{' '}
+                                <span className={slot.status === 'available' ? 'text-emerald-600' : 'text-slate-400'}>
+                                  {slot.status === 'available' ? 'Libre' : 'Réservé'}
+                                </span>
+                              </div>
+                            ) : (
+                              <SlotBtn
+                                key={slot.id}
+                                slot={slot}
+                                venueName={venue.name}
+                                clubName={club.name}
+                                isMyBooking={myBooking?.venue_slot_id === slot.id}
+                                onBook={(s, name) => setBooking({ slot: s, venueName: name })}
+                                onShare={(s, name) => setShareSlot({ slot: s, venueName: name })}
+                              />
+                            )
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         )}
       </div>}
