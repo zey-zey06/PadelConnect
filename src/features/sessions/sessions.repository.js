@@ -51,6 +51,23 @@ async function updateStatus(id, status) {
   return row;
 }
 
+async function update(id, data) {
+  const [row] = await db('sessions')
+    .where({ id })
+    .update({ ...data, updated_at: new Date() })
+    .returning('*');
+  return row;
+}
+
+async function getAcceptedRequestCount(sessionId) {
+  const row = await db('session_requests')
+    .where({ session_id: sessionId, status: 'accepted' })
+    .whereNull('deleted_at')
+    .count('id as cnt')
+    .first();
+  return Number(row?.cnt ?? 0);
+}
+
 async function updateCurrentPlayers(id, count) {
   const [row] = await db('sessions')
     .where({ id })
@@ -182,4 +199,4 @@ async function getSessionParticipants(sessionId) {
   return participants;
 }
 
-module.exports = { create, list, listByCreator, getById, updateStatus, updateCurrentPlayers, getSessionPlayers, getUserById, getMyRequests, getHistory, getSessionParticipants };
+module.exports = { create, list, listByCreator, getById, updateStatus, update, getAcceptedRequestCount, updateCurrentPlayers, getSessionPlayers, getUserById, getMyRequests, getHistory, getSessionParticipants };

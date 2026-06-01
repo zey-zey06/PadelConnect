@@ -58,6 +58,9 @@ export const getMySessionRequests = () => client.get('/sessions/my-requests');
 /** GET /api/sessions/history → { sessions: [...] } — all sessions user created or requested */
 export const getSessionHistory = () => client.get('/sessions/history');
 
+/** PUT /api/sessions/:id { date, time, end_time, max_players, preferences } → { session } */
+export const updateSession = (id, data) => client.put(`/sessions/${id}`, data);
+
 /** GET /api/sessions/:id/participants → { participants: [...] } */
 export const getSessionParticipants = (id) => client.get(`/sessions/${id}/participants`);
 

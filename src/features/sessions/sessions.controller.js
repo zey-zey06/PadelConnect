@@ -16,6 +16,17 @@ const updateStatusSchema = Joi.object({
   status: Joi.string().valid('open', 'complete', 'cancelled').required(),
 });
 
+const updateSessionSchema = Joi.object({
+  date:        Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+  time:        Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).required(),
+  end_time:    Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).optional().allow(null, ''),
+  max_players: Joi.number().integer().min(2).max(4).required(),
+  preferences: Joi.object({
+    level_min: Joi.number().integer().min(1).max(7).allow(null).optional(),
+    gender:    Joi.string().valid('mixed', 'women', 'men').allow(null).optional(),
+  }).optional(),
+});
+
 async function createHandler(req, res, next) {
   try {
     const { error, value } = createSessionSchema.validate(req.body);
@@ -103,6 +114,19 @@ async function getParticipantsHandler(req, res, next) {
   }
 }
 
+async function updateSessionHandler(req, res, next) {
+  try {
+    const { error, value } = updateSessionSchema.validate(req.body);
+    if (error) {
+      return res.status(422).json({ status: 422, error: 'Validation Error', message: error.details[0].message });
+    }
+    const session = await sessionsService.updateSession(req.params.id, req.user.sub, value);
+    return res.json({ session });
+  } catch (err) {
+    next(err);
+  }
+}
+
 const router = Router();
 router.get('/', authenticate, listHandler);
 router.post('/', authenticate, createHandler);
@@ -112,5 +136,6 @@ router.get('/history',     authenticate, historyHandler);         // must be bef
 router.get('/:id/participants', authenticate, getParticipantsHandler);  // must be before /:id
 router.get('/:id',         authenticate, getByIdHandler);
 router.patch('/:id/status', authenticate, updateStatusHandler);
+router.put('/:id',         authenticate, updateSessionHandler);
 
 module.exports = router;

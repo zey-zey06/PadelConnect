@@ -6,7 +6,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import Onboarding   from '@/components/Onboarding';
 import RatingPrompt from '@/components/RatingPrompt';
 import {
-  listSessions, createSession, requestJoin, getMySessions,
+  listSessions, createSession, updateSession, requestJoin, getMySessions,
   getSessionRequests, respondToRequest, cancelSession, inviteCoach, invitePlayer,
   getMySessionRequests, getSessionParticipants,
 } from '@/api/sessions';
@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Users, Plus, AlertCircle, X,
   CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2, Calendar,
-  ChevronLeft, ChevronRight, Banknote, CreditCard, Share2,
+  ChevronLeft, ChevronRight, Banknote, CreditCard, Share2, Pencil,
 } from 'lucide-react';
 import ShareContactPicker from '@/components/ShareContactPicker';
 import { useAuth, usePlayerPanel } from '@/App';
@@ -106,6 +106,8 @@ function WeekDatePicker({ value, onChange }) {
       <div className="grid grid-cols-7 gap-1">
         {days.map(({ d, dateStr, isPast }) => {
           const isSelected = value === dateStr;
+          const isToday    = dateStr === todayStr;
+          const isWeekend  = d.getDay() === 0 || d.getDay() === 6;
           return (
             <button
               key={dateStr}
@@ -118,6 +120,10 @@ function WeekDatePicker({ value, onChange }) {
                   ? 'bg-green-700 text-white shadow-sm'
                   : isPast
                   ? 'text-muted-foreground/30 cursor-not-allowed'
+                  : isToday
+                  ? 'bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100'
+                  : isWeekend
+                  ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
                   : 'bg-slate-100 text-foreground hover:bg-slate-200'
               )}
             >
@@ -585,15 +591,14 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground capitalize leading-snug truncate">
-              {d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              {d.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })}
+              {session.time ? ` · ${session.time.slice(0, 5).replace(':', 'h')}` : ''}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-              <Clock className="h-3 w-3 shrink-0" />
-              {session.time?.slice(0, 5) ?? '—'}
-              {session.end_time && (
-                <span className="text-muted-foreground/60">– {session.end_time.slice(0, 5)}</span>
-              )}
-            </p>
+            {session.end_time && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Fin à {session.end_time.slice(0, 5).replace(':', 'h')}
+              </p>
+            )}
           </div>
         </div>
 
@@ -854,17 +859,30 @@ function FilterBar({ dateFilter, setDateFilter, levelFilter, setLevelFilter, gen
   );
 }
 
-// ── Create session modal (redesigned) ─────────────────────────────────────────
-function CreateSessionModal({ onClose, onCreate }) {
-  const { t } = useTranslation();
-  const [form, setForm] = useState(() => ({
-    date:        new Date().toISOString().slice(0, 10),
-    time:        '09:00',
-    end_time:    '10:00',
-    max_players: 4,
-    level_min:   null,
-    gender:      null,
-  }));
+// ── Create / Edit session modal ───────────────────────────────────────────────
+function CreateSessionModal({ onClose, onCreate, initialValues = null, onUpdate = null }) {
+  const { t }  = useTranslation();
+  const isEdit = !!initialValues;
+  const [form, setForm] = useState(() => {
+    if (initialValues) {
+      return {
+        date:        (initialValues.date ?? '').toString().slice(0, 10) || new Date().toISOString().slice(0, 10),
+        time:        initialValues.time?.slice(0, 5) ?? '09:00',
+        end_time:    initialValues.end_time?.slice(0, 5) ?? '10:00',
+        max_players: initialValues.max_players ?? 4,
+        level_min:   initialValues.preferences?.level_min ?? null,
+        gender:      initialValues.preferences?.gender    ?? null,
+      };
+    }
+    return {
+      date:        new Date().toISOString().slice(0, 10),
+      time:        '09:00',
+      end_time:    '10:00',
+      max_players: 4,
+      level_min:   null,
+      gender:      null,
+    };
+  });
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
 
@@ -890,16 +908,21 @@ function CreateSessionModal({ onClose, onCreate }) {
       if (form.level_min) preferences.level_min = form.level_min;
       if (form.gender)    preferences.gender    = form.gender;
       const payload = {
-        date:     form.date,
-        time:     form.time,
-        end_time: form.end_time,
+        date:        form.date,
+        time:        form.time,
+        end_time:    form.end_time,
         max_players: form.max_players,
         ...(Object.keys(preferences).length > 0 && { preferences }),
       };
-      const result = await onCreate(payload);
-      onClose(result.session ?? result);
+      if (isEdit) {
+        const result = await onUpdate(payload);
+        onClose(result?.session ?? result ?? null);
+      } else {
+        const result = await onCreate(payload);
+        onClose(result.session ?? result);
+      }
     } catch (err) {
-      setError(err.message || 'Erreur lors de la création.');
+      setError(err.message || (isEdit ? 'Erreur lors de la modification.' : 'Erreur lors de la création.'));
     } finally {
       setLoading(false);
     }
@@ -913,7 +936,9 @@ function CreateSessionModal({ onClose, onCreate }) {
       <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-          <h2 className="text-lg font-semibold text-foreground">{t('sessions.create')}</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            {isEdit ? 'Modifier la session' : t('sessions.create')}
+          </h2>
           <button
             onClick={() => onClose(null)}
             className="text-muted-foreground hover:text-foreground transition-colors rounded-lg p-1 hover:bg-muted"
@@ -1042,7 +1067,10 @@ function CreateSessionModal({ onClose, onCreate }) {
             disabled={loading}
             className="w-full h-12 text-base font-semibold bg-green-600 hover:bg-green-700 border-0 text-white"
           >
-            {loading ? t('auth.creating') : t('sessions.create')}
+            {loading
+              ? (isEdit ? 'Enregistrement…' : t('auth.creating'))
+              : (isEdit ? 'Enregistrer les modifications' : t('sessions.create'))
+            }
           </Button>
         </form>
       </div>
@@ -2289,6 +2317,7 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
 
   const [showBookingModal,   setShowBookingModal]   = useState(false);
   const [showTerrainPicker,  setShowTerrainPicker]  = useState(false);
+  const [showEditModal,      setShowEditModal]      = useState(false);
   const [cancelBkConfirm,    setCancelBkConfirm]    = useState(false);
   const [cancellingBk,       setCancellingBk]       = useState(false);
   const [cancelSessConfirm,  setCancelSessConfirm]  = useState(false);
@@ -2372,6 +2401,15 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
   const pending = (requests ?? []).filter((r) => r.status === 'pending').length;
   const isCancelled = session.status === 'cancelled';
   const hasActiveBooking = booking && booking.status !== 'cancelled';
+  // Can edit only when: open, not cancelled, no confirmed participants (current_players = 1 = only creator)
+  const canEdit = !isCancelled && session.status === 'open' && (session.current_players ?? 1) <= 1;
+
+  async function handleUpdate(data) {
+    const result = await updateSession(session.id, data);
+    setShowEditModal(false);
+    onRefresh();
+    return result;
+  }
 
   async function loadRequests() {
     setLoadingReqs(true);
@@ -2676,6 +2714,17 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
 
           {/* Bottom actions */}
           <div className="pt-1 border-t border-border flex flex-wrap gap-2 items-center">
+            {/* "Modifier" — only when no confirmed participants */}
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEditModal(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Modifier
+              </Button>
+            )}
             {/* "Réserver un terrain" — only when no active booking and session not cancelled */}
             {!isCancelled && !hasActiveBooking && (
               <Button
@@ -2757,6 +2806,15 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
           bookingMode="session"
           onClose={() => setShowTerrainPicker(false)}
           onBooked={() => { setShowTerrainPicker(false); onRefresh(); }}
+        />
+      )}
+
+      {/* Edit session modal */}
+      {showEditModal && (
+        <CreateSessionModal
+          initialValues={session}
+          onUpdate={handleUpdate}
+          onClose={() => setShowEditModal(false)}
         />
       )}
     </div>
