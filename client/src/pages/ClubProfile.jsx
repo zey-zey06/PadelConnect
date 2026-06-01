@@ -4,10 +4,11 @@ import {
   Building2, MapPin, Phone, Clock,
   AlertCircle, X, CreditCard, Banknote,
   CheckCircle2, ChevronLeft, ChevronRight, Calendar, ArrowLeft, Eye, Share2,
-  Bell, BellOff, ImageIcon, Plus, Send, Trash2,
+  Bell, BellOff, ImageIcon, Plus, Send, Trash2, Star,
 } from 'lucide-react';
 import ShareContactPicker from '@/components/ShareContactPicker';
 import { getPublicClub, getClubSlots, getClubSubscriptionStatus, toggleClubSubscription, getClubPosts, createClubPost } from '@/api/clubs';
+import { getReviews, createReview } from '@/api/reviews';
 import { getMySessions }               from '@/api/sessions';
 import { createBooking }               from '@/api/bookings';
 import { useAuth }                     from '@/App';
@@ -547,6 +548,18 @@ export default function ClubProfile() {
   const [posts,         setPosts]         = useState([]);
   const [postsLoading,  setPostsLoading]  = useState(true);
 
+  // Reviews state
+  const [reviews,        setReviews]        = useState([]);
+  const [reviewsAvg,     setReviewsAvg]     = useState(null);
+  const [reviewsCount,   setReviewsCount]   = useState(0);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating,   setReviewRating]   = useState(0);
+  const [reviewComment,  setReviewComment]  = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError,    setReviewError]    = useState(null);
+  const [reviewDone,     setReviewDone]     = useState(false);
+
   // Create post state (manager only)
   const [showPostForm,  setShowPostForm]  = useState(false);
   const [postContent,   setPostContent]   = useState('');
@@ -576,6 +589,19 @@ export default function ClubProfile() {
       .then(({ posts: p }) => setPosts(p ?? []))
       .catch(() => setPosts([]))
       .finally(() => setPostsLoading(false));
+  }, [id]);
+
+  // Load reviews
+  useEffect(() => {
+    setReviewsLoading(true);
+    getReviews(id)
+      .then(({ reviews: r, average, count }) => {
+        setReviews(r ?? []);
+        setReviewsAvg(average);
+        setReviewsCount(count);
+      })
+      .catch(() => {})
+      .finally(() => setReviewsLoading(false));
   }, [id]);
 
   // Reload slots whenever date changes
@@ -648,6 +674,43 @@ export default function ClubProfile() {
       setSubscribed(s);
     } catch { /* non-fatal */ }
     finally { setSubLoading(false); }
+  }
+
+  async function handleSubmitReview(e) {
+    e.preventDefault();
+    if (reviewRating < 1) { setReviewError('Sélectionnez une note.'); return; }
+    setReviewSubmitting(true);
+    setReviewError(null);
+    try {
+      const { review } = await createReview({
+        target_id:   id,
+        target_type: 'club',
+        rating:      reviewRating,
+        comment:     reviewComment.trim() || null,
+      });
+      const reviewerName = [user?.first_name, user?.last_name].filter(Boolean).join(' ');
+      const newReview = {
+        ...review,
+        reviewer_first_name: user?.first_name ?? null,
+        reviewer_last_name:  user?.last_name  ?? null,
+        reviewer_photo_url:  null,
+      };
+      setReviews((prev) => [newReview, ...prev]);
+      const newCount = reviewsCount + 1;
+      const newAvg   = reviewsAvg
+        ? Math.round(((reviewsAvg * reviewsCount + reviewRating) / newCount) * 10) / 10
+        : reviewRating;
+      setReviewsAvg(newAvg);
+      setReviewsCount(newCount);
+      setReviewDone(true);
+      setShowReviewForm(false);
+      setReviewRating(0);
+      setReviewComment('');
+    } catch (err) {
+      setReviewError(err.message || 'Erreur lors de l\'envoi.');
+    } finally {
+      setReviewSubmitting(false);
+    }
   }
 
   const amenityKeys = club?.amenities
@@ -733,6 +796,23 @@ export default function ClubProfile() {
 
           <div>
             <h1 className="text-2xl font-bold text-foreground">{club.name}</h1>
+            {/* Star rating summary */}
+            {!reviewsLoading && reviewsCount > 0 && (
+              <div className="flex items-center gap-1.5 mt-1">
+                {[1,2,3,4,5].map((n) => (
+                  <Star
+                    key={n}
+                    className="h-3.5 w-3.5"
+                    style={{
+                      fill: n <= Math.round(reviewsAvg ?? 0) ? '#f59e0b' : 'transparent',
+                      color: n <= Math.round(reviewsAvg ?? 0) ? '#f59e0b' : '#d1d5db',
+                    }}
+                  />
+                ))}
+                <span className="text-sm font-semibold text-foreground">{reviewsAvg}</span>
+                <span className="text-xs text-muted-foreground">({reviewsCount} avis)</span>
+              </div>
+            )}
             {club.description && (
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{club.description}</p>
             )}
@@ -986,6 +1066,155 @@ export default function ClubProfile() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* ── Reviews section ─────────────────────────────────────────────── */}
+      {!isAdmin && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
+              Avis
+              {reviewsCount > 0 && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  ({reviewsCount} · {reviewsAvg}/5)
+                </span>
+              )}
+            </h2>
+            {user && !isManager && !reviewDone && (
+              <button
+                type="button"
+                onClick={() => { setShowReviewForm((v) => !v); setReviewError(null); }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Star className="h-3 w-3" />
+                {showReviewForm ? 'Annuler' : 'Laisser un avis'}
+              </button>
+            )}
+          </div>
+
+          {/* Review form */}
+          {showReviewForm && (
+            <form onSubmit={handleSubmitReview} className="rounded-xl border border-border bg-card p-4 space-y-4">
+              {reviewError && (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />{reviewError}
+                </div>
+              )}
+
+              {/* Star picker */}
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-foreground">Votre note</p>
+                <div className="flex gap-1.5">
+                  {[1,2,3,4,5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setReviewRating(n)}
+                      className="p-0.5 transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className="h-7 w-7 transition-colors"
+                        style={{
+                          fill: n <= reviewRating ? '#f59e0b' : 'transparent',
+                          color: n <= reviewRating ? '#f59e0b' : '#d1d5db',
+                        }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Comment */}
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-foreground">
+                  Commentaire <span className="font-normal text-muted-foreground">(optionnel)</span>
+                </p>
+                <textarea
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="Partagez votre expérience avec ce club…"
+                  className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button type="button" variant="outline" onClick={() => setShowReviewForm(false)} className="flex-1">
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={reviewSubmitting || reviewRating < 1} className="flex-1">
+                  {reviewSubmitting ? 'Envoi…' : 'Publier l\'avis'}
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {/* Review posted success */}
+          {reviewDone && (
+            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              Merci pour votre avis !
+            </div>
+          )}
+
+          {/* Reviews list */}
+          {reviewsLoading ? (
+            <div className="space-y-2">
+              {[1,2].map((i) => (
+                <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : reviews.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-card/50 p-8 text-center">
+              <Star className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Aucun avis pour l'instant. Soyez le premier !</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {reviews.map((r) => {
+                const reviewerName = [r.reviewer_first_name, r.reviewer_last_name].filter(Boolean).join(' ') || 'Joueur';
+                const initials     = reviewerName.slice(0, 2).toUpperCase();
+                const dateStr      = new Date(r.created_at).toLocaleDateString('fr-FR', {
+                  day: 'numeric', month: 'long', year: 'numeric',
+                });
+                return (
+                  <div key={r.id} className="rounded-xl border border-border bg-card p-4 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                        {r.reviewer_photo_url
+                          ? <img src={r.reviewer_photo_url} alt={reviewerName} className="h-full w-full object-cover" />
+                          : <span className="text-xs font-bold text-primary">{initials}</span>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{reviewerName}</p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-0.5">
+                            {[1,2,3,4,5].map((n) => (
+                              <Star
+                                key={n}
+                                className="h-3 w-3"
+                                style={{
+                                  fill: n <= r.rating ? '#f59e0b' : 'transparent',
+                                  color: n <= r.rating ? '#f59e0b' : '#d1d5db',
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">{dateStr}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {r.comment && (
+                      <p className="text-sm text-foreground/80 leading-relaxed">{r.comment}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

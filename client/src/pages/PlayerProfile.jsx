@@ -4,10 +4,11 @@ import {
   User, ArrowLeft, AlertCircle, MessageSquare,
   UserPlus, UserCheck, UserX, Clock, X, Pencil,
   Calendar, Users, ChevronRight, Zap, Target, Flag,
-  BarChart2, TrendingUp, MapPin,
+  BarChart2, TrendingUp, MapPin, Star,
 } from 'lucide-react';
 import { useAuth, usePlayerPanel } from '@/App';
 import { getUserProfile, getUserSessions, getSimilarPlayers } from '@/api/profile';
+import { getReviews, createReview } from '@/api/reviews';
 import { requestJoin } from '@/api/sessions';
 import { reportUser } from '@/api/reports';
 import {
@@ -330,10 +331,36 @@ export default function PlayerProfile() {
   const [friendStatus, setFriendStatus] = useState('none');
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
-  const [showFriends, setShowFriends] = useState(false);
-  const [showReport,  setShowReport]  = useState(false);
+  const [showFriends,  setShowFriends]  = useState(false);
+  const [showReport,   setShowReport]   = useState(false);
+
+  // Reviews state
+  const [reviewsAvg,       setReviewsAvg]       = useState(null);
+  const [reviewsCount,     setReviewsCount]     = useState(0);
+  const [allReviews,       setAllReviews]       = useState([]);
+  const [showReviewForm,   setShowReviewForm]   = useState(false);
+  const [reviewRating,     setReviewRating]     = useState(0);
+  const [reviewComment,    setReviewComment]    = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError,      setReviewError]      = useState(null);
+  const [reviewDone,       setReviewDone]       = useState(false);
 
   const isOwnProfile = me?.id === userId;
+
+  // Load reviews for this player
+  useEffect(() => {
+    setReviewsAvg(null);
+    setReviewsCount(0);
+    setAllReviews([]);
+    setReviewDone(false);
+    getReviews(userId)
+      .then(({ reviews: r, average, count }) => {
+        setAllReviews(r ?? []);
+        setReviewsAvg(average);
+        setReviewsCount(count);
+      })
+      .catch(() => {});
+  }, [userId]);
 
   useEffect(() => {
     setLoading(true);
@@ -375,6 +402,42 @@ export default function PlayerProfile() {
   const sessionsCount = profile?.sessions_count ?? sessions.length;
   const friendsCount  = profile?.friends_count ?? 0;
   const initials      = displayName.slice(0, 2).toUpperCase();
+
+  async function handleSubmitPlayerReview(e) {
+    e.preventDefault();
+    if (reviewRating < 1) { setReviewError('Sélectionnez une note.'); return; }
+    setReviewSubmitting(true);
+    setReviewError(null);
+    try {
+      const { review } = await createReview({
+        target_id:   userId,
+        target_type: 'player',
+        rating:      reviewRating,
+        comment:     reviewComment.trim() || null,
+      });
+      const newReview = {
+        ...review,
+        reviewer_first_name: me?.first_name ?? null,
+        reviewer_last_name:  me?.last_name  ?? null,
+        reviewer_photo_url:  null,
+      };
+      setAllReviews((prev) => [newReview, ...prev]);
+      const newCount = reviewsCount + 1;
+      const newAvg   = reviewsAvg
+        ? Math.round(((reviewsAvg * reviewsCount + reviewRating) / newCount) * 10) / 10
+        : reviewRating;
+      setReviewsAvg(newAvg);
+      setReviewsCount(newCount);
+      setReviewDone(true);
+      setShowReviewForm(false);
+      setReviewRating(0);
+      setReviewComment('');
+    } catch (err) {
+      setReviewError(err.message || 'Erreur lors de l\'envoi.');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -497,6 +560,25 @@ export default function PlayerProfile() {
             <p className="text-xs font-medium text-muted-foreground">@{username}</p>
           )}
           <h1 className="text-lg font-bold text-foreground leading-tight">{displayName}</h1>
+
+          {/* Star rating summary */}
+          {reviewsCount > 0 && (
+            <div className="flex items-center gap-1 mt-0.5">
+              {[1,2,3,4,5].map((n) => (
+                <Star
+                  key={n}
+                  className="h-3 w-3"
+                  style={{
+                    fill: n <= Math.round(reviewsAvg ?? 0) ? '#f59e0b' : 'transparent',
+                    color: n <= Math.round(reviewsAvg ?? 0) ? '#f59e0b' : '#d1d5db',
+                  }}
+                />
+              ))}
+              <span className="text-xs font-semibold text-foreground ml-1">{reviewsAvg}</span>
+              <span className="text-xs text-muted-foreground">({reviewsCount})</span>
+            </div>
+          )}
+
           {style && (
             <span className="inline-block text-xs font-medium px-2.5 py-0.5 rounded-full bg-[#e6f1fb] text-[#1a6fa8]">
               {style}
@@ -604,6 +686,137 @@ export default function PlayerProfile() {
       {/* ── Similar players ──────────────────────────────────────── */}
       <div className="h-2 bg-muted/40" />
       <SimilarPlayersSection userId={userId} />
+
+      {/* ── Reviews ──────────────────────────────────────────────── */}
+      <div className="h-2 bg-muted/40" />
+      <div className="bg-background px-4 py-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+            <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
+            Avis
+            {reviewsCount > 0 && (
+              <span className="text-xs font-normal text-muted-foreground ml-1">
+                {reviewsCount} · {reviewsAvg}/5
+              </span>
+            )}
+          </h2>
+          {me && !isOwnProfile && !reviewDone && (
+            <button
+              type="button"
+              onClick={() => { setShowReviewForm((v) => !v); setReviewError(null); }}
+              className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1.5 rounded-lg transition-colors"
+            >
+              <Star className="h-3 w-3" />
+              {showReviewForm ? 'Annuler' : 'Laisser un avis'}
+            </button>
+          )}
+        </div>
+
+        {/* Review form */}
+        {showReviewForm && (
+          <form onSubmit={handleSubmitPlayerReview} className="rounded-xl border border-border bg-card p-4 space-y-3">
+            {reviewError && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />{reviewError}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-foreground">Votre note</p>
+              <div className="flex gap-1">
+                {[1,2,3,4,5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setReviewRating(n)}
+                    className="p-0.5 transition-transform hover:scale-110"
+                  >
+                    <Star
+                      className="h-7 w-7"
+                      style={{
+                        fill: n <= reviewRating ? '#f59e0b' : 'transparent',
+                        color: n <= reviewRating ? '#f59e0b' : '#d1d5db',
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <textarea
+              value={reviewComment}
+              onChange={(e) => setReviewComment(e.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="Votre expérience avec ce joueur…"
+              className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowReviewForm(false)}
+                className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={reviewSubmitting || reviewRating < 1}
+                className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-40"
+              >
+                {reviewSubmitting ? 'Envoi…' : 'Publier'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {reviewDone && (
+          <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+            <Star className="h-4 w-4 shrink-0 fill-green-600 text-green-600" />
+            Avis publié, merci !
+          </div>
+        )}
+
+        {allReviews.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-muted/20 py-6 text-center">
+            <Star className="h-5 w-5 text-muted-foreground/30 mx-auto mb-1.5" />
+            <p className="text-xs text-muted-foreground">Aucun avis pour l'instant.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {allReviews.map((r, i) => {
+              const rName = [r.reviewer_first_name, r.reviewer_last_name].filter(Boolean).join(' ') || 'Joueur';
+              return (
+                <div key={r.id ?? i} className="rounded-xl border border-border bg-card p-3 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                      {r.reviewer_photo_url
+                        ? <img src={r.reviewer_photo_url} alt={rName} className="h-full w-full object-cover" />
+                        : <span className="text-[10px] font-bold text-primary">{rName.slice(0,2).toUpperCase()}</span>}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-foreground">{rName}</p>
+                      <div className="flex gap-0.5">
+                        {[1,2,3,4,5].map((n) => (
+                          <Star
+                            key={n}
+                            className="h-2.5 w-2.5"
+                            style={{
+                              fill: n <= r.rating ? '#f59e0b' : 'transparent',
+                              color: n <= r.rating ? '#f59e0b' : '#d1d5db',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {r.comment && (
+                    <p className="text-xs text-foreground/80 leading-relaxed">{r.comment}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* ── Pending request banner ────────────────────────────────── */}
       {friendStatus === 'pending_received' && !isOwnProfile && (

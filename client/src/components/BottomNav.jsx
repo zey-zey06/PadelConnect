@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Home, Building2, Plus, MessageSquare, User } from 'lucide-react';
+import { Home, CalendarDays, Plus, MessageSquare, User } from 'lucide-react';
 
 const PRIMARY = '#1A3D2B';
 const GREY    = '#9CA3AF';
@@ -16,7 +16,7 @@ export default function BottomNav({ unreadMsgCount = 0, unreadNotifCount = 0 }) 
 
   const items = [
     { to: '/sessions', Icon: Home,          labelKey: 'nav.home'     },
-    { to: '/clubs',    Icon: Building2,     labelKey: 'nav.clubs'    },
+    { to: '/calendar', Icon: CalendarDays,  labelKey: 'nav.calendar' },
     null, // centre "+"
     { to: '/messages', Icon: MessageSquare, labelKey: 'nav.messages', badge: unreadMsgCount },
     { to: '/profile',  Icon: User,          labelKey: 'nav.profile',  badge: unreadNotifCount },
