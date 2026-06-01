@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe, Menu, MessageSquare, Users, Camera, Search, BarChart2, TrendingUp } from 'lucide-react';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe, Menu, MessageSquare, Users, Camera, Search, BarChart2, TrendingUp, Calendar } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { setLanguage } from '@/i18n/i18n';
 import { useAuth, usePlayerPanel } from '@/App';
-import { getProfile, updateProfile, uploadPhoto, uploadCoverPhoto, updateUsername } from '@/api/profile';
+import { getProfile, updateProfile, uploadPhoto, uploadCoverPhoto, updateUsername, getUserSessions } from '@/api/profile';
+import { requestJoin } from '@/api/sessions';
 import { updateMe, logout, changePassword, deleteAccount } from '@/api/auth';
 import { getMyBookings } from '@/api/bookings';
 import { getMyPenalties, payPenalty } from '@/api/penalties';
@@ -1260,6 +1261,81 @@ function FriendsSlidePanel({ friends, onClose }) {
   );
 }
 
+// ── Own upcoming sessions section ────────────────────────────────────────────
+function MyUpcomingSessionCard({ session }) {
+  const prefs    = session.preferences ?? {};
+  const levelMin = prefs.level_min ?? null;
+  const filled   = session.current_players ?? 0;
+  const total    = session.max_players ?? 4;
+  const spots    = total - filled;
+  const d        = new Date((session.date ?? '').toString().slice(0, 10) + 'T00:00:00');
+  const dateStr  = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  return (
+    <div className="rounded-xl border border-border bg-card px-4 py-3.5 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-foreground capitalize truncate">{dateStr}</p>
+        {session.time && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {session.time.slice(0, 5).replace(':', 'h')}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {levelMin && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+            Nv.{levelMin}+
+          </span>
+        )}
+        <span className={cn(
+          'text-[10px] font-semibold px-2 py-0.5 rounded-full border flex items-center gap-0.5',
+          spots > 0 ? 'bg-green-50 text-green-700 border-green-200' : 'bg-muted text-muted-foreground border-border',
+        )}>
+          <Users className="inline h-2.5 w-2.5 mr-0.5" />
+          {filled}/{total} · {spots > 0 ? `${spots} place${spots > 1 ? 's' : ''}` : 'Complet'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MySessionsSection({ sessions, navigate }) {
+  if (!sessions.length && false) return null; // always render (shows empty state + history link)
+  return (
+    <div className="w-full max-w-sm mx-auto space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-foreground">Mes sessions à venir</h3>
+        </div>
+        <button
+          onClick={() => navigate('/history/sessions')}
+          className="text-xs text-primary hover:underline font-medium"
+        >
+          Voir l'historique →
+        </button>
+      </div>
+
+      {sessions.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border bg-card py-6 text-center space-y-1">
+          <Calendar className="h-7 w-7 text-muted-foreground mx-auto" />
+          <p className="text-sm text-muted-foreground">Aucune session ouverte.</p>
+          <button
+            onClick={() => navigate('/sessions?create=1')}
+            className="text-xs text-primary hover:underline font-medium mt-1"
+          >
+            Créer une session
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {sessions.map((s) => <MyUpcomingSessionCard key={s.id} session={s} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Profile page ──────────────────────────────────────────────────────────────
 export default function Profile() {
   const { user, setUser, profile: ctxProfile, setProfile } = useAuth();
@@ -1271,6 +1347,7 @@ export default function Profile() {
   const [penalties,      setPenalties]      = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
   const [friends,        setFriends]        = useState([]);
+  const [mySessions,     setMySessions]     = useState([]);
   const [loading,        setLoading]        = useState(profile === undefined);
   const [error,          setError]          = useState(null);
   const [editing,        setEditing]        = useState(false);
@@ -1295,18 +1372,20 @@ export default function Profile() {
   useEffect(() => {
     async function load() {
       try {
-        const [{ profile: p }, { bookings: b }, penResult, reqResult, friendsResult] = await Promise.all([
+        const [{ profile: p }, { bookings: b }, penResult, reqResult, friendsResult, sessResult] = await Promise.all([
           getProfile(),
           getMyBookings().catch(() => ({ bookings: [] })),
           getMyPenalties().catch(() => ({ penalties: [] })),
           getFriendRequests().catch(() => ({ requests: [] })),
           getFriends().catch(() => ({ friends: [] })),
+          user?.id ? getUserSessions(user.id).catch(() => ({ sessions: [] })) : Promise.resolve({ sessions: [] }),
         ]);
         setLocal(p ?? null);
         setBookings(b ?? []);
         setPenalties(penResult.penalties ?? []);
         setFriendRequests(reqResult.requests ?? []);
         setFriends(friendsResult.friends ?? []);
+        setMySessions(sessResult.sessions ?? []);
       } catch (err) {
         setError(err.message || 'Erreur de chargement.');
       } finally {
@@ -1485,6 +1564,11 @@ export default function Profile() {
         penalties={penalties}
         onPaid={() => getMyPenalties().then((r) => setPenalties(r.penalties ?? [])).catch(() => {})}
       />
+
+      {/* Upcoming sessions */}
+      {user?.role === 'player' && (
+        <MySessionsSection sessions={mySessions} navigate={navigate} />
+      )}
 
       {/* Empty state prompt */}
       {!profile && !editing && (

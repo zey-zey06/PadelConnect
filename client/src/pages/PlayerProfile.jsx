@@ -4,10 +4,11 @@ import {
   User, ArrowLeft, AlertCircle, MessageSquare,
   UserPlus, UserCheck, UserX, Clock, X, Pencil,
   Calendar, Users, ChevronRight, Zap, Target, Flag,
-  BarChart2, TrendingUp,
+  BarChart2, TrendingUp, MapPin,
 } from 'lucide-react';
 import { useAuth, usePlayerPanel } from '@/App';
 import { getUserProfile, getUserSessions, getSimilarPlayers } from '@/api/profile';
+import { requestJoin } from '@/api/sessions';
 import { reportUser } from '@/api/reports';
 import {
   getFriendStatus,
@@ -28,122 +29,80 @@ const LEVEL_LABELS = {
 
 const COVER_GRADIENT = { background: 'linear-gradient(135deg, #0f6e56, #1d9e75, #5dcaa5)' };
 
-// ── Session detail modal ───────────────────────────────────────────────────────
-function SessionModal({ session, onClose }) {
-  if (!session) return null;
+// ── Upcoming session card — shown on public profile ────────────────────────────
+function UpcomingSessionCard({ session, isOwnSession }) {
+  const [state, setState] = useState('idle'); // idle | loading | pending | error
   const prefs    = session.preferences ?? {};
   const levelMin = prefs.level_min ?? null;
-  const levelMax = prefs.level_max ?? null;
-  const levelStr = levelMin && levelMax && levelMin !== levelMax
-    ? `${levelMin} – ${levelMax}`
-    : (levelMin ?? levelMax ?? '—');
-  const dateStr  = session.date
-    ? new Date(session.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-    : '—';
-  const genderMap = { male: 'Hommes', female: 'Femmes', mixed: 'Mixte', any: 'Tous' };
+  const filled   = session.current_players ?? 0;
+  const total    = session.max_players ?? 4;
+  const spots    = total - filled;
+  const d        = new Date((session.date ?? '').toString().slice(0, 10) + 'T00:00:00');
+  const dateStr  = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  async function handleJoin(e) {
+    e.stopPropagation();
+    setState('loading');
+    try {
+      await requestJoin(session.id);
+      setState('pending');
+    } catch {
+      setState('error');
+    }
+  }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/30 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
-        {/* Handle bar (mobile) */}
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
-          <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
-        </div>
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="text-base font-semibold text-foreground">Détails de la session</h3>
-          <button
-            onClick={onClose}
-            className="h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="px-5 py-5 space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <Calendar className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground capitalize">{dateStr}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {session.time?.slice(0, 5) ?? '—'}
-                {session.end_time ? ` – ${session.end_time.slice(0, 5)}` : ''}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="h-9 w-9 rounded-full bg-green-50 flex items-center justify-center shrink-0">
-              <Users className="h-4 w-4 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                {session.current_players ?? 0}/{session.max_players ?? 4} joueurs
-              </p>
-              {levelMin && (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Niveau {levelStr} · {genderMap[prefs.gender] ?? 'Tous'}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className={cn(
-            'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold',
-            session.status === 'open'      ? 'bg-green-50 text-green-700 border border-green-200' :
-            session.status === 'full'      ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                                             'bg-muted    text-muted-foreground border border-border',
-          )}>
-            {session.status === 'open' ? 'Ouverte' : session.status === 'full' ? 'Complète' : session.status}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Session grid card ──────────────────────────────────────────────────────────
-function SessionCard({ session, onClick }) {
-  const prefs    = session.preferences ?? {};
-  const level    = prefs.level_min ?? null;
-  const dateStr  = session.date
-    ? new Date(session.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }).toUpperCase()
-    : '—';
-  const players  = `${session.current_players ?? 0}/${session.max_players ?? 4}`;
-
-  return (
-    <button
-      onClick={onClick}
-      className="aspect-square rounded-xl border border-border bg-card hover:bg-muted/60 transition-colors overflow-hidden flex flex-col justify-between p-3 text-left"
-    >
-      {/* Level badge */}
-      {level && (
-        <span className="self-start text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-          Nv.{level}
-        </span>
-      )}
-
-      {/* Date */}
-      <div>
-        <p className="text-sm font-black text-foreground leading-none">{dateStr}</p>
+    <div className="rounded-xl border border-border bg-card px-4 py-3.5 space-y-2.5">
+      {/* Date + time */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-foreground capitalize truncate">{dateStr}</p>
         {session.time && (
-          <p className="text-[11px] text-muted-foreground mt-0.5">{session.time.slice(0, 5)}</p>
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">
+            {session.time.slice(0, 5).replace(':', 'h')}
+            {session.end_time ? `–${session.end_time.slice(0, 5).replace(':', 'h')}` : ''}
+          </span>
         )}
       </div>
 
-      {/* Players */}
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Users className="h-3 w-3 shrink-0" />
-        {players}
+      {/* Tags row */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {levelMin && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+            Nv.{levelMin}+
+          </span>
+        )}
+        <span className={cn(
+          'text-[10px] font-semibold px-2 py-0.5 rounded-full border',
+          spots > 0 ? 'bg-green-50 text-green-700 border-green-200' : 'bg-muted text-muted-foreground border-border',
+        )}>
+          <Users className="inline h-2.5 w-2.5 mr-0.5" />
+          {filled}/{total} · {spots > 0 ? `${spots} place${spots > 1 ? 's' : ''}` : 'Complet'}
+        </span>
+        {session.location && (
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 border border-slate-200 flex items-center gap-1">
+            <MapPin className="h-2.5 w-2.5 shrink-0" />{session.location}
+          </span>
+        )}
       </div>
-    </button>
+
+      {/* Join button */}
+      {!isOwnSession && (
+        state === 'pending' ? (
+          <p className="text-xs text-green-700 font-medium">Demande envoyée ✓</p>
+        ) : state === 'error' ? (
+          <p className="text-xs text-red-600">Erreur — réessayez.</p>
+        ) : (
+          <Button
+            size="sm"
+            className="w-full h-8 text-xs"
+            disabled={spots === 0 || state === 'loading'}
+            onClick={handleJoin}
+          >
+            {state === 'loading' ? <span className="h-3.5 w-3.5 border-2 border-white/40 border-t-transparent rounded-full animate-spin" /> : 'Rejoindre'}
+          </Button>
+        )
+      )}
+    </div>
   );
 }
 
@@ -371,9 +330,8 @@ export default function PlayerProfile() {
   const [friendStatus, setFriendStatus] = useState('none');
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
-  const [activeSession, setActiveSession] = useState(null);
-  const [showFriends,   setShowFriends]   = useState(false);
-  const [showReport,    setShowReport]    = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
+  const [showReport,  setShowReport]  = useState(false);
 
   const isOwnProfile = me?.id === userId;
 
@@ -618,25 +576,25 @@ export default function PlayerProfile() {
       {/* ── Divider ───────────────────────────────────────────────── */}
       <div className="h-2 bg-muted/40" />
 
-      {/* ── Sessions grid ─────────────────────────────────────────── */}
+      {/* ── Upcoming sessions ─────────────────────────────────────── */}
       <div className="bg-background px-4 py-4">
         <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground" />
-          Sessions jouées
+          Sessions à venir
         </h2>
 
         {sessions.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-muted/20 py-10 text-center">
-            <Calendar className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Aucune session pour l'instant.</p>
+          <div className="rounded-xl border border-dashed border-border bg-muted/20 py-8 text-center">
+            <Calendar className="h-7 w-7 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Aucune session ouverte pour l'instant.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-2">
             {sessions.map((s) => (
-              <SessionCard
+              <UpcomingSessionCard
                 key={s.id}
                 session={s}
-                onClick={() => setActiveSession(s)}
+                isOwnSession={isOwnProfile}
               />
             ))}
           </div>
@@ -665,9 +623,6 @@ export default function PlayerProfile() {
       )}
 
       {/* ── Modals ───────────────────────────────────────────────── */}
-      {activeSession && (
-        <SessionModal session={activeSession} onClose={() => setActiveSession(null)} />
-      )}
       {showFriends && (
         <FriendsModal userId={userId} onClose={() => setShowFriends(false)} />
       )}

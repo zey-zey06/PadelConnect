@@ -84,6 +84,34 @@ async function listByCreator(userId) {
     .select();
 }
 
+/**
+ * Upcoming open sessions created by userId — for public profile display.
+ * Returns sessions with creator info joined (matches the shape of list()).
+ */
+async function listUpcomingByCreator(userId) {
+  const today = new Date().toISOString().slice(0, 10);
+  return db('sessions')
+    .join('users', 'sessions.creator_id', 'users.id')
+    .leftJoin('player_profiles', function () {
+      this.on('player_profiles.user_id', '=', 'users.id')
+          .andOnNull('player_profiles.deleted_at');
+    })
+    .where('sessions.creator_id', userId)
+    .where('sessions.status', 'open')
+    .where('sessions.date', '>=', today)
+    .whereNull('sessions.deleted_at')
+    .orderBy('sessions.date', 'asc')
+    .orderBy('sessions.time', 'asc')
+    .select(
+      'sessions.*',
+      'users.email          as creator_email',
+      'users.first_name     as creator_first_name',
+      'users.last_name      as creator_last_name',
+      'player_profiles.photo_url as creator_photo_url',
+      'player_profiles.level     as creator_level',
+    );
+}
+
 async function getSessionPlayers(sessionId) {
   const session = await db('sessions').where({ id: sessionId }).first();
   if (!session) return [];
@@ -199,4 +227,4 @@ async function getSessionParticipants(sessionId) {
   return participants;
 }
 
-module.exports = { create, list, listByCreator, getById, updateStatus, update, getAcceptedRequestCount, updateCurrentPlayers, getSessionPlayers, getUserById, getMyRequests, getHistory, getSessionParticipants };
+module.exports = { create, list, listByCreator, listUpcomingByCreator, getById, updateStatus, update, getAcceptedRequestCount, updateCurrentPlayers, getSessionPlayers, getUserById, getMyRequests, getHistory, getSessionParticipants };

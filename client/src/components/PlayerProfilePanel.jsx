@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   User, X, AlertCircle, MessageSquare, Zap, Target,
   UserPlus, UserCheck, UserX, Clock, Share2,
+  Calendar, Users, MapPin,
 } from 'lucide-react';
 import { useAuth } from '@/App';
-import { getUserProfile } from '@/api/profile';
+import { getUserProfile, getUserSessions } from '@/api/profile';
+import { requestJoin } from '@/api/sessions';
 import {
   getFriendStatus,
   sendFriendRequest,
@@ -15,6 +17,65 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import ShareContactPicker from '@/components/ShareContactPicker';
+
+// ── Mini session card used inside the panel ────────────────────────────────────
+function PanelSessionCard({ session, isOwnSession }) {
+  const [state, setState] = useState('idle');
+  const prefs   = session.preferences ?? {};
+  const levelMin = prefs.level_min ?? null;
+  const filled  = session.current_players ?? 0;
+  const total   = session.max_players ?? 4;
+  const spots   = total - filled;
+  const d       = new Date((session.date ?? '').toString().slice(0, 10) + 'T00:00:00');
+  const dateStr = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+
+  async function handleJoin(e) {
+    e.stopPropagation();
+    setState('loading');
+    try { await requestJoin(session.id); setState('pending'); }
+    catch { setState('error'); }
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card px-3 py-2.5 space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-foreground capitalize truncate">{dateStr}</p>
+        {session.time && (
+          <span className="shrink-0 text-[10px] text-muted-foreground">
+            {session.time.slice(0, 5).replace(':', 'h')}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {levelMin && (
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+            Nv.{levelMin}+
+          </span>
+        )}
+        <span className={cn(
+          'text-[9px] font-semibold px-1.5 py-0.5 rounded-full border flex items-center gap-0.5',
+          spots > 0 ? 'bg-green-50 text-green-700 border-green-200' : 'bg-muted text-muted-foreground border-border',
+        )}>
+          <Users className="h-2 w-2" />
+          {filled}/{total}
+        </span>
+        {!isOwnSession && spots > 0 && (
+          state === 'pending' ? (
+            <span className="text-[9px] text-green-700 font-semibold">Demande envoyée ✓</span>
+          ) : (
+            <button
+              onClick={handleJoin}
+              disabled={state === 'loading'}
+              className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+            >
+              {state === 'loading' ? '…' : 'Rejoindre'}
+            </button>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
 
 const LEVEL_LABELS = {
   1: 'Débutant', 2: 'Débutant +', 3: 'Intermédiaire',
@@ -73,6 +134,7 @@ export default function PlayerProfilePanel({ userId, onClose }) {
   const navigate        = useNavigate();
   const { user: me }    = useAuth();
   const [profile,       setProfile]       = useState(undefined);
+  const [sessions,      setSessions]      = useState([]);
   const [friendStatus,  setFriendStatus]  = useState('none');
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState(null);
@@ -96,12 +158,13 @@ export default function PlayerProfilePanel({ userId, onClose }) {
     setProfile(undefined);
     setFriendStatus('none');
 
-    const fetches = [getUserProfile(userId)];
+    const fetches = [getUserProfile(userId), getUserSessions(userId)];
     if (!isOwnProfile) fetches.push(getFriendStatus(userId));
 
     Promise.all(fetches.map((p) => p.catch(() => null)))
-      .then(([profileRes, statusRes]) => {
+      .then(([profileRes, sessionsRes, statusRes]) => {
         setProfile(profileRes?.profile ?? null);
+        setSessions(sessionsRes?.sessions ?? []);
         if (statusRes) setFriendStatus(statusRes.status ?? 'none');
       })
       .catch((e) => setError(e.message || 'Profil introuvable.'))
@@ -286,6 +349,18 @@ export default function PlayerProfilePanel({ userId, onClose }) {
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+                {/* Upcoming sessions */}
+                {sessions.length > 0 && (
+                  <div className="mt-3 px-4 pb-4 space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                      <p className="text-xs font-semibold text-foreground">Sessions à venir</p>
+                    </div>
+                    {sessions.slice(0, 3).map((s) => (
+                      <PanelSessionCard key={s.id} session={s} isOwnSession={isOwnProfile} />
+                    ))}
                   </div>
                 )}
               </div>

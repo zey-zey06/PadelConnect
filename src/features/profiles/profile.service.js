@@ -130,10 +130,11 @@ async function getPublicProfile(userId) {
 }
 
 /**
- * Sessions created by the given user — used for the sessions grid on their profile.
+ * Upcoming open sessions created by userId — shown on public profile.
+ * Past sessions are private and accessed only via /history/sessions.
  */
 async function getSessionsByUser(userId) {
-  return sessionsRepo.listByCreator(userId);
+  return sessionsRepo.listUpcomingByCreator(userId);
 }
 
 /**
