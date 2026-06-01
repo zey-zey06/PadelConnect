@@ -92,3 +92,12 @@ export const addBallPickerToClub = (clubId, data) =>
 /** DELETE /api/clubs/:id/ball-pickers/:userId → { ok: true } */
 export const removeBallPickerFromClub = (clubId, userId) =>
   client.delete(`/clubs/${clubId}/ball-pickers/${userId}`);
+
+// ── Manager bookings ──────────────────────────────────────────────────────────
+/** GET /api/manager/bookings?filter=today|week|all → { bookings: [...] } */
+export const getManagerBookings = (filter = 'all') =>
+  client.get(`/manager/bookings?filter=${filter}`);
+
+// ── Venue deletion ────────────────────────────────────────────────────────────
+/** DELETE /api/venues/:venueId → { venue } */
+export const deleteVenue = (venueId) => client.delete(`/venues/${venueId}`);

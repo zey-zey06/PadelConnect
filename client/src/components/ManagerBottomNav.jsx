@@ -5,16 +5,15 @@ const PRIMARY = '#1A3D2B';
 const GREY    = '#9CA3AF';
 
 const ITEMS = [
-  { to: '/manager',          Icon: Home,          label: 'Accueil'      },
+  { to: '/manager/dashboard', Icon: Home,          label: 'Accueil'      },
   { to: '/manager/venues',   Icon: LayoutGrid,    label: 'Terrains'     },
   { to: '/manager/bookings', Icon: Calendar,      label: 'Réservations' },
   { to: '/messages',         Icon: MessageSquare, label: 'Messages'     },
-  { to: '/profile',          Icon: User,          label: 'Profil'       },
+  { to: '/manager/profile',  Icon: User,          label: 'Profil'       },
 ];
 
 function isActive(pathname, path) {
-  if (path === '/manager') {
-    // Active for /manager and /manager/dashboard, but NOT for sub-paths like /manager/venues
+  if (path === '/manager/dashboard') {
     return pathname === '/manager' || pathname === '/manager/dashboard';
   }
   return pathname === path || pathname.startsWith(path + '/');

@@ -13,10 +13,12 @@ import Clubs            from '@/pages/Clubs';
 import Notifications    from '@/pages/Notifications';
 import CoachDashboard   from '@/pages/CoachDashboard';
 import CoachSetup       from '@/pages/CoachSetup';
-import ManagerDashboard from '@/pages/manager/ManagerDashboard';
-import SlotManager      from '@/pages/manager/SlotManager';
-import ClubSetup        from '@/pages/manager/ClubSetup';
-import ManagerProfile   from '@/pages/manager/ManagerProfile';
+import ManagerHome     from '@/pages/manager/ManagerHome';
+import ManagerVenues   from '@/pages/manager/ManagerVenues';
+import ManagerBookings from '@/pages/manager/ManagerBookings';
+import SlotManager     from '@/pages/manager/SlotManager';
+import ClubSetup       from '@/pages/manager/ClubSetup';
+import ManagerProfile  from '@/pages/manager/ManagerProfile';
 import ClubProfile      from '@/pages/ClubProfile';
 import AdminDashboard   from '@/pages/AdminDashboard';
 import AdminProfile     from '@/pages/AdminProfile';
@@ -233,10 +235,12 @@ export default function App() {
           <Route path="/manager/setup" element={<ManagerSetupRoute><ClubSetup /></ManagerSetupRoute>} />
 
           {/* ── Manager — org required ──────────────────────────────── */}
-          <Route path="/manager/dashboard"           element={<ManagerRoute><Layout><ManagerDashboard /></Layout></ManagerRoute>} />
-          <Route path="/manager/venues"              element={<Navigate to="/manager/dashboard" replace />} />
+          <Route path="/manager"                       element={<Navigate to="/manager/dashboard" replace />} />
+          <Route path="/manager/dashboard"             element={<ManagerRoute><Layout><ManagerHome /></Layout></ManagerRoute>} />
+          <Route path="/manager/venues"                element={<ManagerRoute><Layout><ManagerVenues /></Layout></ManagerRoute>} />
           <Route path="/manager/venues/:venueId/slots" element={<ManagerRoute><Layout><SlotManager /></Layout></ManagerRoute>} />
-          <Route path="/manager/profile"             element={<ManagerRoute><Layout><ManagerProfile /></Layout></ManagerRoute>} />
+          <Route path="/manager/bookings"              element={<ManagerRoute><Layout><ManagerBookings /></Layout></ManagerRoute>} />
+          <Route path="/manager/profile"               element={<ManagerRoute><Layout><ManagerProfile /></Layout></ManagerRoute>} />
 
           {/* ── Admin — super_admin only ─────────────────────────────── */}
           <Route path="/admin/dashboard" element={<AdminRoute><Layout><AdminDashboard /></Layout></AdminRoute>} />

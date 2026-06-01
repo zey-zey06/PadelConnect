@@ -1,14 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2, Pencil, Check, X, Upload, AlertCircle,
   MapPin, Phone, Mail, Camera, Star, CalendarDays,
   LayoutGrid, CalendarCheck, Plus, ImageIcon,
+  CreditCard, Users, Lock, LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/App';
 import {
   getMyClub, getManagerDashboard,
   updateClub, uploadClubLogo, uploadClubCover, uploadClubPhoto, deleteClubPhoto,
 } from '@/api/manager';
+import { getMySubscription, getSubscriptionHistory, paySubscription } from '@/api/subscriptions';
+import { getClubSubscribers } from '@/api/clubs';
+import { logout } from '@/api/auth';
 import { Button }   from '@/components/ui/button';
 import { Input }    from '@/components/ui/input';
 import { Label }    from '@/components/ui/label';
@@ -658,12 +663,167 @@ function EditForm({ club, onSave, onCancel }) {
   );
 }
 
+// ── Subscription card (compact) ───────────────────────────────────────────────
+function SubCard({ sub, history, onPay }) {
+  if (!sub) return null;
+  const { status, days_remaining, venue_count, amount_due, period_end } = sub;
+  const isSuspended = status === 'suspended';
+  const isUrgent    = !isSuspended && (days_remaining ?? 0) <= 7;
+  const cfg = {
+    trial:     { label: 'Essai gratuit', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
+    active:    { label: 'Actif',         cls: 'bg-green-50 text-green-800 border-green-200' },
+    suspended: { label: 'Suspendu',      cls: 'bg-red-50   text-red-800   border-red-200'   },
+  }[status] ?? { label: status, cls: 'bg-muted text-foreground border-border' };
+
+  return (
+    <div className={`rounded-xl border overflow-hidden ${isSuspended ? 'border-red-200 bg-red-50/20' : 'border-border bg-card'}`}>
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/60">
+        <div className="flex items-center gap-2">
+          <CreditCard className="h-4 w-4 text-primary" />
+          <p className="text-sm font-semibold text-foreground">Abonnement</p>
+        </div>
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${cfg.cls}`}>
+          {cfg.label}
+        </span>
+      </div>
+      <div className="p-5 space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Jours restants</p>
+            <p className={`text-2xl font-bold ${isUrgent || isSuspended ? 'text-red-600' : 'text-foreground'}`}>
+              {isSuspended ? '—' : days_remaining}
+            </p>
+            {period_end && !isSuspended && (
+              <p className="text-xs text-muted-foreground">
+                jusqu'au {new Date(period_end).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+              </p>
+            )}
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Montant mensuel</p>
+            <p className="text-2xl font-bold text-foreground">
+              {(amount_due ?? 0).toLocaleString('fr-FR')} FCFA
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {Math.max(venue_count, 1)} terrain{venue_count !== 1 ? 's' : ''} × 3 000 FCFA
+            </p>
+          </div>
+        </div>
+        <Button size="sm" onClick={onPay}
+          variant={!isSuspended && !isUrgent ? 'outline' : 'default'}
+          style={isSuspended ? { backgroundColor: '#dc2626', borderColor: '#dc2626' } : undefined}
+          className="w-full"
+        >
+          <CreditCard className="h-4 w-4" />
+          {isSuspended ? "Réactiver l'abonnement" : "Renouveler l'abonnement"}
+        </Button>
+        {history.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Historique</p>
+            <div className="divide-y divide-border/50">
+              {history.slice(0, 3).map((h) => (
+                <div key={h.id} className="flex items-center justify-between py-1.5 text-xs">
+                  <span className="text-muted-foreground">
+                    {new Date(h.paid_at || h.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {Number(h.amount).toLocaleString('fr-FR')} FCFA
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Payment modal ─────────────────────────────────────────────────────────────
+function PayModal({ sub, onClose, onPaid }) {
+  const [method,  setMethod]  = useState('wave');
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true); setError(null);
+    try { await paySubscription(method); onPaid(); }
+    catch (err) { setError(err.message || 'Erreur lors du paiement.'); }
+    finally { setLoading(false); }
+  }
+
+  const amount = sub?.amount_due ?? 0;
+  const vCount = Math.max(sub?.venue_count ?? 1, 1);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Renouveler l'abonnement</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {vCount} terrain{vCount !== 1 ? 's' : ''} × 3 000 FCFA = {amount.toLocaleString('fr-FR')} FCFA / mois
+            </p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />{error}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label>Mode de paiement</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'wave', label: 'Wave' },
+                { value: 'orange_money', label: 'Orange Money' },
+                { value: 'card', label: 'Carte bancaire' },
+                { value: 'agency', label: 'Agence' },
+              ].map(({ value, label }) => (
+                <button key={value} type="button" onClick={() => setMethod(value)}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all ${
+                    method === value ? 'border-primary bg-primary/5 text-primary' : 'border-border text-foreground/70 hover:border-primary/40'
+                  }`}
+                >{label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-xl bg-muted/40 border border-border px-4 py-3 text-sm text-foreground">
+            Total : <span className="font-bold">{amount.toLocaleString('fr-FR')} FCFA</span>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1">Annuler</Button>
+            <Button type="submit" disabled={loading} className="flex-1">
+              {loading ? 'Paiement…' : 'Confirmer'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── ManagerProfile page ───────────────────────────────────────────────────────
 export default function ManagerProfile() {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
+  const navigate = useNavigate();
 
-  const [club,    setClub]    = useState(null);
-  const [stats,   setStats]   = useState(null);
+  const [club,         setClub]         = useState(null);
+  const [stats,        setStats]        = useState(null);
+  const [sub,          setSub]          = useState(null);
+  const [subHistory,   setSubHistory]   = useState([]);
+  const [subscribers,  setSubscribers]  = useState([]);
+  const [loadingSubs,  setLoadingSubs]  = useState(false);
+  const [showSubsModal,setShowSubsModal]= useState(false);
+  const [showPayModal, setShowPayModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
   const [editing, setEditing] = useState(false);
@@ -673,11 +833,34 @@ export default function ManagerProfile() {
     Promise.all([
       getMyClub(user.organization_id),
       getManagerDashboard(),
+      getMySubscription().catch(() => null),
+      getSubscriptionHistory().catch(() => null),
     ])
-      .then(([{ club: c }, { stats: s }]) => { setClub(c); setStats(s); })
+      .then(([{ club: c }, { stats: s }, subRes, histRes]) => {
+        setClub(c);
+        setStats(s);
+        setSub(subRes?.subscription ?? null);
+        setSubHistory(histRes?.history ?? []);
+      })
       .catch((err) => setError(err.message || 'Erreur de chargement.'))
       .finally(() => setLoading(false));
   }, [user?.organization_id]);
+
+  async function openSubscribers() {
+    setShowSubsModal(true);
+    setLoadingSubs(true);
+    try {
+      const { subscribers: s } = await getClubSubscribers(user.organization_id);
+      setSubscribers(s ?? []);
+    } catch { setSubscribers([]); }
+    finally { setLoadingSubs(false); }
+  }
+
+  async function handleLogout() {
+    try { await logout(); } catch { /* non-fatal */ }
+    setUser(null);
+    navigate('/login', { replace: true });
+  }
 
   if (loading) {
     return (
@@ -685,9 +868,7 @@ export default function ManagerProfile() {
         <div className="h-8 w-48 bg-muted animate-pulse rounded-lg" />
         <div className="h-52 bg-muted animate-pulse rounded-2xl" />
         <div className="grid grid-cols-4 gap-3">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-20 bg-muted animate-pulse rounded-xl" />
-          ))}
+          {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-muted animate-pulse rounded-xl" />)}
         </div>
         <div className="h-40 bg-muted animate-pulse rounded-2xl" />
       </div>
@@ -746,6 +927,112 @@ export default function ManagerProfile() {
           />
         : <ReadView club={club} />
       }
+
+      {/* Subscription */}
+      <SubCard
+        sub={sub}
+        history={subHistory}
+        onPay={() => setShowPayModal(true)}
+      />
+
+      {/* Subscribers + Account actions */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+
+        {/* Subscribers */}
+        <button
+          type="button"
+          onClick={openSubscribers}
+          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors text-left"
+        >
+          <div className="flex items-center gap-3">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Abonnés au club</span>
+          </div>
+          <span className="text-xs text-muted-foreground">Voir →</span>
+        </button>
+
+        {/* Change password */}
+        <Link
+          to="/profile"
+          className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <Lock className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Changer le mot de passe</span>
+          </div>
+          <span className="text-xs text-muted-foreground">→</span>
+        </Link>
+
+        {/* Logout */}
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-red-50 transition-colors text-left"
+        >
+          <LogOut className="h-4 w-4 text-red-500" />
+          <span className="text-sm font-medium text-red-600">Se déconnecter</span>
+        </button>
+      </div>
+
+      {/* Pay modal */}
+      {showPayModal && sub && (
+        <PayModal
+          sub={sub}
+          onClose={() => setShowPayModal(false)}
+          onPaid={() => {
+            setShowPayModal(false);
+            getMySubscription().then((r) => setSub(r.subscription ?? null)).catch(() => {});
+            getSubscriptionHistory().then((r) => setSubHistory(r.history ?? [])).catch(() => {});
+          }}
+        />
+      )}
+
+      {/* Subscribers modal */}
+      {showSubsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl max-h-96 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h2 className="text-lg font-semibold text-foreground">Abonnés au club</h2>
+              <button onClick={() => setShowSubsModal(false)} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-border/50">
+              {loadingSubs ? (
+                <div className="p-6 space-y-3">
+                  {[1,2,3].map((i) => <div key={i} className="h-10 rounded-lg bg-muted animate-pulse" />)}
+                </div>
+              ) : subscribers.length === 0 ? (
+                <div className="p-6 text-center">
+                  <p className="text-sm text-muted-foreground">Aucun abonné pour le moment.</p>
+                </div>
+              ) : subscribers.map((s) => (
+                <div key={s.id} className="flex items-center gap-3 p-3">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    {s.photo_url
+                      ? <img src={s.photo_url} alt="" className="h-full w-full rounded-full object-cover" />
+                      : <span className="text-xs font-bold text-primary">
+                          {([s.first_name, s.last_name].filter(Boolean).join(' ') || s.email)?.[0]?.toUpperCase()}
+                        </span>
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {[s.first_name, s.last_name].filter(Boolean).join(' ') || s.email?.split('@')[0]}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">{s.email}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-6 py-4 border-t border-border">
+              <Button type="button" variant="outline" onClick={() => setShowSubsModal(false)} className="w-full">
+                Fermer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
