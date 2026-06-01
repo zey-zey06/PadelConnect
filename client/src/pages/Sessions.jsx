@@ -14,7 +14,6 @@ import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
 import { listClubs, getClubSlots, getClubCoaches, getClubBallPickers } from '@/api/clubs';
 import { listCoaches } from '@/api/coaches';
 import { findMatches as aiFindMatches } from '@/api/ai';
-import DateScrollPicker from '@/components/DateScrollPicker';
 import TimeScrollPicker from '@/components/TimeScrollPicker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -987,10 +986,10 @@ function CreateSessionModal({ onClose, onCreate, initialValues = null, onUpdate 
             </div>
           )}
 
-          {/* Date */}
+          {/* Date — week picker shows day names + highlights today/weekends */}
           <div className="space-y-2">
             <Label>Date</Label>
-            <DateScrollPicker value={form.date} onChange={(d) => set('date', d)} />
+            <WeekDatePicker value={form.date} onChange={(d) => set('date', d)} />
           </div>
 
           {/* Start + End time side by side */}
@@ -2934,7 +2933,7 @@ function MySessions({ autoOpen = false }) {
 export default function Sessions() {
   const { t }    = useTranslation();
   const haptic   = useHaptic();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const fromNotification = searchParams.get('tab') === 'mine';
   const [tab, setTab] = useState(fromNotification ? 'mine' : 'browse');
 
@@ -2960,6 +2959,14 @@ export default function Sessions() {
   const [error,       setError]       = useState(null);
   // Auto-open the create modal when the bottom-nav "+" button links here with ?create=1
   const [showCreate,  setShowCreate]  = useState(searchParams.get('create') === '1');
+
+  // React to URL changes when already mounted (e.g. "+" clicked while on Sessions page)
+  useEffect(() => {
+    if (searchParams.get('create') === '1') {
+      setShowCreate(true);
+      setSearchParams((prev) => { prev.delete('create'); return prev; }, { replace: true });
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [dateFilter,   setDateFilter]   = useState('');
   const [levelFilter,  setLevelFilter]  = useState('');
