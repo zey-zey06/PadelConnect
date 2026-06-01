@@ -162,10 +162,20 @@ async function getUserSessionsHandler(req, res, next) {
   }
 }
 
+async function getSimilarPlayersHandler(req, res, next) {
+  try {
+    const players = await profileService.getSimilarPlayers(req.params.userId);
+    return res.json({ players });
+  } catch (err) {
+    next(err);
+  }
+}
+
 const router = Router();
 router.get('/me', authenticate, getMeHandler);
 router.get('/user/:userId', authenticate, getUserProfileHandler);
 router.get('/user/:userId/sessions', authenticate, getUserSessionsHandler);
+router.get('/user/:userId/similar', authenticate, getSimilarPlayersHandler);
 router.post('/generate', authenticate, generateHandler);
 router.put('/', authenticate, updateHandler);
 router.post('/photo', authenticate, upload.single('photo'), photoHandler);

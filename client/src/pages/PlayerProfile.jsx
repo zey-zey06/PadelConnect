@@ -4,9 +4,10 @@ import {
   User, ArrowLeft, AlertCircle, MessageSquare,
   UserPlus, UserCheck, UserX, Clock, X, Pencil,
   Calendar, Users, ChevronRight, Zap, Target, Flag,
+  BarChart2, TrendingUp,
 } from 'lucide-react';
-import { useAuth } from '@/App';
-import { getUserProfile, getUserSessions } from '@/api/profile';
+import { useAuth, usePlayerPanel } from '@/App';
+import { getUserProfile, getUserSessions, getSimilarPlayers } from '@/api/profile';
 import { reportUser } from '@/api/reports';
 import {
   getFriendStatus,
@@ -250,6 +251,112 @@ function FriendButton({ friendStatus, targetUserId, onStatusChange }) {
       <Icon className="h-3.5 w-3.5" />
       {loading ? '…' : cfg.label}
     </Button>
+  );
+}
+
+// ── Stats section ─────────────────────────────────────────────────────────────
+function StatsSection({ sessions, sessionsCount, level }) {
+  const total     = sessionsCount ?? sessions.length;
+  const completed = sessions.filter((s) => s.status === 'complete').length;
+  const rate      = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const progress  = level ? Math.round((level / 7) * 100) : 0;
+
+  return (
+    <div className="bg-background px-4 py-4 space-y-3">
+      <div className="flex items-center gap-1.5">
+        <BarChart2 className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold text-foreground">Statistiques</h2>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-border bg-card px-3 py-3 text-center">
+          <p className="text-2xl font-bold text-foreground">{total}</p>
+          <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide mt-0.5">Sessions jouées</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card px-3 py-3 text-center">
+          <p className="text-2xl font-bold text-foreground">{rate}%</p>
+          <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide mt-0.5">Taux de complétion</p>
+        </div>
+      </div>
+      {level && (
+        <div className="rounded-xl border border-border bg-card px-4 py-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <TrendingUp className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-semibold text-foreground">
+                {LEVEL_LABELS[level] ?? `Niveau ${level}`}
+              </span>
+            </div>
+            <span className="text-xs text-muted-foreground">Niv. {level}/7</span>
+          </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          {level < 7 && (
+            <p className="text-[10px] text-muted-foreground">
+              Prochain niveau : {LEVEL_LABELS[level + 1]}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Similar players section ────────────────────────────────────────────────────
+function SimilarPlayersSection({ userId }) {
+  const { openPlayerPanel } = usePlayerPanel();
+  const [players, setPlayers] = useState(null);
+
+  useEffect(() => {
+    getSimilarPlayers(userId)
+      .then((r) => setPlayers(r.players ?? []))
+      .catch(() => setPlayers([]));
+  }, [userId]);
+
+  if (players === null) return null;
+  if (players.length === 0) return null;
+
+  return (
+    <div className="bg-background px-4 py-4 space-y-3">
+      <div className="flex items-center gap-1.5">
+        <Users className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold text-foreground">Joueurs similaires</h2>
+      </div>
+      <p className="text-xs text-muted-foreground -mt-1">Vous pourriez jouer ensemble !</p>
+      <div className="space-y-2">
+        {players.map((p) => {
+          const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.username || 'Joueur';
+          const initials = name.slice(0, 2).toUpperCase();
+          return (
+            <button
+              key={p.id}
+              onClick={() => openPlayerPanel(p.id)}
+              className="w-full flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="h-9 w-9 rounded-full overflow-hidden border border-border bg-muted shrink-0 flex items-center justify-center">
+                {p.photo_url
+                  ? <img src={p.photo_url} alt={name} className="h-full w-full object-cover" />
+                  : <span className="text-xs font-bold text-muted-foreground">{initials}</span>
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">{name}</p>
+                {p.username && <p className="text-xs text-muted-foreground">@{p.username}</p>}
+              </div>
+              {p.level && (
+                <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  Nv.{p.level}
+                </span>
+              )}
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -504,6 +611,10 @@ export default function PlayerProfile() {
         </>
       )}
 
+      {/* ── Stats ────────────────────────────────────────────────── */}
+      <div className="h-2 bg-muted/40" />
+      <StatsSection sessions={sessions} sessionsCount={sessionsCount} level={level} />
+
       {/* ── Divider ───────────────────────────────────────────────── */}
       <div className="h-2 bg-muted/40" />
 
@@ -531,6 +642,10 @@ export default function PlayerProfile() {
           </div>
         )}
       </div>
+
+      {/* ── Similar players ──────────────────────────────────────── */}
+      <div className="h-2 bg-muted/40" />
+      <SimilarPlayersSection userId={userId} />
 
       {/* ── Pending request banner ────────────────────────────────── */}
       {friendStatus === 'pending_received' && !isOwnProfile && (

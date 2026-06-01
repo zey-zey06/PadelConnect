@@ -669,12 +669,25 @@ export default function Messages() {
                         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
                           {msg.content}
                         </p>
-                        <p
-                          className="text-[10px] mt-1 text-right leading-none"
-                          style={{ color: isMine ? 'rgba(255,255,255,0.45)' : '#9CA3AF' }}
+                        <div
+                          className="flex items-center justify-end gap-1 mt-1"
                         >
-                          {formatTime(msg.created_at)}
-                        </p>
+                          <span
+                            className="text-[10px] leading-none"
+                            style={{ color: isMine ? 'rgba(255,255,255,0.45)' : '#9CA3AF' }}
+                          >
+                            {formatTime(msg.created_at)}
+                          </span>
+                          {isMine && (
+                            <span
+                              className="text-[11px] leading-none font-bold"
+                              style={{ color: msg.read ? '#34d399' : 'rgba(255,255,255,0.4)' }}
+                              title={msg.read ? 'Lu' : 'Envoyé'}
+                            >
+                              {msg.read ? '✓✓' : '✓'}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

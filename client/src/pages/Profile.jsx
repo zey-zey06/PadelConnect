@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe, Menu, MessageSquare, Users, Camera, Search } from 'lucide-react';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe, Menu, MessageSquare, Users, Camera, Search, BarChart2, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { setLanguage } from '@/i18n/i18n';
 import { useAuth, usePlayerPanel } from '@/App';
@@ -625,6 +625,62 @@ const PENALTY_LABELS = {
   club_ban:   'Ban club',
   app_ban:    'Ban application',
 };
+
+// ── Player stats ─────────────────────────────────────────────────────────────
+const LEVEL_LABELS_STATS = {
+  1: 'Débutant', 2: 'Débutant +', 3: 'Intermédiaire',
+  4: 'Intermédiaire +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
+};
+
+function PlayerStats({ bookings, level }) {
+  const total     = bookings.length;
+  const completed = bookings.filter((b) => b.status === 'confirmed' || b.status === 'completed').length;
+  const rate      = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const progress  = level ? Math.round((level / 7) * 100) : 0;
+
+  return (
+    <div className="w-full max-w-sm mx-auto rounded-xl border border-border bg-card px-4 py-4 space-y-3">
+      <div className="flex items-center gap-1.5">
+        <BarChart2 className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold text-foreground">Statistiques</h3>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-center">
+          <p className="text-xl font-bold text-foreground">{total}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">Réservations</p>
+        </div>
+        <div className="rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-center">
+          <p className="text-xl font-bold text-foreground">{rate}%</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">Confirmées</p>
+        </div>
+      </div>
+      {level && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <TrendingUp className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-semibold text-foreground">
+                {LEVEL_LABELS_STATS[level] ?? `Niveau ${level}`}
+              </span>
+            </div>
+            <span className="text-xs text-muted-foreground">Niv. {level}/7</span>
+          </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          {level < 7 && (
+            <p className="text-[10px] text-muted-foreground">
+              Prochain niveau : {LEVEL_LABELS_STATS[level + 1]}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Availability toggle ────────────────────────────────────────────────────────
 function AvailabilityToggle({ value, onChange }) {
@@ -1352,6 +1408,11 @@ export default function Profile() {
                 {t('profile.recharge')}
               </Button>
             </div>
+
+            {/* Stats */}
+            {(bookings.length > 0 || profile?.level) && (
+              <PlayerStats bookings={bookings} level={profile?.level ?? null} />
+            )}
 
             {/* Availability toggle */}
             {user?.role === 'player' && (

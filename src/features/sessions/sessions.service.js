@@ -22,6 +22,7 @@ async function create(userId, data) {
     max_players: data.max_players,
     current_players: 1, // creator is automatically player #1
     preferences: data.preferences || null,
+    location: data.location || null,
   });
 }
 
@@ -138,6 +139,7 @@ async function updateSession(sessionId, userId, data) {
     end_time:    data.end_time || null,
     max_players: data.max_players,
     preferences: Object.keys(preferences).length > 0 ? preferences : (session.preferences ?? null),
+    location:    data.location !== undefined ? (data.location || null) : session.location,
   });
 }
 

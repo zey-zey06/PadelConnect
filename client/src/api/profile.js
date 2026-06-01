@@ -9,6 +9,9 @@ export const getUserProfile = (userId) => client.get(`/profile/user/${userId}`);
 /** GET /api/profile/user/:userId/sessions → { sessions } — sessions created by this user */
 export const getUserSessions = (userId) => client.get(`/profile/user/${userId}/sessions`);
 
+/** GET /api/profile/user/:userId/similar → { players } — players with similar level */
+export const getSimilarPlayers = (userId) => client.get(`/profile/user/${userId}/similar`);
+
 /** PATCH /api/profile/username — update own username */
 export const updateUsername = (username) => client.patch('/profile/username', { username });
 

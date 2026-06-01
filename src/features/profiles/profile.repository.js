@@ -119,4 +119,28 @@ async function getEligibleForSession(excludeUserIds = []) {
   return rows.map(deserialize);
 }
 
-module.exports = { getByUserId, getUserBasicInfo, getCountsByUserId, upsert, getEligibleForSession };
+/**
+ * Find players with a similar level (±1) to the given user.
+ * Excludes the target user. Limit 5.
+ */
+async function getSimilarPlayers(userId, level) {
+  const rows = await db('player_profiles')
+    .join('users', 'player_profiles.user_id', 'users.id')
+    .whereNull('player_profiles.deleted_at')
+    .whereNull('users.deleted_at')
+    .whereNot('player_profiles.user_id', userId)
+    .whereBetween('player_profiles.level', [Math.max(1, level - 1), Math.min(7, level + 1)])
+    .orderByRaw('RANDOM()')
+    .limit(5)
+    .select(
+      'player_profiles.user_id as id',
+      'player_profiles.level',
+      'player_profiles.photo_url',
+      'users.first_name',
+      'users.last_name',
+      'users.username',
+    );
+  return rows;
+}
+
+module.exports = { getByUserId, getUserBasicInfo, getCountsByUserId, upsert, getEligibleForSession, getSimilarPlayers };

@@ -136,6 +136,16 @@ async function getSessionsByUser(userId) {
   return sessionsRepo.listByCreator(userId);
 }
 
+/**
+ * Players with a similar level to the given user. Falls back to empty array
+ * if the user has no profile or no level set.
+ */
+async function getSimilarPlayers(userId) {
+  const profile = await profileRepo.getByUserId(userId);
+  if (!profile?.level) return [];
+  return profileRepo.getSimilarPlayers(userId, profile.level);
+}
+
 module.exports = {
   generateProfile,
   updateProfile,
@@ -144,4 +154,5 @@ module.exports = {
   getProfile,
   getPublicProfile,
   getSessionsByUser,
+  getSimilarPlayers,
 };

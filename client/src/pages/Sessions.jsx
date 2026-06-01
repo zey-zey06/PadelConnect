@@ -199,6 +199,32 @@ const GENDER_PREFS = [
 const GENDER_DISPLAY = { mixed: 'Mixte', women: 'Femmes', men: 'Hommes' };
 const GENDER_ICON    = { mixed: '⚧', women: '♀', men: '♂' };
 
+// ── Location chip — shows a Google Maps link if coords detected ───────────────
+const GPS_RE = /^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/;
+function LocationChip({ location }) {
+  const coords = GPS_RE.exec(location?.trim() ?? '');
+  if (coords) {
+    return (
+      <a
+        href={`https://maps.google.com/?q=${coords[1]},${coords[2]}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+      >
+        <MapPin className="h-2.5 w-2.5 shrink-0" />
+        Voir sur la carte
+      </a>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-200">
+      <MapPin className="h-2.5 w-2.5 shrink-0" />
+      {location}
+    </span>
+  );
+}
+
 // ── Session detail modal ──────────────────────────────────────────────────────
 function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }) {
   const { t }              = useTranslation();
@@ -602,8 +628,8 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
           </div>
         </div>
 
-        {/* Tags: level + gender */}
-        {(levelMin || gender) && (
+        {/* Tags: level + gender + location */}
+        {(levelMin || gender || session.location) && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {levelMin && (
               <span className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/8 text-primary border border-primary/15">
@@ -615,6 +641,9 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
                 <span aria-hidden>{GENDER_ICON[gender]}</span>
                 {GENDER_DISPLAY[gender]}
               </span>
+            )}
+            {session.location && (
+              <LocationChip location={session.location} />
             )}
           </div>
         )}
@@ -872,6 +901,7 @@ function CreateSessionModal({ onClose, onCreate, initialValues = null, onUpdate 
         max_players: initialValues.max_players ?? 4,
         level_min:   initialValues.preferences?.level_min ?? null,
         gender:      initialValues.preferences?.gender    ?? null,
+        location:    initialValues.location ?? '',
       };
     }
     return {
@@ -881,6 +911,7 @@ function CreateSessionModal({ onClose, onCreate, initialValues = null, onUpdate 
       max_players: 4,
       level_min:   null,
       gender:      null,
+      location:    '',
     };
   });
   const [loading, setLoading] = useState(false);
@@ -913,6 +944,7 @@ function CreateSessionModal({ onClose, onCreate, initialValues = null, onUpdate 
         end_time:    form.end_time,
         max_players: form.max_players,
         ...(Object.keys(preferences).length > 0 && { preferences }),
+        ...(form.location.trim() && { location: form.location.trim() }),
       };
       if (isEdit) {
         const result = await onUpdate(payload);
@@ -1058,6 +1090,25 @@ function CreateSessionModal({ onClose, onCreate, initialValues = null, onUpdate 
                   {label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Location */}
+          <div className="space-y-2">
+            <Label>
+              Lieu{' '}
+              <span className="font-normal text-muted-foreground">(optionnel — ex: "Cocody" ou "5.3477,-4.0083")</span>
+            </Label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                type="text"
+                value={form.location}
+                onChange={(e) => set('location', e.target.value)}
+                placeholder="Quartier, adresse ou coordonnées GPS…"
+                className="pl-9"
+                maxLength={200}
+              />
             </div>
           </div>
 

@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Building2, MapPin, Phone, ChevronRight, Eye, AlertCircle, Map, List, Heart } from 'lucide-react';
+import { Building2, MapPin, Phone, ChevronRight, Eye, AlertCircle, Map, List, Heart, Navigation } from 'lucide-react';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import { listClubs, toggleClubFavorite, getClubFavoriteStatus } from '@/api/clubs';
 import { useAuth } from '@/App';
@@ -10,8 +10,23 @@ import { cn } from '@/lib/utils';
 import PageSkeleton from '@/components/PageSkeleton';
 import { MultiClubMap } from '@/components/ClubMap';
 
+// ── Haversine distance (km) ───────────────────────────────────────────────────
+function haversine(lat1, lon1, lat2, lon2) {
+  const R  = 6371;
+  const dL = (lat2 - lat1) * Math.PI / 180;
+  const dG = (lon2 - lon1) * Math.PI / 180;
+  const a  = Math.sin(dL / 2) ** 2
+           + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dG / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function fmtDist(km) {
+  if (km < 1) return `${Math.round(km * 1000)} m`;
+  return `${km.toFixed(1).replace('.', ',')} km`;
+}
+
 // ── Club card ─────────────────────────────────────────────────────────────────
-const ClubCard = memo(function ClubCard({ club, isAdmin }) {
+const ClubCard = memo(function ClubCard({ club, isAdmin, distance }) {
   const { t } = useTranslation();
   const photo      = club.logo_url || (Array.isArray(club.photos_urls) && club.photos_urls[0]) || null;
   const venueCount = parseInt(club.venue_count ?? 0, 10);
@@ -92,6 +107,12 @@ const ClubCard = memo(function ClubCard({ club, isAdmin }) {
               {venueCount} terrain{venueCount > 1 ? 's' : ''}
             </span>
           )}
+          {distance != null && (
+            <span className="flex items-center gap-1 text-primary font-semibold">
+              <Navigation className="h-3 w-3" />
+              {fmtDist(distance)}
+            </span>
+          )}
           {priceLabel && (
             <span className="font-medium text-foreground">{priceLabel}</span>
           )}
@@ -133,10 +154,42 @@ export default function Clubs() {
   const navigate   = useNavigate();
   const isAdmin    = user?.role === 'super_admin';
 
-  const [clubs,    setClubs]    = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(null);
-  const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
+  const [clubs,       setClubs]       = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [viewMode,    setViewMode]    = useState('list'); // 'list' | 'map'
+  const [userPos,     setUserPos]     = useState(null);   // { lat, lng }
+  const [sortByDist,  setSortByDist]  = useState(false);
+
+  // One-shot geolocation request
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {}, // silently ignore denial
+      { timeout: 6000 }
+    );
+  }, []);
+
+  const clubsWithDistance = useMemo(() => {
+    if (!userPos) return clubs.map((c) => ({ ...c, _dist: null }));
+    return clubs.map((c) => ({
+      ...c,
+      _dist: (c.latitude != null && c.longitude != null)
+        ? haversine(userPos.lat, userPos.lng, parseFloat(c.latitude), parseFloat(c.longitude))
+        : null,
+    }));
+  }, [clubs, userPos]);
+
+  const displayedClubs = useMemo(() => {
+    if (!sortByDist) return clubsWithDistance;
+    return [...clubsWithDistance].sort((a, b) => {
+      if (a._dist == null && b._dist == null) return 0;
+      if (a._dist == null) return 1;
+      if (b._dist == null) return -1;
+      return a._dist - b._dist;
+    });
+  }, [clubsWithDistance, sortByDist]);
 
   const fetchClubs = useCallback(async () => {
     try {
@@ -169,33 +222,51 @@ export default function Clubs() {
           </p>
         </div>
 
-        {/* View toggle — only show once loaded and clubs exist */}
+        {/* Controls row — only show once loaded and clubs exist */}
         {!loading && !error && clubs.length > 0 && (
-          <div className="flex items-center rounded-lg border border-border bg-card p-0.5 gap-0.5 shrink-0">
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                viewMode === 'list'
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <List className="h-3.5 w-3.5" />
-              {t('clubs.list')}
-            </button>
-            <button
-              onClick={() => setViewMode('map')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                viewMode === 'map'
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <Map className="h-3.5 w-3.5" />
-              {t('clubs.map')}
-            </button>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            {/* Distance sort — only shown when geolocation is available */}
+            {userPos && (
+              <button
+                onClick={() => setSortByDist((v) => !v)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
+                  sortByDist
+                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                    : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Navigation className="h-3.5 w-3.5" />
+                {sortByDist ? 'Trié par distance' : 'Par distance'}
+              </button>
+            )}
+            {/* View mode toggle */}
+            <div className="flex items-center rounded-lg border border-border bg-card p-0.5 gap-0.5">
+              <button
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                  viewMode === 'list'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <List className="h-3.5 w-3.5" />
+                {t('clubs.list')}
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                  viewMode === 'map'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Map className="h-3.5 w-3.5" />
+                {t('clubs.map')}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -222,7 +293,7 @@ export default function Clubs() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {clubs.map((c) => <ClubCard key={c.id} club={c} isAdmin={isAdmin} />)}
+          {displayedClubs.map((c) => <ClubCard key={c.id} club={c} isAdmin={isAdmin} distance={c._dist} />)}
         </div>
       )}
     </div>
