@@ -1509,10 +1509,10 @@ export default function Profile() {
 
             {/* Stats row — Sessions + Amis */}
             <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="bg-white rounded-xl p-4 text-center border border-border">
-                <Link to="/history/sessions">
+              <div className="bg-white rounded-xl p-4 text-center border border-border hover:bg-muted/30 transition-colors">
+                <Link to="/history/bookings" className="block">
                   <span className="text-2xl font-bold text-foreground">{bookings.length}</span>
-                  <p className="text-xs text-muted-foreground mt-0.5">{t('profile.sessions')}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Réservations</p>
                 </Link>
               </div>
               <div
