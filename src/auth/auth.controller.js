@@ -4,6 +4,7 @@ const { signup, login, verifyEmail, getUserById, updateName, changePassword, sof
 const { signToken } = require('./jwt');
 const authenticate = require('../middleware/authenticate');
 const notificationsService = require('../features/notifications/notifications.service');
+const { sendAdminLoginAlert } = require('../emails/security-alert');
 const db = require('../db');
 
 const COOKIE_OPTIONS = {
@@ -60,6 +61,17 @@ async function loginHandler(req, res, next) {
     });
 
     res.cookie('token', token, COOKIE_OPTIONS);
+
+    if (user.role === 'super_admin') {
+      const ip        = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || 'Inconnue';
+      const userAgent = req.headers['user-agent'] || 'Inconnu';
+      const date      = new Date().toLocaleString('fr-FR', {
+        day: '2-digit', month: 'long', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Abidjan',
+      });
+      sendAdminLoginAlert({ ip, userAgent, date }).catch(() => {});
+    }
+
     return res.json({ user });
   } catch (err) {
     if (err.code === 'EMAIL_NOT_VERIFIED') {

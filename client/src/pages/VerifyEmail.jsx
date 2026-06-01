@@ -123,9 +123,10 @@ function CheckEmail({ email }) {
     setSubmitStatus('loading');
     setErrorMsg('');
     try {
-      await verifyOtp(email, codeStr);
+      const data = await verifyOtp(email, codeStr);
       // JWT cookie set by backend — force full reload so auth context reinitialises
-      window.location.replace('/profile/setup');
+      const role = data?.user?.role;
+      window.location.replace(role === 'venue_admin' ? '/manager/setup' : '/profile/setup');
     } catch (err) {
       setErrorMsg(err.message || 'Code incorrect.');
       setSubmitStatus('error');
