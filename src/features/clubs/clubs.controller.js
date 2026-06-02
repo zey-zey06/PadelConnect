@@ -333,7 +333,7 @@ router.post('/:id/favorite',       authenticate, validateId, toggleFavoriteHandl
 // Subscriptions
 router.get('/:id/subscription',    authenticate, validateId, subscriptionStatusHandler);
 router.post('/:id/subscription',   authenticate, validateId, toggleSubscriptionHandler);
-router.get('/:id/subscribers',     authenticate, validateId, subscribersHandler);
+router.get('/:id/subscribers',     validateId, subscribersHandler); // public — no auth required
 
 // Posts
 router.get('/:id/posts',           authenticate, validateId, getPostsHandler);

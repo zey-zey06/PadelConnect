@@ -85,8 +85,12 @@ async function getPublicClub(id) {
     err.status = 404;
     throw err;
   }
-  const venues = await venuesRepo.getByOrg(id);
-  return { club, venues };
+  const [venues, subscribers_count, active_bookings_count] = await Promise.all([
+    venuesRepo.getByOrg(id),
+    clubsRepo.getSubscribersCount(id).catch(() => 0),
+    clubsRepo.getActiveBookingsCount(id).catch(() => 0),
+  ]);
+  return { club, venues, subscribers_count, active_bookings_count };
 }
 
 async function updateCover(clubId, userOrgId, coverUrl) {

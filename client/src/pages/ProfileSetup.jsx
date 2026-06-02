@@ -150,6 +150,8 @@ export default function ProfileSetup() {
   const [autreMode,         setAutreMode]         = useState(false);
   const [autreText,         setAutreText]         = useState('');
   const [saving,            setSaving]            = useState(false);
+  // Used by handlePrev to restore the previous answer instead of clearing state
+  const restoreRef = useRef(null);
 
   // ── Step 3: photo upload ──────────────────────────────────────────────────
   const [photo,          setPhoto]          = useState(null);
@@ -162,12 +164,30 @@ export default function ProfileSetup() {
   // Cleanup username debounce timer on unmount
   useEffect(() => () => { if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current); }, []);
 
-  // Reset selection when question changes
+  // On question change: restore saved answer (when navigating back) or clear selection (forward/skip)
   useEffect(() => {
-    setSelectedSingle(null);
-    setMultiSelectValues([]);
-    setAutreMode(false);
-    setAutreText('');
+    const restore = restoreRef.current;
+    restoreRef.current = null;
+    if (restore) {
+      const { answer, isMulti } = restore;
+      if (isMulti) {
+        setMultiSelectValues(Array.isArray(answer) ? answer : []);
+        setSelectedSingle(null);
+      } else if (answer && typeof answer === 'string') {
+        setSelectedSingle(answer);
+        setMultiSelectValues([]);
+      } else {
+        setSelectedSingle(null);
+        setMultiSelectValues([]);
+      }
+      setAutreMode(false);
+      setAutreText('');
+    } else {
+      setSelectedSingle(null);
+      setMultiSelectValues([]);
+      setAutreMode(false);
+      setAutreText('');
+    }
   }, [qIndex]);
 
   // ── Username input handler (auto-format + debounced availability check) ──
@@ -256,6 +276,30 @@ export default function ProfileSetup() {
     }
     if (!answer || (Array.isArray(answer) && answer.length === 0)) return;
     submitAnswer(answer);
+  }
+
+  // ── QCM: "← Précédent" pressed ───────────────────────────────────────────
+  function handlePrev() {
+    if (saving) return;
+    if (qIndex === 0) {
+      // First question → go back to step 1
+      setStep(1); setError(null); return;
+    }
+    // Pop the last saved answer and schedule restore for previous question
+    const prevAnswer = qaAnswers[qaAnswers.length - 1];
+    const prevQ      = QUESTIONS_QCM[qIndex - 1];
+    if (prevAnswer) {
+      restoreRef.current = { answer: prevAnswer.answer, isMulti: !!prevQ.multiSelect };
+    }
+    setQaAnswers((prev) => prev.slice(0, -1));
+    setQIndex(qIndex - 1);
+  }
+
+  // ── QCM: "Passer →" pressed — skip without saving an answer ──────────────
+  function handleSkip() {
+    if (saving) return;
+    // Store null for this question so array indices stay aligned
+    submitAnswer(null);
   }
 
   // ── Core submit ───────────────────────────────────────────────────────────
@@ -388,18 +432,18 @@ export default function ProfileSetup() {
           />
         </div>
 
-        {/* Back chevron */}
+        {/* Top-left: go back to Step 1 (abandon QCM) */}
         <button
           type="button"
           onClick={() => { setStep(1); setError(null); }}
-          className="absolute top-4 left-4 flex items-center gap-1.5 text-white/60 hover:text-white transition-colors text-sm z-10"
+          className="absolute top-4 left-4 flex items-center gap-1.5 text-white/40 hover:text-white/70 transition-colors text-xs z-10"
         >
-          <ChevronLeft className="h-4 w-4" />
-          Retour
+          <ChevronLeft className="h-3.5 w-3.5" />
+          Étape 1
         </button>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto overscroll-contain pb-36 pt-4">
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-44 pt-4">
           {saving ? (
             /* ── Saving spinner ─────────────────────────────────────── */
             <div className="flex flex-col items-center justify-center min-h-full gap-6 px-6">
@@ -569,28 +613,62 @@ export default function ProfileSetup() {
           )}
         </div>
 
-        {/* Fixed "Suivant →" button */}
-        {canNext && !saving && (
+        {/* Fixed bottom nav — always visible when not saving */}
+        {!saving && (
           <div
-            className="fixed bottom-0 left-0 right-0 px-5 pb-10 pt-6 btn-enter"
-            style={{ background: 'linear-gradient(to top, #0f2d1f 55%, transparent)' }}
+            className="fixed bottom-0 left-0 right-0 px-5 pb-10 pt-4"
+            style={{ background: 'linear-gradient(to top, #0f2d1f 60%, transparent)' }}
           >
-            <button
-              type="button"
-              onClick={handleNext}
-              className="w-full max-w-lg mx-auto flex items-center justify-center gap-2 rounded-2xl font-semibold text-base transition-all active:scale-[0.97] focus:outline-none"
-              style={{
-                display: 'flex',
-                background: '#74C69D',
-                color: '#0f2d1f',
-                padding: '17px 24px',
-                boxShadow: '0 4px 20px rgba(116,198,157,0.4)',
-                fontWeight: 700,
-                fontSize: '1rem',
-              }}
-            >
-              {qIndex === QUESTIONS_QCM.length - 1 ? 'Terminer mon profil ✓' : 'Suivant →'}
-            </button>
+            <div className="w-full max-w-lg mx-auto space-y-3">
+              {/* Main CTA: Suivant — only when answer selected */}
+              {canNext && (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="btn-enter w-full flex items-center justify-center gap-2 rounded-2xl font-semibold text-base transition-all active:scale-[0.97] focus:outline-none"
+                  style={{
+                    background: '#74C69D',
+                    color: '#0f2d1f',
+                    padding: '17px 24px',
+                    boxShadow: '0 4px 20px rgba(116,198,157,0.4)',
+                    fontWeight: 700,
+                    fontSize: '1rem',
+                  }}
+                >
+                  {qIndex === QUESTIONS_QCM.length - 1 ? 'Terminer mon profil ✓' : 'Suivant →'}
+                </button>
+              )}
+
+              {/* Secondary row: ← Précédent | Passer → */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handlePrev}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition-all active:scale-[0.97] focus:outline-none"
+                  style={{
+                    background: 'rgba(255,255,255,0.10)',
+                    color: qIndex === 0 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.70)',
+                    cursor: qIndex === 0 ? 'not-allowed' : 'pointer',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                  }}
+                  disabled={false /* visual only — handlePrev handles qIndex===0 */}
+                >
+                  ← Précédent
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSkip}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition-all active:scale-[0.97] focus:outline-none"
+                  style={{
+                    background: 'rgba(255,255,255,0.10)',
+                    color: 'rgba(255,255,255,0.55)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                  }}
+                >
+                  Passer →
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

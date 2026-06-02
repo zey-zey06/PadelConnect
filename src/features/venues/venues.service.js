@@ -3,39 +3,46 @@ const clubsRepo = require('../clubs/clubs.repository');
 const sessionsRepo = require('../sessions/sessions.repository');
 const notificationsService = require('../notifications/notifications.service');
 
-// ── Default slot templates ────────────────────────────────────────────────────
-const SLOT_TEMPLATES = [
-  // Morning: 07:00–16:00, 1 h each, 15 000 FCFA
-  { start_time: '07:00', end_time: '08:00', price: 15000 },
-  { start_time: '08:00', end_time: '09:00', price: 15000 },
-  { start_time: '09:00', end_time: '10:00', price: 15000 },
-  { start_time: '10:00', end_time: '11:00', price: 15000 },
-  { start_time: '11:00', end_time: '12:00', price: 15000 },
-  { start_time: '12:00', end_time: '13:00', price: 15000 },
-  { start_time: '13:00', end_time: '14:00', price: 15000 },
-  { start_time: '14:00', end_time: '15:00', price: 15000 },
-  { start_time: '15:00', end_time: '16:00', price: 15000 },
-  // Evening: 16:00–23:30, 1 h 30 each, 30 000 FCFA
-  { start_time: '16:00', end_time: '17:30', price: 30000 },
-  { start_time: '17:30', end_time: '19:00', price: 30000 },
-  { start_time: '19:00', end_time: '20:30', price: 30000 },
-  { start_time: '20:30', end_time: '22:00', price: 30000 },
-  { start_time: '22:00', end_time: '23:30', price: 30000 },
-];
+// ── Default slot templates — 90-minute slots, 08:00–22:00 ────────────────────
+// 9 slots per day: 08:00-09:30, 09:30-11:00 … 20:00-21:30
+const SLOT_TEMPLATES = (() => {
+  const templates = [];
+  let h = 8, m = 0;           // start at 08:00
+  while (h < 20 || (h === 20 && m === 0)) {   // last start: 20:00
+    const sh = String(h).padStart(2, '0');
+    const sm = String(m).padStart(2, '0');
+    // add 90 minutes
+    let eh = h, em = m + 90;
+    if (em >= 60) { eh += 1; em -= 60; }
+    if (em >= 60) { eh += 1; em -= 60; }
+    const eH = String(eh).padStart(2, '0');
+    const eM = String(em).padStart(2, '0');
+    // Price: 15 000 FCFA mornings (< 17:00), 30 000 FCFA evenings
+    const price = h < 17 ? 15000 : 30000;
+    templates.push({ start_time: `${sh}:${sm}`, end_time: `${eH}:${eM}`, price });
+    // advance
+    h = eh; m = em;
+  }
+  return templates;
+})();
 
+// generateDefaultSlots — internal, no auth check (caller already verified ownership).
+// Fills 90 days of slots for a brand-new venue, skipping any that already exist.
 async function generateDefaultSlots(venueId) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dates = [];
+  for (let d = 0; d < 90; d++) {
+    const dt = new Date(today); dt.setDate(today.getDate() + d);
+    dates.push(dt.toISOString().slice(0, 10));
+  }
+  // Nothing exists yet for a brand-new venue — skip the existingSet check for speed
   const rows = [];
-  for (let d = 0; d < 60; d++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + d);
-    const dateStr = date.toISOString().slice(0, 10);
+  for (const dateStr of dates) {
     for (const tmpl of SLOT_TEMPLATES) {
       rows.push({ venue_id: venueId, date: dateStr, ...tmpl, status: 'available' });
     }
   }
-  await venuesRepo.bulkCreateSlots(rows);
+  if (rows.length > 0) await venuesRepo.bulkCreateSlots(rows);
 }
 
 async function addVenue(clubId, userId, userOrgId, data) {

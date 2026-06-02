@@ -167,17 +167,33 @@ async function getSubscriberIds(orgId) {
 
 async function getSubscribers(orgId) {
   return db('users')
-    .join('club_subscriptions', 'users.id', '=', 'club_subscriptions.user_id')
-    .where({ 'club_subscriptions.organization_id': orgId })
+    .join('club_subscriptions', 'users.id', 'club_subscriptions.user_id')
+    .leftJoin('player_profiles', 'users.id', 'player_profiles.user_id')
+    .where('club_subscriptions.organization_id', orgId)
+    .whereNull('users.deleted_at')
     .select(
       'users.id',
-      'users.email',
       'users.first_name',
       'users.last_name',
-      'users.photo_url',
-      'club_subscriptions.created_at as subscribed_at'
+      db.raw("COALESCE(player_profiles.photo_url, users.photo_url) AS photo_url"),
+      'player_profiles.level',
+      'club_subscriptions.created_at as subscribed_at',
     )
     .orderBy('club_subscriptions.created_at', 'desc');
+}
+
+async function getActiveBookingsCount(orgId) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ count }] = await db('bookings')
+    .join('sessions',    'bookings.session_id',       'sessions.id')
+    .join('venue_slots', 'bookings.venue_slot_id',    'venue_slots.id')
+    .join('venues',      'venue_slots.venue_id',      'venues.id')
+    .where('venues.organization_id', orgId)
+    .where('bookings.status', 'confirmed')
+    .whereNull('bookings.deleted_at')
+    .whereRaw('venue_slots.date >= ?', [today])
+    .count('bookings.id as count');
+  return parseInt(count, 10);
 }
 
 // ── Posts ─────────────────────────────────────────────────────────────────────
@@ -203,5 +219,6 @@ module.exports = {
   getBallPickersByOrg, createBallPicker, removeBallPicker,
   addFavorite, removeFavorite, isFavorite, getFavoritesByUser, getFavoritesCount,
   addSubscription, removeSubscription, isSubscribed, getSubscribersCount, getSubscriberIds, getSubscribers,
+  getActiveBookingsCount,
   createPost, getPostsByOrg, deletePost,
 };

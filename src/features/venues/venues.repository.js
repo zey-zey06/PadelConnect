@@ -18,8 +18,18 @@ async function getById(id) {
 }
 
 async function createSlot(data) {
-  const [row] = await db('venue_slots').insert(data).returning('*');
-  return row;
+  try {
+    const [row] = await db('venue_slots').insert(data).returning('*');
+    return row;
+  } catch (err) {
+    // Unique constraint: slot already exists at this venue/date/start_time
+    if (err.code === '23505') {
+      const e = new Error('Un créneau existe déjà à cette heure pour ce terrain.');
+      e.status = 409;
+      throw e;
+    }
+    throw err;
+  }
 }
 
 async function getSlots(venueId, filters = {}) {
@@ -90,7 +100,16 @@ async function cancelBooking(bookingId) {
 }
 
 async function bulkCreateSlots(rows) {
-  return db.batchInsert('venue_slots', rows, 200);
+  if (rows.length === 0) return;
+  // Insert in batches of 200, ignoring conflicts on (venue_id, date, start_time)
+  const batchSize = 200;
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    await db('venue_slots')
+      .insert(batch)
+      .onConflict(['venue_id', 'date', 'start_time'])
+      .ignore();
+  }
 }
 
 async function getAllVenues() {
