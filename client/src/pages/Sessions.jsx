@@ -3283,6 +3283,90 @@ function MySessions({ autoOpen = false }) {
   );
 }
 
+// ── Clubs partenaires — horizontal scroll strip ───────────────────────────────
+function ClubsSection() {
+  const [clubs,   setClubs]   = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    listClubs()
+      .then(({ clubs: c }) =>
+        setClubs((c ?? []).filter((cl) => cl.status === 'active' || cl.status == null))
+      )
+      .catch(() => setClubs([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (!loading && clubs.length === 0) return null;
+
+  return (
+    <div className="space-y-3 pt-2">
+      {/* Section header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+          <Building2 className="h-4 w-4 text-primary" />
+          Clubs partenaires
+        </h2>
+        <Link
+          to="/clubs"
+          className="text-xs text-primary font-medium flex items-center gap-0.5 hover:underline"
+        >
+          Voir tous
+          <ChevronRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+
+      {/* Horizontal scroll row */}
+      <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+        {loading
+          ? Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className="shrink-0 w-40 rounded-xl border border-border bg-card overflow-hidden animate-pulse">
+                <div className="h-20 bg-muted" />
+                <div className="p-3 space-y-1.5">
+                  <div className="h-3 bg-muted rounded w-3/4" />
+                  <div className="h-2.5 bg-muted rounded w-1/2" />
+                </div>
+              </div>
+            ))
+          : clubs.map((club) => {
+              const photo = club.logo_url || (Array.isArray(club.photos_urls) && club.photos_urls[0]) || null;
+              const venueCount = parseInt(club.venue_count ?? 0, 10);
+              return (
+                <Link
+                  key={club.id}
+                  to={`/clubs/${club.id}`}
+                  className="shrink-0 w-40 rounded-xl border border-border bg-card overflow-hidden hover:shadow-sm hover:border-primary/20 transition-all"
+                >
+                  {/* Photo / gradient banner */}
+                  <div className="h-20 bg-gradient-to-br from-primary/15 to-primary/5 relative overflow-hidden">
+                    {photo && (
+                      <img src={photo} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                  </div>
+
+                  {/* Club info */}
+                  <div className="p-2.5 space-y-0.5">
+                    <p className="text-xs font-semibold text-foreground leading-snug line-clamp-1">{club.name}</p>
+                    {venueCount > 0 && (
+                      <p className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                        <MapPin className="h-2.5 w-2.5 shrink-0" />
+                        {venueCount} terrain{venueCount > 1 ? 's' : ''}
+                      </p>
+                    )}
+                    {club.address && (
+                      <p className="text-[10px] text-muted-foreground leading-snug line-clamp-1">{club.address}</p>
+                    )}
+                  </div>
+                </Link>
+              );
+            })
+        }
+      </div>
+    </div>
+  );
+}
+
 // ── Sessions page ─────────────────────────────────────────────────────────────
 export default function Sessions() {
   const { t }    = useTranslation();
@@ -3525,6 +3609,10 @@ export default function Sessions() {
               )}
             </div>
           )}
+
+          {/* ── Clubs partenaires strip ─────────────────────── */}
+          <div className="h-px bg-border/50 -mx-0.5" />
+          <ClubsSection />
         </>
       )}
     </div>
