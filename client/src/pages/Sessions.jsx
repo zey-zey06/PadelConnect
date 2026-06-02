@@ -8,7 +8,7 @@ import RatingPrompt from '@/components/RatingPrompt';
 import {
   listSessions, createSession, updateSession, requestJoin, getMySessions,
   getSessionRequests, respondToRequest, cancelSession, inviteCoach, invitePlayer,
-  getMySessionRequests, getSessionParticipants,
+  getMySessionRequests, getSessionParticipants, removeParticipant,
 } from '@/api/sessions';
 import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
 import { listClubs, getClubSlots, getClubCoaches, getClubBallPickers } from '@/api/clubs';
@@ -266,6 +266,191 @@ function LocationChip({ location }) {
   );
 }
 
+// ── Edit session modal ────────────────────────────────────────────────────────
+const LEVEL_OPTIONS  = [1,2,3,4,5,6,7];
+const LEVEL_LABELS_S = { 1:'Débutant',2:'Débutant +',3:'Intermédiaire',4:'Inter +',5:'Confirmé',6:'Avancé',7:'Expert' };
+
+function EditSessionModal({ session, onClose, onSaved }) {
+  const [form,    setForm]    = useState({
+    date:        String(session.date ?? '').slice(0, 10),
+    time:        String(session.time ?? '').slice(0, 5),
+    end_time:    String(session.end_time ?? '').slice(0, 5),
+    max_players: session.max_players ?? 4,
+    location:    session.location ?? '',
+    level_min:   session.preferences?.level_min ?? '',
+    gender:      session.preferences?.gender ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const { session: updated } = await updateSession(session.id, {
+        date:        form.date,
+        time:        form.time + ':00',
+        end_time:    form.end_time ? form.end_time + ':00' : null,
+        max_players: Number(form.max_players),
+        location:    form.location || null,
+        preferences: {
+          ...(form.level_min ? { level_min: Number(form.level_min) } : {}),
+          ...(form.gender    ? { gender: form.gender }               : {}),
+        },
+      });
+      onSaved(updated);
+    } catch (err) {
+      setError(err.message || 'Erreur lors de la modification.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/30 backdrop-blur-sm"
+      onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-xl max-h-[calc(100vh-80px)] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h2 className="text-base font-semibold text-foreground">Modifier la session</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 pb-8">
+
+          {/* Date */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Date</label>
+            <input
+              type="date"
+              value={form.date}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              required
+              className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          {/* Time */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Heure début</label>
+              <input
+                type="time"
+                value={form.time}
+                onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
+                required
+                className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Heure fin (optionnel)</label>
+              <input
+                type="time"
+                value={form.end_time}
+                onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))}
+                className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
+
+          {/* Max players */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nombre max de joueurs</label>
+            <div className="flex gap-2">
+              {[2, 3, 4].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, max_players: n }))}
+                  className={cn(
+                    'flex-1 h-10 rounded-lg border text-sm font-semibold transition-colors',
+                    form.max_players === n
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background text-foreground border-input hover:bg-muted',
+                  )}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Level min */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Niveau requis (optionnel)</label>
+            <select
+              value={form.level_min}
+              onChange={(e) => setForm((f) => ({ ...f, level_min: e.target.value }))}
+              className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Tous niveaux</option>
+              {LEVEL_OPTIONS.map((l) => (
+                <option key={l} value={l}>Niv. {l} — {LEVEL_LABELS_S[l]}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Gender */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Genre (optionnel)</label>
+            <div className="flex gap-2">
+              {[['', 'Mixte'], ['men', 'Hommes ♂'], ['women', 'Femmes ♀']].map(([v, l]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, gender: v }))}
+                  className={cn(
+                    'flex-1 h-9 rounded-lg border text-xs font-medium transition-colors',
+                    form.gender === v
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background text-foreground border-input hover:bg-muted',
+                  )}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Location */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lieu (optionnel)</label>
+            <input
+              type="text"
+              value={form.location}
+              onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+              placeholder="ex : Marcory, Abidjan"
+              maxLength={200}
+              className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />{error}
+            </div>
+          )}
+
+          <Button type="submit" className="w-full h-11" disabled={saving}>
+            {saving ? (
+              <><span className="w-4 h-4 border-2 border-current/40 border-t-transparent rounded-full animate-spin" /> Sauvegarde…</>
+            ) : (
+              <><CheckCircle2 className="h-4 w-4" /> Enregistrer les modifications</>
+            )}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Session detail modal ──────────────────────────────────────────────────────
 function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }) {
   const { t }              = useTranslation();
@@ -317,13 +502,35 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
   const players = (participants ?? []).filter((p) => p.role !== 'coach');
   const coaches  = (participants ?? []).filter((p) => p.role === 'coach');
 
+  // Remove participant
+  const [confirmRemove,  setConfirmRemove]  = useState(null); // { id, name }
+  const [removingId,     setRemovingId]     = useState(null);
+  const [localParticipants, setLocalParticipants] = useState(null);
+
+  const displayPlayers = (localParticipants !== null
+    ? localParticipants.filter((p) => p.role !== 'coach')
+    : players);
+
+  async function handleRemove(playerId) {
+    setRemovingId(playerId);
+    setConfirmRemove(null);
+    try {
+      await removeParticipant(session.id, playerId);
+      setLocalParticipants((prev) => {
+        const base = prev ?? [...players, ...coaches];
+        return base.filter((p) => p.id !== playerId);
+      });
+    } catch { /* non-fatal */ }
+    finally { setRemovingId(null); }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/30 backdrop-blur-sm"
       onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-xl max-h-[88vh] flex flex-col"
+        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-xl max-h-[calc(100vh-80px)] flex flex-col"
         onTouchStart={(e) => {
           touchStartX.current = e.touches[0].clientX;
           touchStartY.current = e.touches[0].clientY;
@@ -359,7 +566,7 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        <div className="flex-1 overflow-y-auto p-5 pb-24 space-y-5">
 
           {/* Level + gender tags */}
           {(levelMin || gender) && (
@@ -417,30 +624,67 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
               </div>
             ) : (
               <div className="flex items-center gap-2 flex-wrap">
-                {players.map((p) => {
+                {displayPlayers.map((p) => {
                   const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email?.split('@')[0] || 'Joueur';
+                  const canRemove = isOwner && p.id !== session.creator_id && p.status !== 'refused';
                   return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => openPlayerPanel(p.id)}
-                      title={name}
-                      className="h-10 w-10 rounded-full overflow-hidden bg-primary/10 ring-2 ring-border hover:opacity-80 transition-opacity shrink-0"
-                    >
-                      {p.photo_url ? (
-                        <img src={p.photo_url} alt={name} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
-                          <span className="text-[10px] font-bold text-primary select-none">{name.slice(0, 2).toUpperCase()}</span>
-                        </div>
+                    <div key={p.id} className="relative shrink-0 group">
+                      <button
+                        type="button"
+                        onClick={() => openPlayerPanel(p.id)}
+                        title={name}
+                        disabled={removingId === p.id}
+                        className="h-10 w-10 rounded-full overflow-hidden bg-primary/10 ring-2 ring-border hover:opacity-80 transition-opacity disabled:opacity-40"
+                      >
+                        {p.photo_url ? (
+                          <img src={p.photo_url} alt={name} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+                            <span className="text-[10px] font-bold text-primary select-none">{name.slice(0, 2).toUpperCase()}</span>
+                          </div>
+                        )}
+                      </button>
+                      {canRemove && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRemove({ id: p.id, name })}
+                          className="absolute -top-1 -right-1 h-4.5 w-4.5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600"
+                          title={`Retirer ${name}`}
+                          style={{ width: '18px', height: '18px' }}
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
                       )}
-                    </button>
+                    </div>
                   );
                 })}
                 {/* Empty player spots */}
-                {Array.from({ length: Math.max(0, total - players.length) }, (_, i) => (
+                {Array.from({ length: Math.max(0, total - displayPlayers.length) }, (_, i) => (
                   <div key={`empty-${i}`} className="h-10 w-10 rounded-full border-2 border-dashed border-border/50 bg-background shrink-0" />
                 ))}
+              </div>
+            )}
+
+            {/* Remove participant confirmation dialog */}
+            {confirmRemove && (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 space-y-2.5">
+                <p className="text-sm text-red-700 font-medium">
+                  Retirer <span className="font-semibold">{confirmRemove.name}</span> de la session ?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleRemove(confirmRemove.id)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                  >
+                    Confirmer
+                  </button>
+                  <button
+                    onClick={() => setConfirmRemove(null)}
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    Annuler
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -564,6 +808,7 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [showSharePicker,   setShowSharePicker]   = useState(false);
   const [showDetail,        setShowDetail]        = useState(false);
+  const [showEdit,          setShowEdit]          = useState(false);
   const [copied,            setCopied]            = useState(false);
 
   const hasBooking = !!booking;
@@ -644,9 +889,21 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
         </div>
 
         {isOwner ? (
-          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 shrink-0">
-            Votre session
-          </span>
+          <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+              Votre session
+            </span>
+            {session.status !== 'cancelled' && (
+              <button
+                type="button"
+                onClick={() => setShowEdit(true)}
+                className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Modifier"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         ) : (
           <span className={cn(
             'text-[11px] font-semibold px-2.5 py-1 rounded-full border shrink-0',
@@ -843,6 +1100,14 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
           onClose={() => setShowDetail(false)}
           onJoin={onJoin}
           requestStatus={requestStatus}
+        />
+      )}
+
+      {showEdit && (
+        <EditSessionModal
+          session={session}
+          onClose={() => setShowEdit(false)}
+          onSaved={(updated) => { setShowEdit(false); onBooked?.(); }}
         />
       )}
 

@@ -83,4 +83,35 @@
   ::-webkit-scrollbar-track  { background: hsl(var(--background)); }
   ::-webkit-scrollbar-thumb  { background: hsl(var(--border)); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }
+
+  /* ── Dark mode overrides ──────────────────────────────────────────────────── */
+  .dark {
+    --background:             222 47% 11%;   /* #111827 */
+    --foreground:             210 40% 94%;
+
+    --card:                   217 33% 17%;   /* #1F2937 */
+    --card-foreground:        210 40% 94%;
+
+    --popover:                217 33% 17%;
+    --popover-foreground:     210 40% 94%;
+
+    --primary:                149 40% 17%;   /* keep same green */
+    --primary-foreground:     210 40% 94%;
+
+    --secondary:              153 30% 25%;
+    --secondary-foreground:   210 40% 94%;
+
+    --muted:                  217 33% 22%;
+    --muted-foreground:       215 20% 65%;
+
+    --accent:                 217 33% 22%;
+    --accent-foreground:      210 40% 94%;
+
+    --destructive:            0 62% 50%;
+    --destructive-foreground: 210 40% 94%;
+
+    --border:                 217 33% 24%;
+    --input:                  217 33% 24%;
+    --ring:                   149 40% 40%;
+  }
 }

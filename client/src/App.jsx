@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
+import { useDarkMode }                from '@/hooks/useDarkMode';
+import { registerPushSubscription }   from '@/hooks/usePushNotifications';
 import Login            from '@/pages/Login';
 import Signup           from '@/pages/Signup';
 import AdminLogin       from '@/pages/AdminLogin';
@@ -47,6 +49,10 @@ export const useAuth = () => useContext(AuthContext);
 // ── Player profile panel context ──────────────────────────────────────────────
 export const PlayerPanelContext = createContext(null);
 export const usePlayerPanel = () => useContext(PlayerPanelContext);
+
+// ── Dark mode context ─────────────────────────────────────────────────────────
+export const DarkModeContext = createContext({ dark: false, toggle: () => {} });
+export const useDark = () => useContext(DarkModeContext);
 
 // ── Loading screen ────────────────────────────────────────────────────────────
 export function LoadingScreen() {
@@ -148,6 +154,7 @@ export default function App() {
   const [showSplash,  setShowSplash] = useState(
     () => !sessionStorage.getItem('splash_shown'),
   );
+  const darkMode = useDarkMode();
 
   // ── Player panel state ─────────────────────────────────────────────────────
   const [panelUserId, setPanelUserId] = useState(null);
@@ -170,6 +177,9 @@ export default function App() {
         } catch {
           if (!cancelled) setProfile(null);
         }
+
+        // Register push subscription — non-blocking, best-effort
+        if (!cancelled) registerPushSubscription().catch(() => {});
       } catch {
         if (!cancelled) {
           setUser(null);
@@ -192,6 +202,7 @@ export default function App() {
   if (showSplash) return <SplashScreen onDone={handleSplashDone} />;
 
   return (
+    <DarkModeContext.Provider value={darkMode}>
     <AuthContext.Provider value={{ user, setUser, profile, setProfile, loading }}>
       <PlayerPanelContext.Provider value={{ openPlayerPanel, closePlayerPanel, panelUserId }}>
       <BrowserRouter>
@@ -266,5 +277,6 @@ export default function App() {
 
       </PlayerPanelContext.Provider>
     </AuthContext.Provider>
+    </DarkModeContext.Provider>
   );
 }

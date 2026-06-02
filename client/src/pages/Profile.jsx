@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe, Menu, MessageSquare, Users, Camera, Search, BarChart2, TrendingUp, Calendar } from 'lucide-react';
+import { User, Pencil, Check, X, Upload, Sparkles, AlertCircle, Phone, ShieldAlert, LogOut, Lock, Trash2, FileText, Wallet, AtSign, Image, Globe, Menu, MessageSquare, Users, Camera, Search, BarChart2, TrendingUp, Calendar, Moon, Sun } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { setLanguage } from '@/i18n/i18n';
-import { useAuth, usePlayerPanel } from '@/App';
+import { useAuth, usePlayerPanel, useDark } from '@/App';
 import { getProfile, updateProfile, uploadPhoto, uploadCoverPhoto, updateUsername, getUserSessions } from '@/api/profile';
 import { requestJoin } from '@/api/sessions';
 import { updateMe, logout, changePassword, deleteAccount } from '@/api/auth';
@@ -1039,7 +1039,9 @@ function LanguageSelector() {
 
 // ── Hamburger slide-out menu ──────────────────────────────────────────────────
 function HamburgerMenu({ open, onClose, onPassword, onDelete, onLogout }) {
-  const { t } = useTranslation();
+  const { t }         = useTranslation();
+  const { dark, toggle: toggleDark } = useDark();
+
   return (
     <>
       {/* Backdrop */}
@@ -1058,6 +1060,28 @@ function HamburgerMenu({ open, onClose, onPassword, onDelete, onLogout }) {
           </button>
         </div>
         <div className="px-3 py-2 space-y-0.5">
+          {/* Dark mode toggle */}
+          <button
+            onClick={toggleDark}
+            className="flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-sm text-foreground hover:bg-muted transition-colors"
+          >
+            <span className="flex items-center gap-3">
+              {dark
+                ? <Sun className="h-4 w-4 text-amber-400 shrink-0" />
+                : <Moon className="h-4 w-4 text-muted-foreground shrink-0" />}
+              {dark ? 'Mode clair' : 'Mode sombre'}
+            </span>
+            <span className={cn(
+              'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200',
+              dark ? 'bg-primary' : 'bg-muted',
+            )}>
+              <span className={cn(
+                'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 mt-0.5',
+                dark ? 'translate-x-4.5' : 'translate-x-0.5',
+              )} />
+            </span>
+          </button>
+
           <LanguageSelector />
           <button
             onClick={() => { onClose(); onPassword(); }}

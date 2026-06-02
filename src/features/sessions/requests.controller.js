@@ -86,11 +86,19 @@ async function myRequestsHandler(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function removeParticipantHandler(req, res, next) {
+  try {
+    const result = await requestsService.removeParticipant(req.params.id, req.params.userId, req.user.sub);
+    return res.json(result);
+  } catch (err) { next(err); }
+}
+
 const router = Router();
-router.get('/my-requests',           authenticate, myRequestsHandler);
-router.post('/:id/requests',         authenticate, createRequestHandler);
-router.get('/:id/requests',          authenticate, getRequestsHandler);
-router.patch('/:id/requests/:requestId', authenticate, respondHandler);
-router.post('/:id/invite-player',    authenticate, invitePlayerHandler);
+router.get('/my-requests',                    authenticate, myRequestsHandler);
+router.post('/:id/requests',                  authenticate, createRequestHandler);
+router.get('/:id/requests',                   authenticate, getRequestsHandler);
+router.patch('/:id/requests/:requestId',      authenticate, respondHandler);
+router.post('/:id/invite-player',             authenticate, invitePlayerHandler);
+router.delete('/:id/participants/:userId',    authenticate, removeParticipantHandler);
 
 module.exports = router;

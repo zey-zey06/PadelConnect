@@ -218,4 +218,41 @@ async function invitePlayer(sessionId, creatorId, playerUserId) {
   return { invited: true };
 }
 
-module.exports = { createRequest, getRequests, respondToRequest, invitePlayer };
+/**
+ * Session creator removes an accepted participant.
+ * Decrements current_players, reopens session if it was 'complete'.
+ */
+async function removeParticipant(sessionId, targetUserId, requesterId) {
+  const session = await sessionsRepo.getById(sessionId);
+  if (!session) {
+    const err = new Error('Session introuvable.'); err.status = 404; throw err;
+  }
+  if (session.creator_id !== requesterId) {
+    const err = new Error('Seul le créateur peut retirer des participants.'); err.status = 403; throw err;
+  }
+
+  const existing = await requestsRepo.findBySessionAndPlayer(sessionId, targetUserId);
+  if (!existing || existing.status !== 'accepted') {
+    const err = new Error('Participant introuvable dans cette session.'); err.status = 404; throw err;
+  }
+
+  await requestsRepo.softDeleteByPlayerAndSession(targetUserId, sessionId);
+
+  const newCount = Math.max(1, session.current_players - 1); // creator always counts
+  await sessionsRepo.updateCurrentPlayers(sessionId, newCount);
+
+  if (session.status === 'complete') {
+    await sessionsRepo.updateStatus(sessionId, 'open');
+  }
+
+  // Notify removed player — non-fatal
+  await notificationsService.createNotification(
+    targetUserId,
+    'participant_removed',
+    `Vous avez été retiré de la session du ${fmtDateFr(session.date)} à ${session.time?.slice(0, 5)}.`
+  ).catch(() => {});
+
+  return { ok: true };
+}
+
+module.exports = { createRequest, getRequests, respondToRequest, invitePlayer, removeParticipant };

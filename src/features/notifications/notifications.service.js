@@ -2,14 +2,16 @@ const notificationsRepo = require('./notifications.repository');
 const pushService       = require('../push/push.service');
 
 const PUSH_TITLES = {
-  friend_request:    "Demande d'ami",
-  session_request:   'Demande de session',
+  friend_request:    "Demande d'ami 👋",
+  session_request:   'Demande de session 🎾',
   session_invite:    'Invitation de session',
   request_accepted:  'Demande acceptée ! 🎉',
   request_refused:   'Demande refusée',
   session_complete:  'Session complète 🎾',
   booking_confirmed: 'Réservation confirmée ✅',
   club_post:         'Nouvelle publication',
+  new_message:       'Nouveau message 💬',
+  participant_removed: 'Retiré d\'une session',
 };
 
 function makeError(status, message) {

@@ -78,6 +78,14 @@ async function getRequestsByPlayer(playerId) {
   return rows;
 }
 
+async function softDeleteByPlayerAndSession(playerId, sessionId) {
+  const [row] = await db('session_requests')
+    .where({ player_id: playerId, session_id: sessionId, status: 'accepted' })
+    .update({ status: 'refused', deleted_at: new Date(), updated_at: new Date() })
+    .returning('*');
+  return row;
+}
+
 module.exports = {
   create,
   findBySessionAndPlayer,
@@ -87,4 +95,5 @@ module.exports = {
   updateStatus,
   getSessionIdsByPlayer,
   getRequestsByPlayer,
+  softDeleteByPlayerAndSession,
 };

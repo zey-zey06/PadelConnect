@@ -64,6 +64,10 @@ export const updateSession = (id, data) => client.put(`/sessions/${id}`, data);
 /** GET /api/sessions/:id/participants → { participants: [...] } */
 export const getSessionParticipants = (id) => client.get(`/sessions/${id}/participants`);
 
+/** DELETE /api/sessions/:id/participants/:userId → { ok: true } */
+export const removeParticipant = (sessionId, userId) =>
+  client.delete(`/sessions/${sessionId}/participants/${userId}`);
+
 /** POST /api/sessions/:id/ratings → { rating } */
 export const rateSession = (id, data) => client.post(`/sessions/${id}/ratings`, data);
 
