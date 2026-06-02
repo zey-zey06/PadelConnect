@@ -13,6 +13,15 @@ const STATUS_LABEL = {
   cancelled: { label: 'Annulé',     cls: 'bg-red-100 text-red-600' },
 };
 
+const PAYMENT_BADGE = {
+  wave:         { label: 'Wave',         emoji: '📱' },
+  orange_money: { label: 'Orange Money', emoji: '🟠' },
+  mtn_money:    { label: 'MTN Money',    emoji: '📲' },
+  card:         { label: 'Carte',        emoji: '💳' },
+  on_arrival:   { label: 'Sur place',    emoji: '💵' },
+  balance:      { label: 'Solde',        emoji: '💰' },
+};
+
 // ── Add slot form ─────────────────────────────────────────────────────────────
 function AddSlotForm({ venueId, onAdded }) {
   const [form,    setForm]    = useState({ date: '', start_time: '', end_time: '', price: '' });
@@ -196,11 +205,24 @@ function VenueSection({ venue, onVenueDeleted }) {
                     <p className="text-sm font-medium text-foreground">
                       {d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
                     </p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
                       <Clock className="h-3 w-3" />
                       {slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}
                       <span className="ml-1">· {Number(slot.price).toLocaleString('fr-FR')} FCFA</span>
+                      {slot.status === 'booked' && slot.booking_payment_method && (() => {
+                        const p = PAYMENT_BADGE[slot.booking_payment_method];
+                        return p ? (
+                          <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full bg-blue-50 text-blue-700 text-[10px] font-medium">
+                            <span>{p.emoji}</span>{p.label}
+                          </span>
+                        ) : null;
+                      })()}
                     </p>
+                    {slot.status === 'booked' && slot.booked_by_first_name && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {[slot.booked_by_first_name, slot.booked_by_last_name].filter(Boolean).join(' ')}
+                      </p>
+                    )}
                   </div>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>
                   {slot.status === 'available' && (

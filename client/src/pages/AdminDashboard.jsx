@@ -4,7 +4,7 @@ import {
   ShieldAlert, AlertCircle, ChevronDown, Trash2, CheckCircle,
   Ban, XCircle, Search, Calendar, Filter, Activity,
   UserCheck, Clock, LogOut, Settings, CreditCard, RefreshCw,
-  Home, User,
+  Home, User, TrendingUp, Download,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, usePlayerPanel } from '@/App';
@@ -19,7 +19,10 @@ import {
 } from '@/api/admin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { getAdminSubscriptions, activateSubscription, suspendSubscription } from '@/api/subscriptions';
+import {
+  getAdminSubscriptions, activateSubscription, suspendSubscription,
+  markSubscriptionPaid, getAdminRevenue,
+} from '@/api/subscriptions';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -855,10 +858,162 @@ function SanctionsTab() {
   );
 }
 
+// ── Revenue tab ───────────────────────────────────────────────────────────────
+function RevenueTab() {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+  const [period,  setPeriod]  = useState('month');
+
+  function load() {
+    setLoading(true);
+    setError(null);
+    getAdminRevenue(period)
+      .then((d) => setData(d))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }
+  useEffect(load, [period]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function exportCSV() {
+    const payments = data?.payments ?? [];
+    if (!payments.length) return;
+    const header = ['Club', 'Terrains', 'Montant (FCFA)', 'Méthode', 'Date de paiement', 'Période début', 'Période fin', 'Statut'];
+    const rows = payments.map((p) => [
+      p.club_name,
+      p.venue_count,
+      p.amount,
+      p.payment_method ?? 'N/A',
+      fmt(p.paid_at),
+      fmt(p.current_period_start),
+      fmt(p.current_period_end),
+      p.org_subscription_status ?? '—',
+    ]);
+    const csv = [header, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `revenus_${period}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const payments = data?.payments ?? [];
+
+  return (
+    <div className="space-y-5">
+
+      {/* Summary cards */}
+      {data && (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <StatCard
+            label="Total ce mois"
+            value={`${Number(data.revenue_this_month ?? 0).toLocaleString('fr-FR')} FCFA`}
+            icon={TrendingUp}
+            accent="emerald"
+          />
+          <StatCard
+            label="Total cette semaine"
+            value={`${Number(data.revenue_this_week ?? 0).toLocaleString('fr-FR')} FCFA`}
+            icon={CreditCard}
+            accent="blue"
+          />
+          <StatCard
+            label="Total (tous)"
+            value={`${Number(data.revenue_all_time ?? 0).toLocaleString('fr-FR')} FCFA`}
+            icon={TrendingUp}
+            accent="violet"
+          />
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col gap-2.5 justify-center">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Clubs actifs</span>
+              <span className="text-xl font-bold text-emerald-600">{data.active_clubs ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">En essai</span>
+              <span className="text-xl font-bold text-amber-500">{data.pending_clubs ?? 0}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filter + Export row */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {[['month', 'Ce mois'], ['week', 'Cette semaine'], ['all', 'Tout']].map(([v, l]) => (
+          <button
+            key={v}
+            onClick={() => setPeriod(v)}
+            className={`h-9 px-3.5 rounded-lg border text-sm font-medium transition-colors ${
+              period === v
+                ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            {l}
+          </button>
+        ))}
+        <button
+          onClick={exportCSV}
+          disabled={!payments.length}
+          className="ml-auto flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export CSV
+        </button>
+      </div>
+
+      {loading ? <Skeleton /> : error ? <ErrorBanner message={error} /> : (
+        <>
+          <p className="text-xs text-slate-400">{payments.length} paiement{payments.length !== 1 ? 's' : ''}</p>
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm overflow-x-auto">
+            <table className="w-full text-sm min-w-[680px]">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Club</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Terrains</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Montant</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Méthode</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Date paiement</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Période</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Statut</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {payments.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm">Aucun paiement sur cette période.</td></tr>
+                ) : payments.map((p) => {
+                  const s   = p.org_subscription_status;
+                  const cfg = { trial: { label: 'Essai', color: 'yellow' }, active: { label: 'Payé', color: 'green' }, suspended: { label: 'Suspendu', color: 'red' } }[s] ?? { label: s ?? '—', color: 'gray' };
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="px-4 py-3 font-medium text-slate-700 truncate max-w-[160px]">{p.club_name}</td>
+                      <td className="px-4 py-3 text-slate-500 hidden sm:table-cell">{p.venue_count}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-800">{Number(p.amount).toLocaleString('fr-FR')} FCFA</td>
+                      <td className="px-4 py-3 text-slate-500 hidden md:table-cell">{PAYMENT_LABEL[p.payment_method] ?? p.payment_method ?? '—'}</td>
+                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{fmt(p.paid_at)}</td>
+                      <td className="px-4 py-3 text-xs text-slate-400 hidden lg:table-cell whitespace-nowrap">
+                        {fmt(p.current_period_start)} → {fmt(p.current_period_end)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge label={cfg.label} color={cfg.color} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Subscriptions tab ─────────────────────────────────────────────────────────
 const SUB_STATUS_MAP = {
   trial:     { label: 'Essai',    color: 'yellow' },
-  active:    { label: 'Actif',    color: 'green'  },
+  active:    { label: 'Payé',     color: 'green'  },
   suspended: { label: 'Suspendu', color: 'red'    },
 };
 
@@ -906,14 +1061,35 @@ function SubscriptionsTab() {
     finally { setSaving(null); }
   }, []);
 
+  const handleMarkPaid = useCallback(async (orgId) => {
+    setSaving(orgId);
+    try {
+      const { sub } = await markSubscriptionPaid(orgId);
+      setData((prev) => ({
+        ...prev,
+        clubs: prev.clubs.map((c) =>
+          c.id === orgId
+            ? {
+                ...c,
+                subscription_status: 'active',
+                days_remaining: 30,
+                last_subscription: sub,
+              }
+            : c
+        ),
+      }));
+    } catch { /* ignore */ }
+    finally { setSaving(null); }
+  }, []);
+
   const clubs = data?.clubs ?? [];
 
   return (
     <div className="space-y-5">
 
-      {/* Revenue card */}
+      {/* Revenue quick card */}
       {data && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm flex items-center gap-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm flex items-center gap-4 flex-wrap">
           <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
             <CreditCard className="h-5 w-5 text-emerald-600" />
           </div>
@@ -924,9 +1100,15 @@ function SubscriptionsTab() {
             </p>
           </div>
           <div className="ml-auto text-right">
-            <p className="text-xs text-slate-400">Clubs actifs</p>
-            <p className="text-lg font-bold text-slate-700">
+            <p className="text-xs text-slate-400">Payés</p>
+            <p className="text-lg font-bold text-emerald-600">
               {clubs.filter((c) => c.subscription_status === 'active').length}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-400">Essai</p>
+            <p className="text-lg font-bold text-amber-500">
+              {clubs.filter((c) => c.subscription_status === 'trial').length}
             </p>
           </div>
           <div className="text-right">
@@ -941,14 +1123,15 @@ function SubscriptionsTab() {
       {loading ? <Skeleton /> : error ? <ErrorBanner message={error} /> : (
         <>
           <p className="text-xs text-slate-400">{clubs.length} club{clubs.length !== 1 ? 's' : ''}</p>
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-            <table className="w-full text-sm">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm overflow-x-auto">
+            <table className="w-full text-sm min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Club</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Abonnement</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Statut</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Terrains</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Jours restants</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Dernier paiement</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Renouvellement</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Montant dû</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -956,7 +1139,7 @@ function SubscriptionsTab() {
               <tbody className="divide-y divide-slate-50">
                 {clubs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">
+                    <td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm">
                       Aucun club enregistré.
                     </td>
                   </tr>
@@ -964,44 +1147,60 @@ function SubscriptionsTab() {
                   const cfg      = SUB_STATUS_MAP[c.subscription_status] ?? SUB_STATUS_MAP.suspended;
                   const isSaving = saving === c.id;
                   const urgent   = c.subscription_status !== 'suspended' && (c.days_remaining ?? 0) <= 7;
+                  const lastSub  = c.last_subscription;
                   return (
                     <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="px-4 py-3">
-                        <p className="font-medium text-slate-700 truncate max-w-[160px]">{c.name}</p>
+                        <p className="font-medium text-slate-700 truncate max-w-[150px]">{c.name}</p>
                         <p className="text-xs text-slate-400 font-mono">/{c.slug ?? ''}</p>
                       </td>
                       <td className="px-4 py-3">
                         <Badge label={cfg.label} color={cfg.color} />
+                        {c.subscription_status !== 'suspended' && (
+                          <p className={`text-[10px] mt-0.5 ${urgent ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>
+                            {`${c.days_remaining ?? 0} j restants`}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-500 hidden sm:table-cell">
                         {c.venue_count ?? 0}
                       </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        <span className={urgent ? 'text-red-600 font-semibold' : 'text-slate-500'}>
-                          {c.subscription_status === 'suspended' ? '—' : `${c.days_remaining ?? 0} j`}
-                        </span>
+                      <td className="px-4 py-3 text-slate-500 text-xs hidden md:table-cell">
+                        {lastSub?.paid_at ? fmt(lastSub.paid_at) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 text-xs hidden lg:table-cell">
+                        {lastSub?.current_period_end ? fmt(lastSub.current_period_end) : '—'}
                       </td>
                       <td className="px-4 py-3 text-slate-700 text-xs font-medium hidden lg:table-cell">
                         {Number(c.amount_due ?? 0).toLocaleString('fr-FR')} FCFA
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
                           {c.subscription_status !== 'active' && (
                             <button
                               disabled={isSaving}
-                              onClick={() => handleActivate(c.id)}
-                              className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40"
+                              onClick={() => handleMarkPaid(c.id)}
+                              className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40 whitespace-nowrap"
                             >
-                              {isSaving ? '…' : 'Activer'}
+                              {isSaving ? '…' : '✓ Marquer payé'}
                             </button>
                           )}
-                          {c.subscription_status !== 'suspended' && (
+                          {c.subscription_status === 'active' && (
                             <button
                               disabled={isSaving}
                               onClick={() => handleSuspend(c.id)}
                               className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-red-200 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
                             >
                               {isSaving ? '…' : 'Suspendre'}
+                            </button>
+                          )}
+                          {c.subscription_status === 'suspended' && (
+                            <button
+                              disabled={isSaving}
+                              onClick={() => handleActivate(c.id)}
+                              className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40"
+                            >
+                              {isSaving ? '…' : 'Réactiver'}
                             </button>
                           )}
                         </div>
@@ -1020,13 +1219,14 @@ function SubscriptionsTab() {
 
 // ── Sidebar nav items ─────────────────────────────────────────────────────────
 const NAV = [
-  { key: 'overview',    label: 'Dashboard',      icon: LayoutDashboard },
-  { key: 'users',       label: 'Utilisateurs',   icon: Users           },
-  { key: 'sessions',    label: 'Sessions',        icon: Layers          },
-  { key: 'clubs',       label: 'Clubs',           icon: Building2       },
-  { key: 'bookings',    label: 'Réservations',    icon: BookOpen        },
-  { key: 'sanctions',      label: 'Sanctions',       icon: ShieldAlert  },
-  { key: 'subscriptions', label: 'Abonnements',     icon: CreditCard   },
+  { key: 'overview',       label: 'Dashboard',    icon: LayoutDashboard },
+  { key: 'users',          label: 'Utilisateurs', icon: Users           },
+  { key: 'sessions',       label: 'Sessions',     icon: Layers          },
+  { key: 'clubs',          label: 'Clubs',        icon: Building2       },
+  { key: 'bookings',       label: 'Réservations', icon: BookOpen        },
+  { key: 'sanctions',      label: 'Sanctions',    icon: ShieldAlert     },
+  { key: 'subscriptions',  label: 'Abonnements',  icon: CreditCard      },
+  { key: 'revenue',        label: 'Revenus',      icon: TrendingUp      },
 ];
 
 // ── AdminDashboard page ───────────────────────────────────────────────────────
@@ -1056,13 +1256,14 @@ export default function AdminDashboard() {
   }
 
   const ActiveTab = {
-    overview:  <OverviewTab stats={stats} />,
-    users:     <UsersTab search={search} />,
-    sessions:  <SessionsTab search={search} />,
-    clubs:     <ClubsTab search={search} />,
-    bookings:       <BookingsTab />,
-    sanctions:      <SanctionsTab />,
-    subscriptions:  <SubscriptionsTab />,
+    overview:      <OverviewTab stats={stats} />,
+    users:         <UsersTab search={search} />,
+    sessions:      <SessionsTab search={search} />,
+    clubs:         <ClubsTab search={search} />,
+    bookings:      <BookingsTab />,
+    sanctions:     <SanctionsTab />,
+    subscriptions: <SubscriptionsTab />,
+    revenue:       <RevenueTab />,
   }[tab] ?? null;
 
   const searchableTabs = ['users', 'sessions', 'clubs'];

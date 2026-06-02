@@ -34,6 +34,26 @@ const LEVEL_LABELS = {
   4: 'Inter +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
 };
 
+// ── Payment method display helpers ────────────────────────────────────────────
+const PAYMENT_METHOD_BADGE = {
+  wave:         { label: 'Wave',         emoji: '📱' },
+  orange_money: { label: 'Orange Money', emoji: '🟠' },
+  mtn_money:    { label: 'MTN Money',    emoji: '📲' },
+  card:         { label: 'Carte',        emoji: '💳' },
+  on_arrival:   { label: 'Sur place',    emoji: '💵' },
+  balance:      { label: 'Solde',        emoji: '💰' },
+};
+function PaymentBadge({ method, className = '' }) {
+  if (!method) return null;
+  const cfg = PAYMENT_METHOD_BADGE[method];
+  if (!cfg) return null;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 ${className}`}>
+      <span aria-hidden>{cfg.emoji}</span>{cfg.label}
+    </span>
+  );
+}
+
 /**
  * PostgreSQL date columns arrive as full ISO strings ("2025-05-22T00:00:00.000Z")
  * after JSON serialisation.  Appending 'T00:00:00' directly breaks the Date
@@ -472,6 +492,11 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
                   <p className="text-xs text-green-700/80">
                     {booking.club_name} · {booking.start_time?.slice(0, 5)}–{booking.end_time?.slice(0, 5)}
                   </p>
+                  {booking.payment_method && (
+                    <p className="mt-1">
+                      <PaymentBadge method={booking.payment_method} className="bg-green-100 text-green-700" />
+                    </p>
+                  )}
                 </div>
                 <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
               </div>
@@ -724,10 +749,17 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
         <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
           {isOwner ? (
             hasBooking ? (
-              <Button variant="outline" className="w-full text-green-600 border-green-200 bg-green-50 cursor-default" disabled>
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Terrain réservé ✓
-              </Button>
+              <div className="space-y-1.5">
+                <Button variant="outline" className="w-full text-green-600 border-green-200 bg-green-50 cursor-default" disabled>
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Terrain réservé ✓
+                </Button>
+                {booking?.payment_method && (
+                  <p className="text-center">
+                    <PaymentBadge method={booking.payment_method} />
+                  </p>
+                )}
+              </div>
             ) : (
               <Button variant="outline" className="w-full" onClick={() => setShowTerrainPicker(true)}>
                 <Calendar className="h-3.5 w-3.5" />

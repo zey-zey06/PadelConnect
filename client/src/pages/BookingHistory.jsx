@@ -32,12 +32,13 @@ function isPast(dateStr) {
   return new Date(String(dateStr).slice(0, 10) + 'T23:59:59') < new Date();
 }
 
-const PAYMENT_LABELS = {
-  on_arrival:   'Sur place',
-  card:         'Carte',
-  wave:         'Wave',
-  orange_money: 'Orange Money',
-  balance:      'Solde',
+const PAYMENT_META = {
+  wave:         { label: 'Wave',         emoji: '📱' },
+  orange_money: { label: 'Orange Money', emoji: '🟠' },
+  mtn_money:    { label: 'MTN Money',    emoji: '📲' },
+  card:         { label: 'Carte',        emoji: '💳' },
+  on_arrival:   { label: 'Sur place',    emoji: '💵' },
+  balance:      { label: 'Solde',        emoji: '💰' },
 };
 
 // ── Status chip ───────────────────────────────────────────────────────────────
@@ -56,12 +57,12 @@ function BookingCard({ b }) {
   const past       = isPast(dateStr);
   const cfg        = STATUS_CFG[b.status] ?? STATUS_CFG.confirmed;
   const isCancelled = b.status === 'cancelled';
-  const venueName  = b.venue_name ?? '—';
-  const clubName   = b.club_name;
-  const start      = fmtTime(b.start_time);
-  const end        = fmtTime(b.end_time);
-  const amount     = fmtAmount(b.total_price ?? b.price);
-  const payment    = PAYMENT_LABELS[b.payment_method] ?? b.payment_method ?? null;
+  const venueName    = b.venue_name ?? '—';
+  const clubName     = b.club_name;
+  const start        = fmtTime(b.start_time);
+  const end          = fmtTime(b.end_time);
+  const amount       = fmtAmount(b.total_price ?? b.price);
+  const paymentMeta  = PAYMENT_META[b.payment_method] ?? null;
 
   return (
     <div className={cn(
@@ -111,7 +112,7 @@ function BookingCard({ b }) {
           </div>
 
           {/* Price + payment */}
-          {(amount || payment) && (
+          {(amount || paymentMeta) && (
             <div className="flex items-center gap-3 text-xs">
               {amount && (
                 <span className="flex items-center gap-1 font-semibold text-foreground">
@@ -119,8 +120,10 @@ function BookingCard({ b }) {
                   {amount}
                 </span>
               )}
-              {payment && (
-                <span className="text-muted-foreground">{payment}</span>
+              {paymentMeta && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                  <span aria-hidden>{paymentMeta.emoji}</span>{paymentMeta.label}
+                </span>
               )}
             </div>
           )}

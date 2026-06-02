@@ -251,6 +251,63 @@ async function suspendExpired() {
   return { expired_trials: expired_trials || 0, expired_subs: expired_subs || 0, suspendedOrgs };
 }
 
+// ── Revenue reporting ─────────────────────────────────────────────────────────
+
+async function getRevenueList(period = 'all') {
+  const now = new Date();
+  let query = db('subscriptions')
+    .join('organizations', 'subscriptions.organization_id', 'organizations.id')
+    .orderBy('subscriptions.paid_at', 'desc');
+
+  if (period === 'month') {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    query = query.where('subscriptions.paid_at', '>=', monthStart);
+  } else if (period === 'week') {
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    query = query.where('subscriptions.paid_at', '>=', weekStart);
+  }
+
+  return query.select([
+    'subscriptions.id',
+    'subscriptions.organization_id',
+    'subscriptions.amount',
+    'subscriptions.venue_count',
+    'subscriptions.payment_method',
+    'subscriptions.paid_at',
+    'subscriptions.current_period_start',
+    'subscriptions.current_period_end',
+    'subscriptions.status',
+    'organizations.name as club_name',
+    'organizations.subscription_status as org_subscription_status',
+  ]);
+}
+
+async function getRevenueTotals() {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay());
+  weekStart.setHours(0, 0, 0, 0);
+
+  const [monthRow, weekRow, allRow, activeCount, pendingCount] = await Promise.all([
+    db('subscriptions').where('paid_at', '>=', monthStart).sum('amount as total').first(),
+    db('subscriptions').where('paid_at', '>=', weekStart).sum('amount as total').first(),
+    db('subscriptions').sum('amount as total').first(),
+    db('organizations').where('subscription_status', 'active').whereNull('deleted_at').count('id as c').first(),
+    db('organizations').where('subscription_status', 'trial').whereNull('deleted_at').count('id as c').first(),
+  ]);
+
+  return {
+    revenue_this_month: parseFloat(monthRow?.total ?? 0),
+    revenue_this_week:  parseFloat(weekRow?.total ?? 0),
+    revenue_all_time:   parseFloat(allRow?.total ?? 0),
+    active_clubs:  parseInt(activeCount?.c ?? 0, 10),
+    pending_clubs: parseInt(pendingCount?.c ?? 0, 10),
+  };
+}
+
 module.exports = {
   PRICE_PER_VENUE,
   getOrgSubscriptionStatus,
@@ -262,4 +319,6 @@ module.exports = {
   suspendExpired,
   getManagerEmailByOrgId,
   getOrgsExpiringInDays,
+  getRevenueList,
+  getRevenueTotals,
 };

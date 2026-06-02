@@ -87,4 +87,20 @@ async function runCron() {
   }
 }
 
-module.exports = { getMySubscription, getHistory, pay, getAllSubscriptions, activate, suspend, runCron };
+async function getRevenue(period) {
+  const [payments, totals] = await Promise.all([
+    subsRepo.getRevenueList(period),
+    subsRepo.getRevenueTotals(),
+  ]);
+  return { payments, ...totals };
+}
+
+async function markPaidManual(orgId) {
+  const status = await subsRepo.getOrgSubscriptionStatus(orgId);
+  if (!status) {
+    const err = new Error('Organisation introuvable.'); err.status = 404; throw err;
+  }
+  return subsRepo.createSubscription(orgId, status.venue_count, 'on_arrival');
+}
+
+module.exports = { getMySubscription, getHistory, pay, getAllSubscriptions, activate, suspend, runCron, getRevenue, markPaidManual };
