@@ -35,6 +35,7 @@ const pushRouter          = require('./features/push/push.controller');
 const reviewsRouter       = require('./features/reviews/reviews.controller');
 const teamsRouter         = require('./features/teams/teams.controller');
 const tournamentsRouter   = require('./features/tournaments/tournaments.controller');
+const teamChatsRouter     = require('./features/team-chats/team-chats.controller');
 
 const app = express();
 
@@ -118,6 +119,7 @@ app.use('/api/push',          pushRouter);
 app.use('/api/reviews',       reviewsRouter);
 app.use('/api/teams',         teamsRouter);
 app.use('/api/tournaments',   tournamentsRouter);
+app.use('/api/team-chats',    teamChatsRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';
