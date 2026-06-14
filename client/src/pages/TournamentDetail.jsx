@@ -6,6 +6,7 @@ import {
   submitMatchScore, likeTournament, getComments, addComment,
   updateTournamentStatus,
 } from '@/api/tournaments';
+import { getTournamentSponsors } from '@/api/sponsors';
 import { Button } from '@/components/ui/button';
 import { Input }  from '@/components/ui/input';
 import { Badge }  from '@/components/ui/badge';
@@ -361,6 +362,7 @@ export default function TournamentDetail() {
   const [error,       setError]       = useState(null);
   const [tab,         setTab]         = useState('info'); // info | bracket | comments
   const [showRegModal, setShowRegModal] = useState(false);
+  const [sponsors,    setSponsors]    = useState([]);
   const [liked,       setLiked]       = useState(false);
   const [likeCount,   setLikeCount]   = useState(0);
   const [liking,      setLiking]      = useState(false);
@@ -389,6 +391,11 @@ export default function TournamentDetail() {
   }, [id, user?.id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!id) return;
+    getTournamentSponsors(id).then(({ sponsors: s }) => setSponsors(s ?? [])).catch(() => {});
+  }, [id]);
 
   async function handleLike() {
     if (!user || liking) return;
@@ -606,6 +613,35 @@ export default function TournamentDetail() {
               : <><Share2 className="h-4 w-4" />Partager</>}
           </button>
         </div>
+
+        {/* Sponsors strip */}
+        {sponsors.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sponsors</p>
+            <div className="flex flex-wrap gap-3 items-center">
+              {sponsors.map((s) => (
+                s.website_url
+                  ? (
+                    <a key={s.id} href={s.website_url} target="_blank" rel="noopener noreferrer"
+                      title={s.name}
+                      className="w-12 h-12 rounded-xl border border-border bg-white flex items-center justify-center overflow-hidden hover:shadow-md transition-shadow p-1">
+                      {s.logo_url
+                        ? <img src={s.logo_url} alt={s.name} className="w-full h-full object-contain" />
+                        : <span className="text-[9px] font-bold text-muted-foreground text-center leading-tight">{s.name}</span>}
+                    </a>
+                  )
+                  : (
+                    <div key={s.id} title={s.name}
+                      className="w-12 h-12 rounded-xl border border-border bg-white flex items-center justify-center overflow-hidden p-1">
+                      {s.logo_url
+                        ? <img src={s.logo_url} alt={s.name} className="w-full h-full object-contain" />
+                        : <span className="text-[9px] font-bold text-muted-foreground text-center leading-tight">{s.name}</span>}
+                    </div>
+                  )
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-border -mx-4 px-4 sm:-mx-6 sm:px-6">

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getTeamById } from '@/api/teams';
+import { getTeamSponsors } from '@/api/sponsors';
 import { Button } from '@/components/ui/button';
 import { Badge }  from '@/components/ui/badge';
-import { AlertCircle, Trophy, Users, MapPin, ArrowLeft } from 'lucide-react';
+import { AlertCircle, Trophy, Users, MapPin, ArrowLeft, Handshake } from 'lucide-react';
 
 function MemberCard({ member }) {
-  const name = [member.first_name, member.last_name].filter(Boolean).join(' ') || '—';
+  const name    = [member.first_name, member.last_name].filter(Boolean).join(' ') || '—';
   const initial = (member.first_name?.[0] || '?').toUpperCase();
   const roleLbl = { admin: 'Admin', manager: 'Manager', staff: 'Staff' }[member.role] || member.role;
 
@@ -27,16 +28,20 @@ function MemberCard({ member }) {
 
 export default function TeamProfile() {
   const { id } = useParams();
-  const [team,    setTeam]    = useState(null);
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+  const [team,     setTeam]     = useState(null);
+  const [members,  setMembers]  = useState([]);
+  const [sponsors, setSponsors] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
 
   useEffect(() => {
     getTeamById(id)
       .then((data) => { setTeam(data.team); setMembers(data.members || []); })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+    getTeamSponsors(id)
+      .then(({ sponsors: s }) => setSponsors(s ?? []))
+      .catch(() => {});
   }, [id]);
 
   if (loading) {
@@ -53,9 +58,7 @@ export default function TeamProfile() {
         <div className="text-center space-y-3">
           <AlertCircle className="h-10 w-10 text-muted-foreground mx-auto" />
           <p className="text-sm text-muted-foreground">{error || 'Équipe introuvable.'}</p>
-          <Link to="/">
-            <Button variant="outline" size="sm">Retour</Button>
-          </Link>
+          <Link to="/"><Button variant="outline" size="sm">Retour</Button></Link>
         </div>
       </div>
     );
@@ -88,18 +91,14 @@ export default function TeamProfile() {
             <h1 className="text-2xl font-bold text-foreground">{team.name}</h1>
             {team.city && (
               <div className="flex items-center justify-center gap-1 mt-1 text-sm text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5" />
-                {team.city}
+                <MapPin className="h-3.5 w-3.5" />{team.city}
               </div>
             )}
           </div>
           {team.description && (
             <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">{team.description}</p>
           )}
-          {/* Follow button — visual only for now */}
-          <Button variant="outline" size="sm" className="px-6">
-            Suivre
-          </Button>
+          <Button variant="outline" size="sm" className="px-6">Suivre</Button>
         </div>
 
         {/* Stats */}
@@ -130,6 +129,36 @@ export default function TeamProfile() {
             )}
           </div>
         </div>
+
+        {/* Sponsors — "Nos partenaires" */}
+        {sponsors.length > 0 && (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+              <Handshake className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Nos partenaires</span>
+            </div>
+            <div className="p-4 grid grid-cols-4 gap-3">
+              {sponsors.map((s) => {
+                const inner = (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="w-12 h-12 rounded-xl border border-border bg-white flex items-center justify-center overflow-hidden p-1">
+                      {s.logo_url
+                        ? <img src={s.logo_url} alt={s.name} className="w-full h-full object-contain" />
+                        : <Handshake className="h-5 w-5 text-muted-foreground" />}
+                    </div>
+                    <span className="text-[10px] text-muted-foreground text-center leading-tight line-clamp-2 w-full">{s.name}</span>
+                  </div>
+                );
+                return s.website_url ? (
+                  <a key={s.id} href={s.website_url} target="_blank" rel="noopener noreferrer"
+                    className="hover:opacity-80 transition-opacity">{inner}</a>
+                ) : (
+                  <div key={s.id}>{inner}</div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Tournaments placeholder */}
         <div className="rounded-xl border border-dashed border-border p-6 text-center">

@@ -5,6 +5,7 @@ import { getMyTeam, inviteMember } from '@/api/teams';
 import { createTournament, listTournaments } from '@/api/tournaments';
 import { listClubs } from '@/api/clubs';
 import { getMyChats, getOrCreateChat, getChatMessages, sendChatMessage } from '@/api/teamChats';
+import { getTeamSponsors, addSponsor, deleteSponsor } from '@/api/sponsors';
 import { Button } from '@/components/ui/button';
 import { Input }  from '@/components/ui/input';
 import { Label }  from '@/components/ui/label';
@@ -14,6 +15,7 @@ import {
   Users, Mail, Trophy, Clock, ExternalLink, UserPlus,
   AlertCircle, CheckCircle2, Plus, X, Camera, MapPin,
   ChevronRight, Loader2, MessageSquare, Send, ArrowLeft, Building2,
+  Handshake, Globe, Trash2,
 } from 'lucide-react';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -536,9 +538,228 @@ function MessagesTab({ team, currentUserId }) {
 }
 
 // ── Main dashboard ────────────────────────────────────────────────────────────
+// ── Sponsors tab ──────────────────────────────────────────────────────────────
+const TYPE_CFG = {
+  main:    { label: 'Principal',   color: 'bg-amber-100 text-amber-700' },
+  partner: { label: 'Partenaire',  color: 'bg-blue-100 text-blue-700' },
+  media:   { label: 'Médias',      color: 'bg-purple-100 text-purple-700' },
+};
+
+function AddSponsorModal({ teamId, tournaments, onClose, onAdded }) {
+  const fileRef = useRef(null);
+  const [form,    setForm]    = useState({
+    name: '', website_url: '', amount: '', currency: 'FCFA',
+    type: 'partner', tournament_id: '',
+  });
+  const [logo,    setLogo]    = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  function set(k, v) { setForm((p) => ({ ...p, [k]: v })); setError(null); }
+
+  function handleLogo(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setLogo(ev.target.result);
+    reader.readAsDataURL(file);
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.name.trim()) { setError('Le nom du sponsor est requis.'); return; }
+    setLoading(true); setError(null);
+    try {
+      const { sponsor } = await addSponsor(teamId, {
+        ...form,
+        logo_url:      logo || null,
+        amount:        form.amount ? Number(form.amount) : null,
+        tournament_id: form.tournament_id || null,
+      });
+      onAdded(sponsor);
+    } catch (err) { setError(err.message); } finally { setLoading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-foreground/30 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h2 className="font-semibold text-foreground">Ajouter un sponsor</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />{error}
+            </div>
+          )}
+
+          {/* Logo upload */}
+          <div className="flex items-center gap-4">
+            <button type="button" onClick={() => fileRef.current?.click()}
+              className="relative w-16 h-16 rounded-xl border-2 border-dashed border-border bg-muted hover:border-primary/50 transition-all overflow-hidden flex items-center justify-center shrink-0">
+              {logo
+                ? <img src={logo} alt="logo" className="absolute inset-0 w-full h-full object-contain p-1" />
+                : <Camera className="h-5 w-5 text-muted-foreground" />}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
+            <div className="flex-1 space-y-1">
+              <Label>Nom du sponsor *</Label>
+              <Input placeholder="Ex: Orange CI" value={form.name} onChange={(e) => set('name', e.target.value)} required />
+            </div>
+          </div>
+
+          {/* Website */}
+          <div className="space-y-1.5">
+            <Label><span className="flex items-center gap-1.5"><Globe className="h-3.5 w-3.5 text-muted-foreground" />Site web</span></Label>
+            <Input placeholder="https://example.com" value={form.website_url} onChange={(e) => set('website_url', e.target.value)} />
+          </div>
+
+          {/* Amount + Currency */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Montant (optionnel)</Label>
+              <Input type="number" min={0} placeholder="0" value={form.amount} onChange={(e) => set('amount', e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Devise</Label>
+              <Input value={form.currency} onChange={(e) => set('currency', e.target.value)} placeholder="FCFA" />
+            </div>
+          </div>
+
+          {/* Type */}
+          <div className="space-y-1.5">
+            <Label>Type</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {[['main', 'Principal'], ['partner', 'Partenaire'], ['media', 'Médias']].map(([v, l]) => (
+                <button key={v} type="button" onClick={() => set('type', v)}
+                  className={cn('py-2 rounded-xl border text-xs font-medium transition-all',
+                    form.type === v ? 'bg-primary/10 border-primary text-primary' : 'border-border text-foreground/70 hover:border-primary/40'
+                  )}>{l}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tournament association */}
+          {tournaments.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Associer à un tournoi (optionnel)</Label>
+              <select value={form.tournament_id} onChange={(e) => set('tournament_id', e.target.value)}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <option value="">— Global (tous les tournois) —</option>
+                {tournaments.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          <Button type="submit" className="w-full" disabled={loading || !form.name.trim()}>
+            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Ajout…</> : 'Ajouter le sponsor'}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function SponsorsTab({ team, tournaments, isAdmin }) {
+  const [sponsors,    setSponsors]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  useEffect(() => {
+    getTeamSponsors(team.id)
+      .then(({ sponsors: s }) => setSponsors(s ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [team.id]);
+
+  async function handleDelete(sponsorId) {
+    try {
+      await deleteSponsor(team.id, sponsorId);
+      setSponsors((prev) => prev.filter((s) => s.id !== sponsorId));
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">Sponsors &amp; partenaires de l'équipe</p>
+        {isAdmin && (
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowAddModal(true)}>
+            <Plus className="h-3.5 w-3.5" />Ajouter
+          </Button>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        {loading && <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 text-primary animate-spin" /></div>}
+        {!loading && sponsors.length === 0 && (
+          <div className="py-10 text-center space-y-3">
+            <Handshake className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+            <p className="text-sm text-muted-foreground">Aucun sponsor pour l'instant.</p>
+            {isAdmin && (
+              <Button size="sm" variant="outline" onClick={() => setShowAddModal(true)} className="gap-1">
+                <Plus className="h-3.5 w-3.5" />Ajouter un sponsor
+              </Button>
+            )}
+          </div>
+        )}
+        {sponsors.map((s) => {
+          const cfg = TYPE_CFG[s.type] ?? TYPE_CFG.partner;
+          return (
+            <div key={s.id} className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0">
+              <div className="w-10 h-10 rounded-lg border border-border bg-white flex items-center justify-center overflow-hidden shrink-0">
+                {s.logo_url
+                  ? <img src={s.logo_url} alt={s.name} className="w-full h-full object-contain p-0.5" />
+                  : <Handshake className="h-5 w-5 text-muted-foreground" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-foreground truncate">{s.name}</p>
+                  <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0', cfg.color)}>{cfg.label}</span>
+                </div>
+                {s.amount && (
+                  <p className="text-xs text-muted-foreground">
+                    {Number(s.amount).toLocaleString('fr-FR')} {s.currency}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {s.website_url && (
+                  <a href={s.website_url} target="_blank" rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-foreground transition-colors">
+                    <Globe className="h-4 w-4" />
+                  </a>
+                )}
+                {isAdmin && (
+                  <button onClick={() => handleDelete(s.id)}
+                    className="text-muted-foreground hover:text-red-500 transition-colors">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showAddModal && (
+        <AddSponsorModal
+          teamId={team.id}
+          tournaments={tournaments}
+          onClose={() => setShowAddModal(false)}
+          onAdded={(s) => { setShowAddModal(false); setSponsors((prev) => [s, ...prev]); }}
+        />
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { id: 'team',     label: 'Équipe',   Icon: Users },
   { id: 'messages', label: 'Messages', Icon: MessageSquare },
+  { id: 'sponsors', label: 'Sponsors', Icon: Handshake },
 ];
 
 export default function TeamDashboard() {
@@ -722,6 +943,11 @@ export default function TeamDashboard() {
         {/* ── Messages tab ───────────────────────────────────────────────── */}
         {activeTab === 'messages' && (
           <MessagesTab team={team} currentUserId={user?.sub} />
+        )}
+
+        {/* ── Sponsors tab ───────────────────────────────────────────────── */}
+        {activeTab === 'sponsors' && (
+          <SponsorsTab team={team} tournaments={tournaments} isAdmin={isAdmin} />
         )}
       </div>
 

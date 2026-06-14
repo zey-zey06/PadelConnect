@@ -4,6 +4,7 @@ const authenticate = require('../../middleware/authenticate');
 const optionalAuth = require('../../middleware/optionalAuth');
 const validate = require('../../middleware/validate');
 const svc = require('./tournaments.service');
+const sponsorsSvc = require('../sponsors/sponsors.service');
 
 const createSchema = Joi.object({
   name:             Joi.string().max(150).required(),
@@ -122,6 +123,14 @@ router.post('/:id/comments', authenticate, validate(commentSchema), async (req, 
   try {
     const comment = await svc.addComment(req.params.id, req.user.sub, req.body.body);
     res.status(201).json({ comment });
+  } catch (err) { next(err); }
+});
+
+// GET /api/tournaments/:id/sponsors — public
+router.get('/:id/sponsors', async (req, res, next) => {
+  try {
+    const sponsors = await sponsorsSvc.getTournamentSponsors(req.params.id);
+    res.json({ sponsors });
   } catch (err) { next(err); }
 });
 

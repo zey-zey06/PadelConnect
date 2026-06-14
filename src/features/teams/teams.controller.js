@@ -2,7 +2,8 @@ const { Router } = require('express');
 const Joi = require('joi');
 const authenticate = require('../../middleware/authenticate');
 const validate = require('../../middleware/validate');
-const teamsService = require('./teams.service');
+const teamsService   = require('./teams.service');
+const sponsorsService = require('../sponsors/sponsors.service');
 
 const createTeamSchema = Joi.object({
   name:        Joi.string().max(100).required(),
@@ -14,6 +15,16 @@ const createTeamSchema = Joi.object({
 const inviteSchema = Joi.object({
   email: Joi.string().email().required(),
   role:  Joi.string().valid('admin', 'manager', 'staff').default('staff'),
+});
+
+const sponsorSchema = Joi.object({
+  name:          Joi.string().max(100).required(),
+  logo_url:      Joi.string().allow(null, '').optional(),
+  website_url:   Joi.string().uri().allow(null, '').optional(),
+  amount:        Joi.number().min(0).allow(null).optional(),
+  currency:      Joi.string().max(10).default('FCFA'),
+  type:          Joi.string().valid('main', 'partner', 'media').default('partner'),
+  tournament_id: Joi.string().uuid().allow(null, '').optional(),
 });
 
 const router = Router();
@@ -49,6 +60,32 @@ router.get('/join/:token', authenticate, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// ── Sponsor routes (must come before /:id) ──────────────────────────────────
+
+// GET /api/teams/:id/sponsors — public
+router.get('/:id/sponsors', async (req, res, next) => {
+  try {
+    const sponsors = await sponsorsService.getTeamSponsors(req.params.id);
+    res.json({ sponsors });
+  } catch (err) { next(err); }
+});
+
+// POST /api/teams/:id/sponsors — add sponsor (admin/manager only)
+router.post('/:id/sponsors', authenticate, validate(sponsorSchema), async (req, res, next) => {
+  try {
+    const sponsor = await sponsorsService.addSponsor(req.user.sub, req.params.id, req.body);
+    res.status(201).json({ sponsor });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/teams/:id/sponsors/:sponsorId — remove sponsor (admin/manager only)
+router.delete('/:id/sponsors/:sponsorId', authenticate, async (req, res, next) => {
+  try {
+    await sponsorsService.deleteSponsor(req.user.sub, req.params.id, req.params.sponsorId);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
 });
 
 // GET /api/teams/:id — public team profile
