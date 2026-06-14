@@ -8,8 +8,8 @@ function makeError(status, message) {
 }
 
 async function assertTeamAdminOrManager(userId, teamId) {
-  const member = await teamsRepo.getActiveMemberByUserId(userId);
-  if (!member || member.team_id !== teamId) throw makeError(403, 'Accès refusé.');
+  const member = await teamsRepo.getActiveMemberByUserId(teamId, userId);
+  if (!member) throw makeError(403, 'Accès refusé.');
   if (!['admin', 'manager'].includes(member.role)) throw makeError(403, 'Réservé aux admins et managers.');
 }
 

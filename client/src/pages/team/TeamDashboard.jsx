@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/App';
 import { getMyTeam, inviteMember } from '@/api/teams';
-import { createTournament, listTournaments } from '@/api/tournaments';
+import { createTournament, listTournaments, getTournament, validateCashPayment } from '@/api/tournaments';
+import { createPost } from '@/api/teamPosts';
 import { listClubs } from '@/api/clubs';
 import { getMyChats, getOrCreateChat, getChatMessages, sendChatMessage } from '@/api/teamChats';
 import { getTeamSponsors, addSponsor, deleteSponsor } from '@/api/sponsors';
@@ -15,7 +16,7 @@ import {
   Users, Mail, Trophy, Clock, ExternalLink, UserPlus,
   AlertCircle, CheckCircle2, Plus, X, Camera, MapPin,
   ChevronRight, Loader2, MessageSquare, Send, ArrowLeft, Building2,
-  Handshake, Globe, Trash2,
+  Handshake, Globe, Trash2, Video, BarChart2, Download, Image, Film,
 } from 'lucide-react';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -756,10 +757,268 @@ function SponsorsTab({ team, tournaments, isAdmin }) {
   );
 }
 
+// ── Create post modal ─────────────────────────────────────────────────────────
+function CreatePostModal({ team, onClose, onCreated, onOpenTournament }) {
+  const [postTab,   setPostTab]   = useState('photo'); // photo | reel
+  const [caption,   setCaption]   = useState('');
+  const [mediaUrl,  setMediaUrl]  = useState('');
+  const [fileB64,   setFileB64]   = useState(null);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState(null);
+
+  function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { setFileB64(ev.target.result); setMediaUrl(''); };
+    reader.readAsDataURL(file);
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const url = fileB64 || mediaUrl.trim();
+    if (!url) { setError('Ajoutez un média.'); return; }
+    setLoading(true); setError(null);
+    try {
+      const { post } = await createPost(team.id, { type: postTab, media_url: url, caption: caption.trim() || null });
+      onCreated(post);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-foreground/30 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="font-semibold text-foreground">Publier</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-border px-5 gap-1">
+          {[
+            { id: 'photo', label: 'Photo', Icon: Image },
+            { id: 'reel',  label: 'Reel',  Icon: Film  },
+            { id: 'tournoi', label: 'Tournoi', Icon: Trophy },
+          ].map(({ id, label, Icon }) => (
+            <button key={id} onClick={() => { setPostTab(id); setError(null); setFileB64(null); setMediaUrl(''); }}
+              className={cn('flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+                postTab === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}>
+              <Icon className="h-3.5 w-3.5" />{label}
+            </button>
+          ))}
+        </div>
+
+        {postTab === 'tournoi' ? (
+          <div className="p-5 text-center space-y-3">
+            <Trophy className="h-10 w-10 text-primary mx-auto" />
+            <p className="text-sm text-foreground font-medium">Créer un tournoi</p>
+            <p className="text-xs text-muted-foreground">Organisez un tournoi pour votre équipe.</p>
+            <button onClick={() => { onClose(); onOpenTournament(); }}
+              className="w-full h-10 rounded-xl bg-primary text-primary-foreground text-sm font-medium">
+              Créer un tournoi
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />{error}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">
+                {postTab === 'photo' ? 'Photo' : 'Vidéo'}
+              </label>
+              {postTab === 'photo' ? (
+                <>
+                  <label className="flex flex-col items-center justify-center h-28 rounded-xl border-2 border-dashed border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors">
+                    {fileB64 ? (
+                      <img src={fileB64} alt="" className="h-full w-full object-cover rounded-xl" />
+                    ) : (
+                      <>
+                        <Camera className="h-6 w-6 text-muted-foreground mb-1" />
+                        <span className="text-xs text-muted-foreground">Cliquez pour choisir une image</span>
+                      </>
+                    )}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
+                  </label>
+                  {!fileB64 && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-px bg-border" />
+                      <span className="text-xs text-muted-foreground">ou</span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                  )}
+                  {!fileB64 && (
+                    <input type="url" placeholder="URL de l'image"
+                      value={mediaUrl} onChange={(e) => setMediaUrl(e.target.value)}
+                      className="w-full h-9 text-sm rounded-xl border border-border bg-background px-3 focus:outline-none focus:ring-1 focus:ring-primary" />
+                  )}
+                </>
+              ) : (
+                <input type="url" placeholder="URL de la vidéo (YouTube, Vimeo…)"
+                  value={mediaUrl} onChange={(e) => setMediaUrl(e.target.value)}
+                  className="w-full h-9 text-sm rounded-xl border border-border bg-background px-3 focus:outline-none focus:ring-1 focus:ring-primary" />
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Légende (optionnel)</label>
+              <textarea rows={3} placeholder="Décrivez votre post…"
+                value={caption} onChange={(e) => setCaption(e.target.value)}
+                className="w-full text-sm rounded-xl border border-border bg-background px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+            </div>
+
+            <button type="submit" disabled={loading}
+              className="w-full h-10 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5">
+              {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Publication…</> : 'Publier'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Rapport tab ───────────────────────────────────────────────────────────────
+function RapportTab({ team, tournaments }) {
+  const [selectedId,   setSelectedId]   = useState(tournaments[0]?.id ?? null);
+  const [regs,         setRegs]         = useState([]);
+  const [loading,      setLoading]      = useState(false);
+  const [validating,   setValidating]   = useState(null);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    setLoading(true);
+    getTournament(selectedId)
+      .then((d) => setRegs(d.registrations ?? []))
+      .catch(() => setRegs([]))
+      .finally(() => setLoading(false));
+  }, [selectedId]);
+
+  async function handleValidate(regId) {
+    setValidating(regId);
+    try {
+      await validateCashPayment(selectedId, regId);
+      setRegs((prev) => prev.map((r) => r.id === regId ? { ...r, payment_status: 'paid' } : r));
+    } catch (err) { alert(err.message); }
+    finally { setValidating(null); }
+  }
+
+  function exportCSV() {
+    const t = tournaments.find((x) => x.id === selectedId);
+    const rows = [
+      ['Joueur 1', 'Joueur 2', 'Paiement', 'Statut', 'Date'],
+      ...regs.map((r) => [
+        [r.p1_first_name, r.p1_last_name].filter(Boolean).join(' '),
+        r.player2_id ? [r.p2_first_name, r.p2_last_name].filter(Boolean).join(' ') : '',
+        r.payment_method ?? '',
+        r.payment_status === 'paid' ? 'Payé' : 'En attente',
+        r.created_at ? new Date(r.created_at).toLocaleDateString('fr-FR') : '',
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `rapport_${t?.name ?? 'tournoi'}.csv`;
+    a.click();
+  }
+
+  if (tournaments.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <BarChart2 className="h-10 w-10 text-muted-foreground/30" />
+        <p className="text-sm text-muted-foreground">Aucun tournoi organisé.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Tournament selector */}
+      <div className="flex items-center gap-3">
+        <select value={selectedId ?? ''} onChange={(e) => setSelectedId(e.target.value)}
+          className="flex-1 h-9 text-sm rounded-xl border border-border bg-background px-3 focus:outline-none focus:ring-1 focus:ring-primary">
+          {tournaments.map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+        {regs.length > 0 && (
+          <button onClick={exportCSV}
+            className="h-9 px-3 text-xs font-medium rounded-xl border border-border text-foreground/70 hover:text-foreground flex items-center gap-1.5">
+            <Download className="h-3.5 w-3.5" />CSV
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+      ) : regs.length === 0 ? (
+        <div className="text-center py-10">
+          <p className="text-sm text-muted-foreground">Aucune inscription.</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border overflow-hidden">
+          {/* header */}
+          <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-3 px-4 py-2.5 bg-muted/50 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+            <span>Joueur 1</span>
+            <span>Joueur 2</span>
+            <span>Statut</span>
+            <span />
+          </div>
+          <div className="divide-y divide-border">
+            {regs.map((r) => {
+              const p1 = [r.p1_first_name, r.p1_last_name].filter(Boolean).join(' ') || '—';
+              const p2 = r.player2_id ? [r.p2_first_name, r.p2_last_name].filter(Boolean).join(' ') : '—';
+              return (
+                <div key={r.id} className="grid grid-cols-[1fr_1fr_auto_auto] gap-3 px-4 py-3 items-center">
+                  <span className="text-sm text-foreground truncate">{p1}</span>
+                  <span className="text-sm text-muted-foreground truncate">{p2}</span>
+                  <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full',
+                    r.payment_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
+                    {r.payment_status === 'paid' ? 'Payé' : 'En attente'}
+                  </span>
+                  {r.payment_status !== 'paid' && (r.payment_method === 'cash' || r.payment_method === 'on_arrival') ? (
+                    <button onClick={() => handleValidate(r.id)} disabled={validating === r.id}
+                      className="h-6 px-2 text-[10px] font-medium rounded-lg bg-green-600 text-white disabled:opacity-50 whitespace-nowrap">
+                      {validating === r.id ? '…' : 'Valider'}
+                    </button>
+                  ) : <span />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Summary */}
+      {regs.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: 'Inscrits',   value: regs.length },
+            { label: 'Payés',      value: regs.filter((r) => r.payment_status === 'paid').length },
+            { label: 'En attente', value: regs.filter((r) => r.payment_status !== 'paid').length },
+          ].map(({ label, value }) => (
+            <div key={label} className="rounded-xl border border-border bg-card p-3 text-center">
+              <p className="text-xl font-bold text-foreground">{value}</p>
+              <p className="text-[11px] text-muted-foreground">{label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { id: 'team',     label: 'Équipe',   Icon: Users },
   { id: 'messages', label: 'Messages', Icon: MessageSquare },
   { id: 'sponsors', label: 'Sponsors', Icon: Handshake },
+  { id: 'rapport',  label: 'Rapport',  Icon: BarChart2 },
 ];
 
 export default function TeamDashboard() {
@@ -771,6 +1030,7 @@ export default function TeamDashboard() {
   const [error,          setError]          = useState(null);
   const [activeTab,      setActiveTab]      = useState('team');
   const [showCreateTnmt, setShowCreateTnmt] = useState(false);
+  const [showCreatePost, setShowCreatePost] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -829,10 +1089,18 @@ export default function TeamDashboard() {
               <p className="text-xs text-muted-foreground">{team.city}</p>
             </div>
           </div>
-          <Link to={`/team/${team.id}`}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-            Profil public<ExternalLink className="h-3 w-3" />
-          </Link>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button onClick={() => setShowCreatePost(true)}
+                className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-primary text-primary-foreground">
+                <Plus className="h-3.5 w-3.5" />Publier
+              </button>
+            )}
+            <Link to={`/team/${team.id}`}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Profil public<ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -949,6 +1217,11 @@ export default function TeamDashboard() {
         {activeTab === 'sponsors' && (
           <SponsorsTab team={team} tournaments={tournaments} isAdmin={isAdmin} />
         )}
+
+        {/* ── Rapport tab ────────────────────────────────────────────────── */}
+        {activeTab === 'rapport' && (
+          <RapportTab team={team} tournaments={tournaments} />
+        )}
       </div>
 
       {showCreateTnmt && (
@@ -958,6 +1231,15 @@ export default function TeamDashboard() {
             setShowCreateTnmt(false);
             setTournaments((prev) => [t, ...prev]);
           }}
+        />
+      )}
+
+      {showCreatePost && (
+        <CreatePostModal
+          team={team}
+          onClose={() => setShowCreatePost(false)}
+          onCreated={() => setShowCreatePost(false)}
+          onOpenTournament={() => { setShowCreatePost(false); setShowCreateTnmt(true); }}
         />
       )}
     </div>

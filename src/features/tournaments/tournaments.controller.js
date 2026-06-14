@@ -22,8 +22,9 @@ const createSchema = Joi.object({
 });
 
 const registerSchema = Joi.object({
-  partner_email:  Joi.string().email().allow(null, '').optional(),
-  payment_method: Joi.string().valid('wave', 'orange_money', 'mtn_money', 'card', 'on_arrival', 'balance').default('on_arrival'),
+  partner_email:    Joi.string().email().allow(null, '').optional(),
+  partner_username: Joi.string().max(50).allow(null, '').optional(),
+  payment_method:   Joi.string().valid('wave', 'orange_money', 'mtn_money', 'card', 'cash', 'on_arrival', 'balance').default('on_arrival'),
 });
 
 const scoreSchema = Joi.object({
@@ -123,6 +124,22 @@ router.post('/:id/comments', authenticate, validate(commentSchema), async (req, 
   try {
     const comment = await svc.addComment(req.params.id, req.user.sub, req.body.body);
     res.status(201).json({ comment });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/tournaments/:id/cancel
+router.patch('/:id/cancel', authenticate, async (req, res, next) => {
+  try {
+    const result = await svc.cancelTournament(req.params.id, req.user.sub);
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/tournaments/:id/registrations/:regId/validate
+router.patch('/:id/registrations/:regId/validate', authenticate, async (req, res, next) => {
+  try {
+    const reg = await svc.validateCashPayment(req.params.id, req.params.regId, req.user.sub);
+    res.json({ registration: reg });
   } catch (err) { next(err); }
 });
 

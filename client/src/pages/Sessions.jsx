@@ -15,7 +15,8 @@ import {
 } from '@/api/sessions';
 import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
 import { listClubs, getClubSlots, getClubCoaches, getClubBallPickers } from '@/api/clubs';
-import { listTournaments } from '@/api/tournaments';
+import { listTournaments, registerForTournament } from '@/api/tournaments';
+import { getFeedPosts, toggleLike as togglePostLike, addComment as addPostComment } from '@/api/teamPosts';
 import { listCoaches } from '@/api/coaches';
 import { findMatches as aiFindMatches } from '@/api/ai';
 import TimeScrollPicker from '@/components/TimeScrollPicker';
@@ -27,7 +28,7 @@ import {
   Users, Plus, AlertCircle, X,
   CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2, Calendar,
   ChevronLeft, ChevronRight, Banknote, CreditCard, Share2, Pencil, Link2, Copy,
-  MessageSquare, Send, RefreshCw, Trophy, Smile,
+  MessageSquare, Send, RefreshCw, Trophy, Smile, Heart, Video, Loader2,
 } from 'lucide-react';
 import ShareContactPicker from '@/components/ShareContactPicker';
 import { useAuth, usePlayerPanel } from '@/App';
@@ -3824,9 +3825,173 @@ function MySessions({ autoOpen = false }) {
 const FORMAT_LABELS = { elimination: 'Élimination', round_robin: 'Poules' };
 const LEVEL_SHORT   = { 1:'Déb.', 2:'Déb+', 3:'Inter', 4:'Inter+', 5:'Conf.', 6:'Avancé', 7:'Expert' };
 
+// ── Tournaments — participation modal ────────────────────────────────────────
+const AUTO_CONFIRM_TRN = new Set(['wave', 'orange_money', 'mtn_money', 'card']);
+const TRN_PAYMENT_LABELS = {
+  wave: '📱 Wave', orange_money: '🟠 Orange Money', mtn_money: '📲 MTN Money',
+  card: '💳 Carte', cash: '💵 Espèces',
+};
+
+function ParticipationModal({ tournament, onClose, onSuccess }) {
+  const [step,        setStep]        = useState(1);
+  const [partnerUser, setPartnerUser] = useState('');
+  const [payment,     setPayment]     = useState('wave');
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true); setError(null);
+    try {
+      await registerForTournament(tournament.id, {
+        partner_username: partnerUser.trim() || null,
+        payment_method:   payment,
+      });
+      onSuccess();
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-foreground/30 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <h2 className="font-semibold text-foreground text-sm">Participer</h2>
+            <div className="flex gap-1">
+              {[1, 2].map((s) => (
+                <div key={s} className={cn('w-5 h-1.5 rounded-full transition-colors', step >= s ? 'bg-primary' : 'bg-muted')} />
+              ))}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground text-sm">✕</button>
+        </div>
+
+        {step === 1 && (
+          <div className="p-5 space-y-4">
+            {Number(tournament.registration_fee) > 0 && (
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 font-medium flex items-center gap-1.5">
+                <Banknote className="h-3.5 w-3.5" />
+                Frais : {Number(tournament.registration_fee).toLocaleString('fr-FR')} FCFA
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Pseudo du partenaire</label>
+              <input className="w-full h-10 text-sm rounded-xl border border-border bg-background px-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="@pseudo (optionnel)" value={partnerUser}
+                onChange={(e) => setPartnerUser(e.target.value)} autoFocus />
+              <p className="text-xs text-muted-foreground">Laissez vide pour vous inscrire seul(e).</p>
+            </div>
+            <button className="w-full h-10 rounded-xl bg-primary text-primary-foreground text-sm font-medium"
+              onClick={() => { setError(null); setStep(2); }}>
+              Continuer →
+            </button>
+          </div>
+        )}
+
+        {step === 2 && (
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />{error}
+              </div>
+            )}
+            {partnerUser && (
+              <div className="rounded-xl bg-muted/50 px-3 py-2 text-xs text-foreground/80">
+                Partenaire : <span className="font-medium">@{partnerUser}</span>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Paiement</label>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(TRN_PAYMENT_LABELS).map(([v, l]) => (
+                  <button key={v} type="button" onClick={() => setPayment(v)}
+                    className={cn('text-xs py-2 px-2.5 rounded-xl border font-medium transition-all text-left',
+                      payment === v ? 'bg-primary/10 border-primary text-primary' : 'border-border text-foreground/70')}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <p className={cn('text-xs font-medium', AUTO_CONFIRM_TRN.has(payment) ? 'text-green-600' : 'text-amber-600')}>
+                {AUTO_CONFIRM_TRN.has(payment) ? '✓ Confirmation automatique' : '⏳ En attente de validation'}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setStep(1)}
+                className="flex-1 h-10 rounded-xl border border-border text-sm font-medium text-foreground/70">
+                ← Retour
+              </button>
+              <button type="submit" disabled={loading}
+                className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5">
+                {loading ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Inscription…</> : 'Confirmer'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ParticipantListModal({ tournament, onClose }) {
+  const [regs,    setRegs]    = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    import('@/api/tournaments').then(({ getTournament }) =>
+      getTournament(tournament.id)
+        .then((d) => setRegs(d.registrations ?? []))
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    );
+  }, [tournament.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-foreground/30 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-xl max-h-[70vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h2 className="font-semibold text-foreground text-sm">Participants ({regs.length})</h2>
+          <button onClick={onClose} className="text-muted-foreground text-sm">✕</button>
+        </div>
+        <div className="overflow-y-auto flex-1">
+          {loading ? (
+            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          ) : regs.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Aucun participant.</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {regs.map((r, i) => (
+                <div key={r.id} className="px-4 py-3 flex items-center gap-3">
+                  <span className="text-xs font-bold text-muted-foreground w-5 shrink-0">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {[r.p1_first_name, r.p1_last_name].filter(Boolean).join(' ') || '—'}
+                      {r.player2_id && ` & ${[r.p2_first_name, r.p2_last_name].filter(Boolean).join(' ')}`}
+                    </p>
+                  </div>
+                  <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0',
+                    r.payment_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
+                    {r.payment_status === 'paid' ? 'Payé' : 'En attente'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TournamentsSection() {
-  const [tournaments, setTournaments] = useState([]);
-  const [loading,     setLoading]     = useState(true);
+  const { user } = useAuth();
+  const [tournaments,      setTournaments]      = useState([]);
+  const [loading,          setLoading]          = useState(true);
+  const [participateModal, setParticipateModal] = useState(null);
+  const [listModal,        setListModal]        = useState(null);
+  const [successId,        setSuccessId]        = useState(null);
 
   useEffect(() => {
     listTournaments('open')
@@ -3838,6 +4003,7 @@ function TournamentsSection() {
   if (!loading && tournaments.length === 0) return null;
 
   return (
+    <>
     <div className="space-y-3 pt-2">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
@@ -3862,47 +4028,185 @@ function TournamentsSection() {
               </div>
             ))
           : tournaments.map((t) => (
-              <Link
-                key={t.id}
-                to={`/tournaments/${t.id}`}
-                className="shrink-0 w-52 rounded-xl border border-border bg-card overflow-hidden hover:shadow-sm hover:border-primary/20 transition-all"
-              >
-                {/* Banner */}
-                <div className="h-24 bg-gradient-to-br from-primary/20 to-primary/5 relative overflow-hidden">
-                  {t.banner_url && (
-                    <img src={t.banner_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <div key={t.id} className="shrink-0 w-52 rounded-xl border border-border bg-card overflow-hidden hover:shadow-sm transition-all">
+                <Link to={`/tournaments/${t.id}`} className="block">
+                  <div className="h-24 bg-gradient-to-br from-primary/20 to-primary/5 relative overflow-hidden">
+                    {t.banner_url && (
+                      <img src={t.banner_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                    <div className="absolute bottom-2 left-2.5">
+                      <span className="text-[10px] font-semibold text-white bg-primary/80 px-2 py-0.5 rounded-full">
+                        {FORMAT_LABELS[t.format] ?? t.format}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="px-2.5 pt-2.5 space-y-1">
+                    <p className="text-xs font-semibold text-foreground leading-snug line-clamp-2">{t.name}</p>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {t.start_date && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(t.start_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                        </span>
+                      )}
+                      {(t.level_min || t.level_max) && (
+                        <span className="text-[10px] text-muted-foreground">
+                          · Niv. {LEVEL_SHORT[t.level_min]}–{LEVEL_SHORT[t.level_max]}
+                        </span>
+                      )}
+                    </div>
+                    {t.registration_fee > 0 && (
+                      <p className="text-[10px] font-medium text-amber-600">
+                        {Number(t.registration_fee).toLocaleString('fr-FR')} FCFA
+                      </p>
+                    )}
+                  </div>
+                </Link>
+                {successId === t.id ? (
+                  <div className="px-2.5 pb-2.5 pt-2 flex items-center gap-1 text-xs text-green-600 font-medium">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Inscription envoyée !
+                  </div>
+                ) : (
+                  <div className="px-2.5 pb-2.5 pt-2 flex gap-1.5">
+                    {user && user.role !== 'tournament_organizer' && (
+                      <button onClick={() => setParticipateModal(t)}
+                        className="flex-1 h-7 text-[11px] font-medium rounded-lg bg-primary text-primary-foreground">
+                        Participer
+                      </button>
+                    )}
+                    <button onClick={() => setListModal(t)}
+                      className="flex-1 h-7 text-[11px] font-medium rounded-lg border border-border text-foreground/70 hover:text-foreground">
+                      Voir la liste
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+      </div>
+    </div>
+
+    {participateModal && (
+      <ParticipationModal
+        tournament={participateModal}
+        onClose={() => setParticipateModal(null)}
+        onSuccess={() => {
+          setSuccessId(participateModal.id);
+          setParticipateModal(null);
+          setTimeout(() => setSuccessId(null), 4000);
+        }}
+      />
+    )}
+    {listModal && (
+      <ParticipantListModal
+        tournament={listModal}
+        onClose={() => setListModal(null)}
+      />
+    )}
+    </>
+  );
+}
+
+// ── Team posts feed ──────────────────────────────────────────────────────────
+function TeamPostsFeed() {
+  const { user } = useAuth();
+  const [posts,   setPosts]   = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getFeedPosts()
+      .then((d) => setPosts(d.posts ?? []))
+      .catch(() => setPosts([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (!loading && posts.length === 0) return null;
+
+  async function handleLike(postId) {
+    if (!user) return;
+    try {
+      const res = await togglePostLike(postId);
+      setPosts((prev) => prev.map((p) =>
+        p.id === postId
+          ? { ...p, liked: res.liked, likes_count: res.likes_count ?? p.likes_count }
+          : p
+      ));
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="space-y-3 pt-2">
+      <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+        <Video className="h-4 w-4 text-primary" />
+        Posts des équipes
+      </h2>
+      {loading
+        ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => (
+              <div key={i} className="rounded-xl border border-border bg-card overflow-hidden animate-pulse">
+                <div className="h-48 bg-muted" />
+                <div className="p-3 space-y-2">
+                  <div className="h-3 bg-muted rounded w-2/3" />
+                  <div className="h-2.5 bg-muted rounded w-1/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+        : (
+          <div className="space-y-3">
+            {posts.map((p) => (
+              <div key={p.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center gap-2.5 px-3 py-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                    {p.team_logo
+                      ? <img src={p.team_logo} alt="" className="w-full h-full object-cover" />
+                      : <Trophy className="h-4 w-4 text-primary" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-foreground truncate">{p.team_name}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {new Date(p.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground capitalize">
+                    {p.type === 'reel' ? '🎬 Reel' : '📸 Photo'}
+                  </span>
+                </div>
+
+                {/* Media */}
+                <div className="relative bg-black">
+                  {p.type === 'reel' ? (
+                    <video src={p.media_url} controls className="w-full max-h-64 object-contain" />
+                  ) : (
+                    <img src={p.media_url} alt={p.caption || ''} className="w-full max-h-64 object-cover" />
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                  <div className="absolute bottom-2 left-2.5">
-                    <span className="text-[10px] font-semibold text-white bg-primary/80 px-2 py-0.5 rounded-full">
-                      {FORMAT_LABELS[t.format] ?? t.format}
+                </div>
+
+                {/* Caption + actions */}
+                <div className="px-3 py-2.5 space-y-2">
+                  {p.caption && (
+                    <p className="text-sm text-foreground leading-snug">{p.caption}</p>
+                  )}
+                  <div className="flex items-center gap-4 pt-0.5">
+                    <button onClick={() => handleLike(p.id)} disabled={!user}
+                      className={cn('flex items-center gap-1 text-xs font-medium transition-colors',
+                        p.liked ? 'text-red-500' : 'text-muted-foreground hover:text-foreground',
+                        !user && 'opacity-50 cursor-default')}>
+                      <Heart className={cn('h-4 w-4', p.liked && 'fill-red-500')} />
+                      {p.likes_count ?? 0}
+                    </button>
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <MessageSquare className="h-4 w-4" />
+                      {p.comments_count ?? 0}
                     </span>
                   </div>
                 </div>
-
-                <div className="p-2.5 space-y-1">
-                  <p className="text-xs font-semibold text-foreground leading-snug line-clamp-2">{t.name}</p>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {t.start_date && (
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(t.start_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                      </span>
-                    )}
-                    {(t.level_min || t.level_max) && (
-                      <span className="text-[10px] text-muted-foreground">
-                        · Niv. {LEVEL_SHORT[t.level_min]}–{LEVEL_SHORT[t.level_max]}
-                      </span>
-                    )}
-                  </div>
-                  {t.registration_fee > 0 && (
-                    <p className="text-[10px] font-medium text-amber-600">
-                      {Number(t.registration_fee).toLocaleString('fr-FR')} FCFA
-                    </p>
-                  )}
-                </div>
-              </Link>
+              </div>
             ))}
-      </div>
+          </div>
+        )}
     </div>
   );
 }
@@ -4271,6 +4575,10 @@ export default function Sessions() {
           {/* ── Tournaments strip ────────────────────────────── */}
           <div className="h-px bg-border/50 -mx-0.5" />
           <TournamentsSection />
+
+          {/* ── Team posts feed ──────────────────────────────── */}
+          <div className="h-px bg-border/50 -mx-0.5" />
+          <TeamPostsFeed />
 
           {/* ── Clubs partenaires strip ─────────────────────── */}
           <div className="h-px bg-border/50 -mx-0.5" />

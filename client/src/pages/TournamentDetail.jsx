@@ -4,7 +4,7 @@ import { useAuth } from '@/App';
 import {
   getTournament, registerForTournament, generateBracket,
   submitMatchScore, likeTournament, getComments, addComment,
-  updateTournamentStatus,
+  updateTournamentStatus, cancelTournament,
 } from '@/api/tournaments';
 import { getTournamentSponsors } from '@/api/sponsors';
 import { Button } from '@/components/ui/button';
@@ -25,11 +25,12 @@ const STATUS_CFG = {
   open:      { label: 'Inscriptions ouvertes', color: 'bg-green-100 text-green-700' },
   ongoing:   { label: 'En cours',   color: 'bg-blue-100 text-blue-700' },
   completed: { label: 'Terminé',    color: 'bg-purple-100 text-purple-700' },
+  cancelled: { label: 'Annulé',     color: 'bg-red-100 text-red-600' },
 };
 
 const PAYMENT_LABELS = {
-  wave: 'Wave', orange_money: 'Orange Money', mtn_money: 'MTN Money',
-  card: 'Carte', on_arrival: 'Sur place', balance: 'Solde',
+  wave: '📱 Wave', orange_money: '🟠 Orange Money', mtn_money: '📲 MTN Money',
+  card: '💳 Carte', cash: '💵 Espèces', on_arrival: '🏟️ Sur place',
 };
 
 function fmtDate(d) {
@@ -37,12 +38,15 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-// ── Register modal ────────────────────────────────────────────────────────────
+// ── Register modal — 2-step ────────────────────────────────────────────────────
+const AUTO_CONFIRM_METHODS = new Set(['wave', 'orange_money', 'mtn_money', 'card']);
+
 function RegisterModal({ tournamentId, fee, onClose, onSuccess }) {
-  const [partnerEmail, setPartnerEmail] = useState('');
-  const [payment,      setPayment]      = useState('on_arrival');
-  const [loading,      setLoading]      = useState(false);
-  const [error,        setError]        = useState(null);
+  const [step,          setStep]          = useState(1);
+  const [partnerUser,   setPartnerUser]   = useState('');
+  const [payment,       setPayment]       = useState('wave');
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState(null);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -50,8 +54,8 @@ function RegisterModal({ tournamentId, fee, onClose, onSuccess }) {
     setError(null);
     try {
       await registerForTournament(tournamentId, {
-        partner_email:  partnerEmail.trim() || null,
-        payment_method: payment,
+        partner_username: partnerUser.trim() || null,
+        payment_method:   payment,
       });
       onSuccess();
     } catch (err) {
@@ -66,55 +70,90 @@ function RegisterModal({ tournamentId, fee, onClose, onSuccess }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="font-semibold text-foreground">S'inscrire au tournoi</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              <AlertCircle className="h-4 w-4 shrink-0" />{error}
-            </div>
-          )}
-
-          {fee > 0 && (
-            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 font-medium flex items-center gap-2">
-              <Banknote className="h-4 w-4" />
-              Frais d'inscription : {Number(fee).toLocaleString('fr-FR')} FCFA
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Email du partenaire (optionnel)</label>
-            <Input
-              type="email"
-              placeholder="partenaire@exemple.com"
-              value={partnerEmail}
-              onChange={(e) => setPartnerEmail(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">Laissez vide pour vous inscrire en individuel.</p>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Mode de paiement</label>
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(PAYMENT_LABELS).map(([v, l]) => (
-                <button key={v} type="button" onClick={() => setPayment(v)}
-                  className={cn(
-                    'text-sm py-2.5 px-3 rounded-xl border font-medium transition-all text-left',
-                    payment === v
-                      ? 'bg-primary/10 border-primary text-primary'
-                      : 'border-border text-foreground/70 hover:border-primary/40'
-                  )}>
-                  {l}
-                </button>
+          <div className="flex items-center gap-3">
+            <h2 className="font-semibold text-foreground">S'inscrire</h2>
+            <div className="flex gap-1">
+              {[1, 2].map((s) => (
+                <div key={s} className={cn(
+                  'w-6 h-1.5 rounded-full transition-colors',
+                  step >= s ? 'bg-primary' : 'bg-muted'
+                )} />
               ))}
             </div>
           </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+        </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Inscription…</> : "Confirmer l'inscription"}
-          </Button>
-        </form>
+        {step === 1 && (
+          <div className="p-5 space-y-4">
+            {fee > 0 && (
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 font-medium flex items-center gap-2">
+                <Banknote className="h-4 w-4" />
+                Frais : {Number(fee).toLocaleString('fr-FR')} FCFA
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Pseudo du partenaire (optionnel)</label>
+              <Input
+                placeholder="@pseudo"
+                value={partnerUser}
+                onChange={(e) => setPartnerUser(e.target.value)}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">Laissez vide pour vous inscrire seul(e).</p>
+            </div>
+            <Button className="w-full" onClick={() => { setError(null); setStep(2); }}>
+              Continuer →
+            </Button>
+          </div>
+        )}
+
+        {step === 2 && (
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />{error}
+              </div>
+            )}
+
+            {partnerUser && (
+              <div className="rounded-xl bg-muted/50 px-3 py-2 text-sm text-foreground/80">
+                Partenaire : <span className="font-medium">@{partnerUser}</span>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Mode de paiement</label>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(PAYMENT_LABELS).map(([v, l]) => (
+                  <button key={v} type="button" onClick={() => setPayment(v)}
+                    className={cn(
+                      'text-sm py-2.5 px-3 rounded-xl border font-medium transition-all text-left',
+                      payment === v
+                        ? 'bg-primary/10 border-primary text-primary'
+                        : 'border-border text-foreground/70 hover:border-primary/40'
+                    )}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              {AUTO_CONFIRM_METHODS.has(payment) ? (
+                <p className="text-xs text-green-600 font-medium">✓ Paiement confirmé automatiquement</p>
+              ) : (
+                <p className="text-xs text-amber-600 font-medium">⏳ En attente de validation par l'organisateur</p>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(1)}>
+                ← Retour
+              </Button>
+              <Button type="submit" className="flex-1" disabled={loading}>
+                {loading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Inscription…</> : "Confirmer"}
+              </Button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
@@ -370,6 +409,7 @@ export default function TournamentDetail() {
   const [generating,  setGenerating]  = useState(false);
   const [genError,    setGenError]    = useState(null);
   const [registered,  setRegistered]  = useState(false);
+  const [cancelling,  setCancelling]  = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -587,6 +627,19 @@ export default function TournamentDetail() {
             )}
             {genError && (
               <p className="text-xs text-red-500 text-center">{genError}</p>
+            )}
+            {tournament.status !== 'cancelled' && tournament.status !== 'completed' && (
+              <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50"
+                disabled={cancelling}
+                onClick={async () => {
+                  if (!window.confirm('Annuler ce tournoi ? Cette action est irréversible.')) return;
+                  setCancelling(true);
+                  try { await cancelTournament(id); await load(); }
+                  catch (err) { alert(err.message); }
+                  finally { setCancelling(false); }
+                }}>
+                {cancelling ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Annulation…</> : '✕ Annuler le tournoi'}
+              </Button>
             )}
           </div>
         )}

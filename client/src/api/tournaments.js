@@ -77,3 +77,17 @@ export async function addComment(id, body) {
     credentials: 'include',
   }));
 }
+
+export async function cancelTournament(id) {
+  return handle(await fetch(`/api/tournaments/${id}/cancel`, {
+    method: 'PATCH',
+    credentials: 'include',
+  }));
+}
+
+export async function validateCashPayment(tournamentId, regId) {
+  return handle(await fetch(`/api/tournaments/${tournamentId}/registrations/${regId}/validate`, {
+    method: 'PATCH',
+    credentials: 'include',
+  }));
+}
