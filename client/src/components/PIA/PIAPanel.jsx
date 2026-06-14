@@ -1,16 +1,22 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Send, Sparkles, Plus, ExternalLink, History, ArrowLeft, Clock, MapPin } from 'lucide-react';
+import {
+  X, Send, Sparkles, Plus, ExternalLink, History, ArrowLeft, Clock,
+  Check, ChevronRight,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { piaChatMessage, getPiaHistory, getPiaConversations } from '@/api/pia';
-import { useAuth, usePlayerPanel } from '@/App';
-import { cn } from '@/lib/utils';
+import { createSession, invitePlayer }  from '@/api/sessions';
+import { getFriends }                   from '@/api/friends';
+import { search as searchPlayers }      from '@/api/search';
+import { useAuth, usePlayerPanel }      from '@/App';
+import { cn }                           from '@/lib/utils';
 
 const RATE_LIMIT = 20;
 const WELCOME    = 'Bonjour ! Je suis PIA, votre assistante PadelConnect. Comment puis-je vous aider ? 🎾';
 
 const LEVEL_LABELS = {
   1: 'Débutant', 2: 'Débutant+', 3: 'Intermédiaire', 4: 'Inter+',
-  5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
+  5: 'Confirmé',  6: 'Avancé',    7: 'Expert',
 };
 
 const ROLE_LABELS = {
@@ -20,6 +26,56 @@ const ROLE_LABELS = {
   coach:       'Assistante coach',
   ball_picker: 'Assistante',
 };
+
+// ── Session creation intent detection ─────────────────────────────────────────
+const SESSION_INTENT_RE =
+  /cr[eé]er.{0,25}session|organis.{0,25}(session|partie)|nouvelle.{0,20}session|cr[eé]er.{0,20}(une\s+)?partie/i;
+
+// ── QCM constants ─────────────────────────────────────────────────────────────
+const QCM_TIME_MAP = {
+  '08h': '08:00', '10h': '10:00', '12h': '12:00', '14h': '14:00',
+  '16h': '16:00', '18h': '18:00', '20h': '20:00',
+};
+
+const QCM_STEPS = ['level', 'gender', 'players', 'date', 'time', 'share'];
+
+const QCM_QUESTIONS = {
+  level:   'Quel niveau ?',
+  gender:  'Quel genre ?',
+  players: 'Combien de joueurs ?',
+  date:    'Quelle date ?',
+  time:    'Quelle heure ?',
+  share:   'Partager la session ?',
+};
+
+const QCM_OPTIONS = {
+  level:   [1, 2, 3, 4, 5, 6, 7].map((n) => ({ v: n, l: `Niv. ${n}` })),
+  gender:  [{ v: 'mixed', l: 'Mixte' }, { v: 'men', l: 'Hommes' }, { v: 'women', l: 'Femmes' }],
+  players: [{ v: 2, l: '2' }, { v: 3, l: '3' }, { v: 4, l: '4' }],
+  date: [
+    { v: 'today',    l: "Aujourd'hui" },
+    { v: 'tomorrow', l: 'Demain'       },
+    { v: 'in2days',  l: 'Dans 2 jours' },
+    { v: 'custom',   l: 'Choisir…'     },
+  ],
+  time: [
+    ...['08h', '10h', '12h', '14h', '16h', '18h', '20h'].map((t) => ({ v: t, l: t })),
+    { v: 'custom', l: 'Autre' },
+  ],
+  share: [{ v: 'yes', l: 'Oui' }, { v: 'no', l: 'Non' }],
+};
+
+function resolveSessionDate(val, custom) {
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  if (val === 'today')    return fmt(new Date());
+  if (val === 'tomorrow') { const d = new Date(); d.setDate(d.getDate() + 1); return fmt(d); }
+  if (val === 'in2days')  { const d = new Date(); d.setDate(d.getDate() + 2); return fmt(d); }
+  return custom;
+}
+
+function resolveSessionTime(val, custom) {
+  return QCM_TIME_MAP[val] ?? custom;
+}
 
 // ── Mini card components ──────────────────────────────────────────────────────
 
@@ -82,6 +138,373 @@ function SlotMiniCard({ slot, onReserve }) {
       >
         Réserver
       </button>
+    </div>
+  );
+}
+
+// ── SessionQCM ────────────────────────────────────────────────────────────────
+function SessionQCM({ userLevel }) {
+  const navigate = useNavigate();
+
+  const [step, setStep] = useState(0);
+  const [sel, setSel]   = useState({
+    level:      userLevel ?? 3,
+    gender:     'mixed',
+    players:    4,
+    date:       'today',
+    customDate: '',
+    time:       '18h',
+    customTime: '',
+    share:      'no',
+  });
+
+  // 'qcm' | 'creating' | 'done' | 'sharing'
+  const [phase, setPhase]         = useState('qcm');
+  const [session, setSession]     = useState(null);
+  const [createErr, setCreateErr] = useState(null);
+
+  // Sharing state
+  const [friends, setFriends]               = useState([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [searchQ, setSearchQ]               = useState('');
+  const [searchRes, setSearchRes]           = useState([]);
+  const [searching, setSearching]           = useState(false);
+  const [picked, setPicked]                 = useState(new Set());
+  const [inviting, setInviting]             = useState(false);
+  const [inviteDone, setInviteDone]         = useState(false);
+
+  const curKey  = QCM_STEPS[step];
+  const curOpts = QCM_OPTIONS[curKey];
+  const isLast  = step === QCM_STEPS.length - 1;
+
+  function pickOpt(v) { setSel((s) => ({ ...s, [curKey]: v })); }
+
+  // Search debounce
+  useEffect(() => {
+    if (!searchQ.trim()) { setSearchRes([]); return; }
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const { players } = await searchPlayers(searchQ);
+        setSearchRes((players ?? []).map((p) => ({ ...p, id: p.user_id ?? p.id })));
+      } catch { setSearchRes([]); }
+      finally { setSearching(false); }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchQ]);
+
+  function goNext() {
+    if (step < QCM_STEPS.length - 1) { setStep((s) => s + 1); return; }
+    doCreate();
+  }
+
+  async function doCreate() {
+    setPhase('creating');
+    setCreateErr(null);
+    try {
+      const date = resolveSessionDate(sel.date, sel.customDate);
+      const time = resolveSessionTime(sel.time, sel.customTime);
+      const { session: s } = await createSession({
+        date,
+        time,
+        max_players: sel.players,
+        preferences: { level_min: sel.level, gender: sel.gender },
+      });
+      setSession(s);
+      if (sel.share === 'yes') {
+        setPhase('sharing');
+        setFriendsLoading(true);
+        getFriends()
+          .then(({ friends: f }) => setFriends(f ?? []))
+          .catch(() => {})
+          .finally(() => setFriendsLoading(false));
+      } else {
+        setPhase('done');
+      }
+    } catch (err) {
+      setCreateErr(err.message ?? 'Erreur lors de la création');
+      setPhase('qcm');
+    }
+  }
+
+  async function handleInvite() {
+    if (!session || picked.size === 0) return;
+    setInviting(true);
+    try {
+      await Promise.allSettled([...picked].map((id) => invitePlayer(session.id, id)));
+      setInviteDone(true);
+    } finally { setInviting(false); }
+  }
+
+  function togglePick(id) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function dateLabel() {
+    const M = { today: "Aujourd'hui", tomorrow: 'Demain', in2days: 'Dans 2 jours' };
+    return M[sel.date] ?? sel.customDate;
+  }
+
+  function summaryLabel(k) {
+    const v = sel[k];
+    if (k === 'level')   return `Niv. ${v}`;
+    if (k === 'gender')  return v === 'mixed' ? 'Mixte' : v === 'men' ? 'Hommes' : 'Femmes';
+    if (k === 'players') return `${v} joueurs`;
+    if (k === 'date')    return dateLabel();
+    if (k === 'time')    return QCM_TIME_MAP[v] ?? v;
+    if (k === 'share')   return v === 'yes' ? 'Partager' : 'Privé';
+    return String(v);
+  }
+
+  const needDatePicker = curKey === 'date' && sel.date === 'custom';
+  const needTimePicker = curKey === 'time' && sel.time === 'custom';
+  const canNext = curKey === 'date'
+    ? sel.date !== 'custom' || !!sel.customDate
+    : curKey === 'time'
+    ? sel.time !== 'custom' || !!sel.customTime
+    : true;
+
+  // ── Phase: creating ──
+  if (phase === 'creating') {
+    return (
+      <div className="rounded-2xl border border-violet-200 bg-white px-4 py-3 space-y-2 max-w-[260px]">
+        <p className="text-sm font-semibold text-violet-700">Création en cours…</p>
+        <div className="flex gap-1">
+          {[0, 150, 300].map((d) => (
+            <span
+              key={d}
+              className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce"
+              style={{ animationDelay: `${d}ms` }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Phase: done ──
+  if (phase === 'done') {
+    const dateStr = session?.date
+      ? new Date(session.date + 'T00:00:00').toLocaleDateString('fr-FR', {
+          weekday: 'long', day: 'numeric', month: 'long',
+        })
+      : '';
+    return (
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-3 max-w-[260px]">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+            <Check className="h-4 w-4 text-white" />
+          </div>
+          <p className="text-sm font-bold text-emerald-700">Session créée !</p>
+        </div>
+        <div className="text-xs text-slate-600 space-y-0.5 pl-1">
+          <p>📅 {dateStr}</p>
+          <p>⏰ {(session?.time ?? '').slice(0, 5)}</p>
+          <p>👥 {session?.max_players} joueurs max</p>
+        </div>
+        <button
+          onClick={() => navigate('/sessions')}
+          className="w-full text-center text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl py-2 transition-colors"
+        >
+          Voir ma session →
+        </button>
+      </div>
+    );
+  }
+
+  // ── Phase: sharing ──
+  if (phase === 'sharing') {
+    const displayList = searchQ.trim() ? searchRes : friends;
+    const sessionDateShort = session?.date
+      ? new Date(session.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+      : '';
+    return (
+      <div className="rounded-2xl border border-violet-200 bg-white p-4 space-y-3 max-w-[280px]">
+        {/* Session mini-header */}
+        <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+          <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+            <Check className="h-3 w-3 text-white" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-emerald-700">Session créée !</p>
+            {session && (
+              <p className="text-[10px] text-slate-400">
+                {sessionDateShort} · {(session.time ?? '').slice(0, 5)} · {session.max_players} joueurs
+              </p>
+            )}
+          </div>
+        </div>
+
+        <p className="text-sm font-semibold text-slate-800">Inviter des joueurs</p>
+
+        <input
+          type="text"
+          value={searchQ}
+          onChange={(e) => setSearchQ(e.target.value)}
+          placeholder="Rechercher par nom ou pseudo…"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-300"
+        />
+
+        <div className="max-h-40 overflow-y-auto space-y-1 no-scrollbar">
+          {(friendsLoading || searching) ? (
+            <p className="text-xs text-slate-400 text-center py-3">Chargement…</p>
+          ) : displayList.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-3">
+              {searchQ ? 'Aucun résultat' : 'Aucun ami trouvé'}
+            </p>
+          ) : displayList.map((f) => {
+            const fid        = f.user_id ?? f.id;
+            const name       = [f.first_name, f.last_name].filter(Boolean).join(' ') || f.username || '?';
+            const isSelected = picked.has(fid);
+            return (
+              <button
+                key={fid}
+                onClick={() => togglePick(fid)}
+                className={cn(
+                  'w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs transition-colors border',
+                  isSelected
+                    ? 'bg-violet-50 border-violet-300'
+                    : 'bg-white border-slate-100 hover:border-slate-200',
+                )}
+              >
+                {f.photo_url ? (
+                  <img src={f.photo_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center shrink-0 text-[10px] font-bold text-violet-700">
+                    {name.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 text-left min-w-0">
+                  <p className="font-medium text-slate-700 truncate">{name}</p>
+                  {f.level && <p className="text-[10px] text-slate-400">Niv. {f.level}</p>}
+                </div>
+                {isSelected && <Check className="h-3 w-3 text-violet-600 shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+
+        {inviteDone ? (
+          <div className="text-xs text-center font-semibold text-emerald-600 py-1">
+            ✓ Invitations envoyées !
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={() => navigate('/sessions')}
+              className="flex-1 text-xs py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Voir ma session
+            </button>
+            {picked.size > 0 && (
+              <button
+                onClick={handleInvite}
+                disabled={inviting}
+                className="flex-1 text-xs py-2 rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 transition-colors font-semibold"
+              >
+                {inviting ? '…' : `Envoyer à ${picked.size}`}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Phase: QCM ──
+  return (
+    <div className="rounded-2xl border border-violet-200 bg-white p-4 space-y-3 max-w-[280px]">
+      {/* Progress bar */}
+      <div className="flex gap-1">
+        {QCM_STEPS.map((_, i) => (
+          <div
+            key={i}
+            className={cn(
+              'h-1 flex-1 rounded-full transition-colors duration-300',
+              i < step ? 'bg-emerald-500' : i === step ? 'bg-violet-400' : 'bg-slate-100',
+            )}
+          />
+        ))}
+      </div>
+
+      {/* Completed answers as clickable pills */}
+      {step > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {QCM_STEPS.slice(0, step).map((k) => (
+            <button
+              key={k}
+              onClick={() => setStep(QCM_STEPS.indexOf(k))}
+              className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5 hover:bg-emerald-100 transition-colors"
+            >
+              {summaryLabel(k)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Question */}
+      <p className="text-sm font-bold text-slate-800">{QCM_QUESTIONS[curKey]}</p>
+
+      {/* Option chips */}
+      <div className="flex flex-wrap gap-1.5">
+        {curOpts.map(({ v, l }) => {
+          const isSelected = sel[curKey] === v;
+          return (
+            <button
+              key={String(v)}
+              onClick={() => pickOpt(v)}
+              className={cn(
+                'text-xs font-medium rounded-full px-3 py-1.5 border transition-colors',
+                isSelected
+                  ? 'bg-emerald-500 text-white border-emerald-500'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300 hover:text-violet-700',
+              )}
+            >
+              {l}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Date picker */}
+      {needDatePicker && (
+        <input
+          type="date"
+          value={sel.customDate}
+          min={new Date().toISOString().slice(0, 10)}
+          onChange={(e) => setSel((s) => ({ ...s, customDate: e.target.value }))}
+          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-300"
+        />
+      )}
+
+      {/* Time picker */}
+      {needTimePicker && (
+        <input
+          type="time"
+          value={sel.customTime}
+          onChange={(e) => setSel((s) => ({ ...s, customTime: e.target.value }))}
+          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-300"
+        />
+      )}
+
+      {/* Error */}
+      {createErr && <p className="text-xs text-red-500">{createErr}</p>}
+
+      {/* Next / Create button */}
+      {canNext && (
+        <button
+          onClick={goNext}
+          className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+        >
+          {isLast
+            ? '🎾 Créer la session'
+            : (<>Suivant <ChevronRight className="h-3.5 w-3.5" /></>)}
+        </button>
+      )}
     </div>
   );
 }
@@ -222,6 +645,18 @@ export default function PIAPanel({ onClose }) {
     const text = input.trim();
     if (!text || loading || rateLimited || historyLoading) return;
 
+    // Intercept session creation intent for players
+    if (SESSION_INTENT_RE.test(text) && user?.role === 'player') {
+      setInput('');
+      const ts = new Date().toISOString();
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', text, ts },
+        { role: 'widget', type: 'session_qcm', ts: new Date().toISOString() },
+      ]);
+      return;
+    }
+
     setInput('');
     const ts          = new Date().toISOString();
     const newMessages = [...messages, { role: 'user', text, ts }];
@@ -231,7 +666,7 @@ export default function PIAPanel({ onClose }) {
     try {
       const history = newMessages
         .slice(0, -1)
-        .filter((m) => m.text !== WELCOME)
+        .filter((m) => m.role !== 'widget' && m.text !== WELCOME)
         .map((m) => ({ role: m.role, parts: [{ text: m.text }] }));
 
       const { response, conversation_id: convId, type: respType, data: respData } =
@@ -269,7 +704,7 @@ export default function PIAPanel({ onClose }) {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, rateLimited, historyLoading, messages, conversationId]);
+  }, [input, loading, rateLimited, historyLoading, messages, conversationId, user]);
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -304,7 +739,7 @@ export default function PIAPanel({ onClose }) {
         role="dialog"
         aria-label="PIA — Assistante PadelConnect"
       >
-        {/* ── Header ────────────────────────────────────────────────── */}
+        {/* ── Header ────────────────────────────────────────────── */}
         <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-violet-600 to-primary text-white shrink-0">
           {view === 'history' ? (
             <button
@@ -356,7 +791,7 @@ export default function PIAPanel({ onClose }) {
           </button>
         </div>
 
-        {/* ── Messages / History ───────────────────────────────────── */}
+        {/* ── Messages / History ───────────────────────────────── */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
 
           {/* History view */}
@@ -422,22 +857,30 @@ export default function PIAPanel({ onClose }) {
                   )}
 
                   <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    {msg.role === 'model' && (
+                    {(msg.role === 'model' || msg.role === 'widget') && (
                       <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-primary flex items-center justify-center mr-2 mt-0.5 shrink-0">
                         <Sparkles className="h-3 w-3 text-white" />
                       </div>
                     )}
 
                     <div className="space-y-1.5 max-w-[80%]">
-                      {/* Text bubble */}
-                      <div className={cn(
-                        'rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
-                        msg.role === 'user'
-                          ? 'bg-primary text-white rounded-br-sm'
-                          : 'bg-muted text-foreground rounded-bl-sm',
-                      )}>
-                        {msg.text}
-                      </div>
+
+                      {/* SessionQCM widget */}
+                      {msg.role === 'widget' && msg.type === 'session_qcm' && (
+                        <SessionQCM userLevel={undefined} />
+                      )}
+
+                      {/* Text bubble — regular messages only */}
+                      {msg.role !== 'widget' && (
+                        <div className={cn(
+                          'rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
+                          msg.role === 'user'
+                            ? 'bg-primary text-white rounded-br-sm'
+                            : 'bg-muted text-foreground rounded-bl-sm',
+                        )}>
+                          {msg.text}
+                        </div>
+                      )}
 
                       {/* Player suggestion cards */}
                       {msg.role === 'model' && msg.type === 'players' && msg.data?.length > 0 && (
