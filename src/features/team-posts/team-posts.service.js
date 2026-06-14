@@ -13,9 +13,12 @@ async function assertMember(userId, teamId) {
   if (!['admin', 'manager'].includes(member.role)) throw makeError(403, 'Réservé aux admins et managers.');
 }
 
-async function createPost(userId, teamId, { type, media_url, caption }) {
+async function createPost(userId, teamId, { type, media_url, caption, metadata }) {
   await assertMember(userId, teamId);
-  return repo.createPost({ team_id: teamId, created_by: userId, type, media_url, caption });
+  return repo.createPost({
+    team_id: teamId, created_by: userId, type, media_url, caption,
+    metadata: metadata || null,
+  });
 }
 
 async function getFeedPosts() {

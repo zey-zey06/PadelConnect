@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/App';
 import { getMyTeam, inviteMember } from '@/api/teams';
 import { createTournament, listTournaments, getTournament, validateCashPayment } from '@/api/tournaments';
-import { createPost } from '@/api/teamPosts';
+import { createPost, scanPoster, getTeamPosts } from '@/api/teamPosts';
 import { listClubs } from '@/api/clubs';
 import { getMyChats, getOrCreateChat, getChatMessages, sendChatMessage } from '@/api/teamChats';
 import { getTeamSponsors, addSponsor, deleteSponsor } from '@/api/sponsors';
@@ -758,13 +758,27 @@ function SponsorsTab({ team, tournaments, isAdmin }) {
 }
 
 // ── Create post modal ─────────────────────────────────────────────────────────
-function CreatePostModal({ team, onClose, onCreated, onOpenTournament }) {
-  const [postTab,   setPostTab]   = useState('photo'); // photo | reel
-  const [caption,   setCaption]   = useState('');
-  const [mediaUrl,  setMediaUrl]  = useState('');
-  const [fileB64,   setFileB64]   = useState(null);
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState(null);
+function CreatePostModal({ team, tournaments, onClose, onCreated, onOpenTournament }) {
+  const [postTab,    setPostTab]    = useState('photo'); // photo | reel | tournoi
+  const [caption,    setCaption]    = useState('');
+  const [mediaUrl,   setMediaUrl]   = useState('');
+  const [fileB64,    setFileB64]    = useState(null);
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState(null);
+  // PIA scanning state (tournoi tab)
+  const [scanning,   setScanning]   = useState(false);
+  const [metaForm,   setMetaForm]   = useState({
+    tournament_name: '', date: '', venue: '', level: '', registration_fee: '', format: '', notes: '',
+  });
+  const [linkedTnmt, setLinkedTnmt] = useState('');
+  const [scanned,    setScanned]    = useState(false);
+
+  function resetTab(id) {
+    setPostTab(id); setError(null); setFileB64(null); setMediaUrl('');
+    setScanning(false); setScanned(false);
+    setMetaForm({ tournament_name: '', date: '', venue: '', level: '', registration_fee: '', format: '', notes: '' });
+    setLinkedTnmt('');
+  }
 
   function handleFile(e) {
     const file = e.target.files?.[0];
@@ -774,13 +788,52 @@ function CreatePostModal({ team, onClose, onCreated, onOpenTournament }) {
     reader.readAsDataURL(file);
   }
 
+  async function handleTournamentFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const b64 = ev.target.result;
+      setFileB64(b64);
+      setScanning(true); setScanned(false);
+      try {
+        const { metadata } = await scanPoster(b64);
+        setMetaForm({
+          tournament_name:  metadata.tournament_name  || '',
+          date:             metadata.date             || '',
+          venue:            metadata.venue            || '',
+          level:            metadata.level            || '',
+          registration_fee: metadata.registration_fee || '',
+          format:           metadata.format           || '',
+          notes:            metadata.notes            || '',
+        });
+        setScanned(true);
+      } catch {
+        setScanned(true); // show form anyway even if scan fails
+      } finally {
+        setScanning(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function setMeta(k, v) { setMetaForm((p) => ({ ...p, [k]: v })); }
+
   async function handleSubmit(e) {
     e.preventDefault();
     const url = fileB64 || mediaUrl.trim();
     if (!url) { setError('Ajoutez un média.'); return; }
     setLoading(true); setError(null);
     try {
-      const { post } = await createPost(team.id, { type: postTab, media_url: url, caption: caption.trim() || null });
+      const payload = { type: postTab, media_url: url, caption: caption.trim() || null };
+      if (postTab === 'tournoi') {
+        const meta = {};
+        Object.entries(metaForm).forEach(([k, v]) => { if (v) meta[k] = v; });
+        if (linkedTnmt) meta.tournament_id = linkedTnmt;
+        payload.type = 'tournament';
+        payload.metadata = Object.keys(meta).length ? meta : null;
+      }
+      const { post } = await createPost(team.id, payload);
       onCreated(post);
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
@@ -789,20 +842,20 @@ function CreatePostModal({ team, onClose, onCreated, onOpenTournament }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-foreground/30 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl max-h-[92vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <h2 className="font-semibold text-foreground">Publier</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border px-5 gap-1">
+        <div className="flex border-b border-border px-5 gap-1 shrink-0">
           {[
-            { id: 'photo', label: 'Photo', Icon: Image },
-            { id: 'reel',  label: 'Reel',  Icon: Film  },
+            { id: 'photo',   label: 'Photo',   Icon: Image },
+            { id: 'reel',    label: 'Reel',    Icon: Film  },
             { id: 'tournoi', label: 'Tournoi', Icon: Trophy },
           ].map(({ id, label, Icon }) => (
-            <button key={id} onClick={() => { setPostTab(id); setError(null); setFileB64(null); setMediaUrl(''); }}
+            <button key={id} onClick={() => resetTab(id)}
               className={cn('flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
                 postTab === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}>
               <Icon className="h-3.5 w-3.5" />{label}
@@ -810,18 +863,103 @@ function CreatePostModal({ team, onClose, onCreated, onOpenTournament }) {
           ))}
         </div>
 
+        {/* ── Tournoi tab — PIA scan ──────────────────────────── */}
         {postTab === 'tournoi' ? (
-          <div className="p-5 text-center space-y-3">
-            <Trophy className="h-10 w-10 text-primary mx-auto" />
-            <p className="text-sm text-foreground font-medium">Créer un tournoi</p>
-            <p className="text-xs text-muted-foreground">Organisez un tournoi pour votre équipe.</p>
-            <button onClick={() => { onClose(); onOpenTournament(); }}
-              className="w-full h-10 rounded-xl bg-primary text-primary-foreground text-sm font-medium">
-              Créer un tournoi
-            </button>
+          <div className="overflow-y-auto p-5 space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />{error}
+              </div>
+            )}
+
+            {/* Photo upload zone */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Affiche du tournoi</label>
+              <label className="flex flex-col items-center justify-center h-32 rounded-xl border-2 border-dashed border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors relative overflow-hidden">
+                {fileB64 ? (
+                  <img src={fileB64} alt="" className="absolute inset-0 w-full h-full object-cover rounded-xl" />
+                ) : (
+                  <>
+                    <Camera className="h-6 w-6 text-muted-foreground mb-1" />
+                    <span className="text-xs text-muted-foreground">Importer une affiche</span>
+                    <span className="text-[10px] text-muted-foreground/60 mt-0.5">PIA extraira les infos automatiquement</span>
+                  </>
+                )}
+                <input type="file" accept="image/*" className="hidden" onChange={handleTournamentFile} />
+              </label>
+            </div>
+
+            {/* PIA scanning spinner */}
+            {scanning && (
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-primary/5 border border-primary/20">
+                <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
+                <span className="text-sm text-primary font-medium">PIA analyse votre affiche…</span>
+              </div>
+            )}
+
+            {/* Extracted info form (shown after scan) */}
+            {(scanned || !fileB64) && (
+              <div className="space-y-3">
+                {scanned && (
+                  <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" />Infos extraites — vérifiez et complétez
+                  </p>
+                )}
+                {[
+                  { key: 'tournament_name',  label: 'Nom du tournoi',       placeholder: 'Ex: Open Abidjan 2026' },
+                  { key: 'date',             label: 'Date(s)',               placeholder: 'Ex: 28-29 juin 2026' },
+                  { key: 'venue',            label: 'Lieu',                  placeholder: 'Ex: Padel Club Cocody' },
+                  { key: 'level',            label: 'Niveau requis',         placeholder: 'Ex: Intermédiaire+' },
+                  { key: 'registration_fee', label: "Frais d'inscription",   placeholder: 'Ex: 15 000 FCFA' },
+                  { key: 'format',           label: 'Format',                placeholder: 'Ex: Élimination directe' },
+                ].map(({ key, label, placeholder }) => (
+                  <div key={key} className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">{label}</label>
+                    <input
+                      type="text" value={metaForm[key]} placeholder={placeholder}
+                      onChange={(e) => setMeta(key, e.target.value)}
+                      className="w-full h-8 text-sm rounded-lg border border-border bg-background px-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                ))}
+
+                {/* Link to existing tournament */}
+                {tournaments.length > 0 && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Lier à un tournoi (optionnel)</label>
+                    <select value={linkedTnmt} onChange={(e) => setLinkedTnmt(e.target.value)}
+                      className="w-full h-8 text-sm rounded-lg border border-border bg-background px-3 focus:outline-none focus:ring-1 focus:ring-primary">
+                      <option value="">— Aucun —</option>
+                      {tournaments.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Légende (optionnel)</label>
+                  <textarea rows={2} placeholder="Infos supplémentaires…"
+                    value={caption} onChange={(e) => setCaption(e.target.value)}
+                    className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                </div>
+
+                <button type="button" disabled={loading || !fileB64}
+                  onClick={handleSubmit}
+                  className="w-full h-10 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5">
+                  {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Publication…</> : 'Publier l\'affiche'}
+                </button>
+              </div>
+            )}
+
+            <div className="pt-1 border-t border-border text-center">
+              <button type="button" onClick={() => { onClose(); onOpenTournament(); }}
+                className="text-xs text-muted-foreground hover:text-primary transition-colors">
+                Plutôt créer un nouveau tournoi →
+              </button>
+            </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          /* ── Photo / Reel tabs ────────────────────────────────── */
+          <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-4">
             {error && (
               <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                 <AlertCircle className="h-4 w-4 shrink-0" />{error}
@@ -889,6 +1027,13 @@ function RapportTab({ team, tournaments }) {
   const [regs,         setRegs]         = useState([]);
   const [loading,      setLoading]      = useState(false);
   const [validating,   setValidating]   = useState(null);
+  const [teamPosts,    setTeamPosts]    = useState([]);
+
+  useEffect(() => {
+    getTeamPosts(team.id)
+      .then((d) => setTeamPosts(d.posts ?? d ?? []))
+      .catch(() => setTeamPosts([]));
+  }, [team.id]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -953,6 +1098,43 @@ function RapportTab({ team, tournaments }) {
           </button>
         )}
       </div>
+
+      {/* Scanned poster info for selected tournament */}
+      {(() => {
+        const linkedPost = teamPosts.find(
+          (p) => p.type === 'tournament' && p.metadata?.tournament_id === selectedId && p.metadata
+        );
+        if (!linkedPost) return null;
+        const m = linkedPost.metadata;
+        const chips = [
+          { emoji: '📅', label: m.date },
+          { emoji: '📍', label: m.venue },
+          { emoji: '🏆', label: m.level },
+          { emoji: '💰', label: m.registration_fee },
+          { emoji: '🎯', label: m.format },
+        ].filter((c) => c.label);
+        if (!chips.length && !m.tournament_name) return null;
+        return (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <img src={linkedPost.media_url} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+              <div className="flex-1 min-w-0">
+                {m.tournament_name && <p className="text-sm font-semibold text-foreground truncate">{m.tournament_name}</p>}
+                <p className="text-[10px] text-muted-foreground">Affiche scannée par PIA</p>
+              </div>
+            </div>
+            {chips.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {chips.map((c) => (
+                  <span key={c.emoji} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-card border border-border text-foreground/80">
+                    {c.emoji} {c.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Table */}
       {loading ? (
@@ -1237,6 +1419,7 @@ export default function TeamDashboard() {
       {showCreatePost && (
         <CreatePostModal
           team={team}
+          tournaments={tournaments}
           onClose={() => setShowCreatePost(false)}
           onCreated={() => setShowCreatePost(false)}
           onOpenTournament={() => { setShowCreatePost(false); setShowCreateTnmt(true); }}

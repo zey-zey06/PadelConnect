@@ -1,8 +1,12 @@
 const db = require('../../db');
 
-async function createPost({ team_id, created_by, type, media_url, caption }) {
+async function createPost({ team_id, created_by, type, media_url, caption, metadata }) {
   const [post] = await db('team_posts')
-    .insert({ team_id, created_by, type, media_url, caption: caption || null })
+    .insert({
+      team_id, created_by, type,
+      media_url, caption: caption || null,
+      metadata: metadata ? JSON.stringify(metadata) : null,
+    })
     .returning('*');
   return post;
 }
@@ -16,7 +20,7 @@ async function getFeedPosts(limit = 20) {
     .limit(limit)
     .select(
       'p.id', 'p.team_id', 'p.type', 'p.media_url', 'p.caption',
-      'p.likes_count', 'p.comments_count', 'p.created_at',
+      'p.likes_count', 'p.comments_count', 'p.created_at', 'p.metadata',
       't.name as team_name', 't.logo_url as team_logo',
     );
 }

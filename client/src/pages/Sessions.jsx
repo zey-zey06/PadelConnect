@@ -4109,8 +4109,10 @@ function TournamentsSection() {
 // ── Team posts feed ──────────────────────────────────────────────────────────
 function TeamPostsFeed() {
   const { user } = useAuth();
-  const [posts,   setPosts]   = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [posts,            setPosts]            = useState([]);
+  const [loading,          setLoading]          = useState(true);
+  const [participateModal, setParticipateModal] = useState(null);
+  const [listModal,        setListModal]        = useState(null);
 
   useEffect(() => {
     getFeedPosts()
@@ -4134,6 +4136,7 @@ function TeamPostsFeed() {
   }
 
   return (
+    <>
     <div className="space-y-3 pt-2">
       <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
         <Video className="h-4 w-4 text-primary" />
@@ -4184,11 +4187,61 @@ function TeamPostsFeed() {
                   )}
                 </div>
 
-                {/* Caption + actions */}
+                {/* Caption + metadata chips + actions */}
                 <div className="px-3 py-2.5 space-y-2">
                   {p.caption && (
                     <p className="text-sm text-foreground leading-snug">{p.caption}</p>
                   )}
+
+                  {/* Tournament metadata chips */}
+                  {p.type === 'tournament' && p.metadata && (() => {
+                    const m = typeof p.metadata === 'string' ? JSON.parse(p.metadata) : p.metadata;
+                    const chips = [
+                      { emoji: '📅', label: m.date },
+                      { emoji: '📍', label: m.venue },
+                      { emoji: '🏆', label: m.level },
+                      { emoji: '💰', label: m.registration_fee },
+                    ].filter((c) => c.label);
+                    if (!chips.length) return null;
+                    return (
+                      <div className="space-y-1.5">
+                        {m.tournament_name && (
+                          <p className="text-xs font-semibold text-foreground">{m.tournament_name}</p>
+                        )}
+                        <div className="flex flex-wrap gap-1">
+                          {chips.map((c) => (
+                            <span key={c.emoji}
+                              className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-foreground/80">
+                              {c.emoji} {c.label}
+                            </span>
+                          ))}
+                        </div>
+                        {m.tournament_id && (
+                          <div className="flex gap-2 pt-0.5">
+                            {user && user.role !== 'tournament_organizer' && (
+                              <button
+                                onClick={() => {
+                                  const t = { id: m.tournament_id, name: m.tournament_name || 'Tournoi' };
+                                  setParticipateModal(t);
+                                }}
+                                className="flex-1 h-7 text-[11px] font-medium rounded-lg bg-primary text-primary-foreground">
+                                Participer
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                const t = { id: m.tournament_id, name: m.tournament_name || 'Tournoi' };
+                                setListModal(t);
+                              }}
+                              className="flex-1 h-7 text-[11px] font-medium rounded-lg border border-border text-foreground/70 hover:text-foreground">
+                              Voir la liste
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   <div className="flex items-center gap-4 pt-0.5">
                     <button onClick={() => handleLike(p.id)} disabled={!user}
                       className={cn('flex items-center gap-1 text-xs font-medium transition-colors',
@@ -4208,6 +4261,21 @@ function TeamPostsFeed() {
           </div>
         )}
     </div>
+
+    {participateModal && (
+      <ParticipationModal
+        tournament={participateModal}
+        onClose={() => setParticipateModal(null)}
+        onSuccess={() => setParticipateModal(null)}
+      />
+    )}
+    {listModal && (
+      <ParticipantListModal
+        tournament={listModal}
+        onClose={() => setListModal(null)}
+      />
+    )}
+  </>
   );
 }
 
