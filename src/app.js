@@ -160,6 +160,7 @@ app.use((err, req, res, next) => {
 // Start the daily reminder cron job in non-test environments
 if (process.env.NODE_ENV !== 'test') {
   require('./jobs/reminder');
+  require('./jobs/session-end');
 
   // Subscription expiry cron — runs once on startup then every 24 h
   const { runCron: runSubscriptionCron } = require('./features/subscriptions/subscriptions.service');

@@ -73,3 +73,24 @@ export const rateSession = (id, data) => client.post(`/sessions/${id}/ratings`, 
 
 /** GET /api/sessions/:id/ratings → { count, organisation, niveau, ambiance, average } */
 export const getSessionRatings = (id) => client.get(`/sessions/${id}/ratings`);
+
+// ── Group chat ────────────────────────────────────────────────────────────────
+/** GET /api/sessions/:id/messages → { messages: [...] } */
+export const getSessionMessages = (id) => client.get(`/sessions/${id}/messages`);
+
+/** POST /api/sessions/:id/messages { content } → { message } */
+export const sendSessionMessage = (id, content) => client.post(`/sessions/${id}/messages`, { content });
+
+// ── Score ─────────────────────────────────────────────────────────────────────
+/** GET /api/sessions/:id/score → { score } */
+export const getSessionScore = (id) => client.get(`/sessions/${id}/score`);
+
+/** POST /api/sessions/:id/score { score_my_team, score_opponent, winner } → { score } */
+export const submitScore = (id, data) => client.post(`/sessions/${id}/score`, data);
+
+// ── Feedback ──────────────────────────────────────────────────────────────────
+/** GET /api/sessions/:id/my-feedback → { feedback } */
+export const getMyFeedback = (id) => client.get(`/sessions/${id}/my-feedback`);
+
+/** POST /api/sessions/:id/feedback { emoji, comment } → { feedback } */
+export const submitFeedback = (id, data) => client.post(`/sessions/${id}/feedback`, data);

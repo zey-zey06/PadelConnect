@@ -214,12 +214,27 @@ function FriendButton({ friendStatus, targetUserId, onStatusChange }) {
   );
 }
 
+const XP_LABELS_PP   = ['Débutant', 'Débutant+', 'Intermédiaire-', 'Intermédiaire', 'Intermédiaire+', 'Avancé', 'Expert'];
+const XP_THRESHOLDS_PP = [0, 100, 250, 500, 850, 1300, 1850];
+const LEVEL_COLORS_PP  = {
+  1: 'bg-gray-100 text-gray-600',
+  2: 'bg-green-100 text-green-700',
+  3: 'bg-blue-100 text-blue-700',
+  4: 'bg-purple-100 text-purple-700',
+  5: 'bg-orange-100 text-orange-700',
+  6: 'bg-red-100 text-red-700',
+  7: 'bg-yellow-100 text-yellow-700',
+};
+
 // ── Stats section ─────────────────────────────────────────────────────────────
-function StatsSection({ sessions, sessionsCount, level }) {
+function StatsSection({ sessions, sessionsCount, level, xp = 0 }) {
   const total     = sessionsCount ?? sessions.length;
   const completed = sessions.filter((s) => s.status === 'complete').length;
   const rate      = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const progress  = level ? Math.round((level / 7) * 100) : 0;
+
+  const lo  = level ? (XP_THRESHOLDS_PP[level - 1] ?? 0) : 0;
+  const hi  = level ? (XP_THRESHOLDS_PP[level] ?? null) : null;
+  const pct = hi ? Math.min(100, Math.round(((xp - lo) / (hi - lo)) * 100)) : 100;
 
   return (
     <div className="bg-background px-4 py-4 space-y-3">
@@ -240,25 +255,30 @@ function StatsSection({ sessions, sessionsCount, level }) {
       {level && (
         <div className="rounded-xl border border-border bg-card px-4 py-3 space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5 text-primary" />
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                'text-[11px] font-bold px-2 py-0.5 rounded-full',
+                LEVEL_COLORS_PP[level] ?? LEVEL_COLORS_PP[1],
+              )}>
+                Niv.{level}{level === 7 ? ' ⭐' : ''}
+              </span>
               <span className="text-xs font-semibold text-foreground">
-                {LEVEL_LABELS[level] ?? `Niveau ${level}`}
+                {XP_LABELS_PP[level - 1] ?? `Niveau ${level}`}
               </span>
             </div>
-            <span className="text-xs text-muted-foreground">Niv. {level}/7</span>
+            <span className="text-[11px] font-semibold text-primary">{xp} XP</span>
           </div>
           <div className="h-2 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${progress}%` }}
+              style={{ width: `${pct}%` }}
             />
           </div>
-          {level < 7 && (
-            <p className="text-[10px] text-muted-foreground">
-              Prochain niveau : {LEVEL_LABELS[level + 1]}
-            </p>
-          )}
+          <p className="text-[10px] text-muted-foreground">
+            {hi
+              ? `${xp} / ${hi} XP pour Niv ${level + 1}`
+              : 'Niveau maximum atteint ! ⭐'}
+          </p>
         </div>
       )}
     </div>
@@ -653,7 +673,7 @@ export default function PlayerProfile() {
 
       {/* ── Stats ────────────────────────────────────────────────── */}
       <div className="h-2 bg-muted/40" />
-      <StatsSection sessions={sessions} sessionsCount={sessionsCount} level={level} />
+      <StatsSection sessions={sessions} sessionsCount={sessionsCount} level={level} xp={profile?.xp_points ?? 0} />
 
       {/* ── Divider ───────────────────────────────────────────────── */}
       <div className="h-2 bg-muted/40" />

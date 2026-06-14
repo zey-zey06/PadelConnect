@@ -154,11 +154,17 @@ RÈGLES DE SÉCURITÉ ABSOLUES — s'appliquent sans exception :
 function buildSystemPrompt(role, context) {
   // PIA JOUEUR — player / coach
   if (role === 'player' || role === 'coach') {
-    return `Tu es PIA, assistante padel pour les joueurs de PadelConnect Abidjan. Tu aides uniquement pour: trouver des partenaires, comprendre les sessions, conseils de jeu, utilisation de l'app. Refuse poliment toute question hors périmètre.
+    return `Tu es PIA, assistante padel pour les joueurs de PadelConnect Abidjan. Tu aides pour: trouver des partenaires, conseils de progression, sessions, utilisation de l'app. Refuse poliment toute question hors périmètre.
 
 ${BASE_RULES}
 
 Tu ne peux PAS répondre à : gestion de club, statistiques admin, facturation, données personnelles d'autres joueurs.
+
+COMPORTEMENT POUR LES QUESTIONS FRÉQUENTES :
+- "Comment progresser ?" → donne des conseils personnalisés selon le niveau du joueur et suggère des sessions de niveau supérieur
+- "Trouve-moi un partenaire" → utilise les données de partenaires compatibles et affiche-les sous forme de cartes joueur
+- "Quelles sessions rejoindre ?" → recommande des sessions correspondant à son niveau avec les données disponibles
+- "Mon profil" → résume ses stats : nom, niveau, XP, sessions, amis, partenaires fréquents
 
 Voici les informations contextuelles sur ce joueur :
 ${context}`;
@@ -194,23 +200,23 @@ async function fetchContext(role, userId, orgId) {
   try {
     // ── PLAYER ─────────────────────────────────────────────────────────────────
     if (role === 'player') {
+      const XP_LABELS = ['Débutant', 'Débutant+', 'Intermédiaire-', 'Intermédiaire', 'Intermédiaire+', 'Avancé', 'Expert'];
+
       const [profile, calendar] = await Promise.all([
         profileRepo.getByUserId(userId),
         calendarService.getMyCalendar(userId),
       ]);
 
-      const level = profile?.level;
-      const style = profile?.style ?? 'non renseigné';
+      const level   = profile?.level;
+      const xp      = profile?.xp_points ?? 0;
+      const style   = profile?.style ?? 'non renseigné';
+      const name    = [profile?.user_first_name, profile?.user_last_name].filter(Boolean).join(' ') || 'Joueur';
+      const levelLabel = level ? (XP_LABELS[level - 1] ?? `Niveau ${level}`) : 'non renseigné';
 
-      const [sessionsRow, partnersResult, matchingRow] = await Promise.all([
-        // Sessions created by user (not cancelled)
-        db('sessions')
-          .where({ creator_id: userId })
-          .whereNotIn('status', ['cancelled'])
-          .whereNull('deleted_at')
-          .count('id as count')
-          .first(),
-        // Top 3 most-played-with partners via session_requests
+      const [sessionsCreatedRow, sessionsJoinedRow, friendsRow, partnersResult, matchingRow] = await Promise.all([
+        db('sessions').where({ creator_id: userId }).whereNotIn('status', ['cancelled']).whereNull('deleted_at').count('id as count').first(),
+        db('session_requests').where({ player_id: userId, status: 'accepted' }).whereNull('deleted_at').count('id as count').first(),
+        db('friendships').where((q) => q.where('requester_id', userId).orWhere('addressee_id', userId)).where('status', 'accepted').count('id as count').first(),
         db.raw(`
           SELECT u.first_name, u.last_name, COUNT(*) AS together
           FROM   session_requests sr1
@@ -224,14 +230,9 @@ async function fetchContext(role, userId, orgId) {
           ORDER  BY together DESC
           LIMIT  3
         `, [userId]),
-        // Open sessions matching user's level
         level
-          ? db('sessions')
-              .whereNull('deleted_at')
-              .where('status', 'open')
-              .whereRaw("(preferences->>'level_min')::int <= ?", [level])
-              .count('id as count')
-              .first()
+          ? db('sessions').whereNull('deleted_at').where('status', 'open')
+              .whereRaw("(preferences->>'level_min')::int <= ?", [level]).count('id as count').first()
           : Promise.resolve({ count: 0 }),
       ]);
 
@@ -243,8 +244,10 @@ async function fetchContext(role, userId, orgId) {
         .map((p) => `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || 'Joueur')
         .join(', ');
 
-      return `Niveau : ${level ?? 'non renseigné'} | Style : ${style}
-Sessions créées : ${Number(sessionsRow?.count ?? 0)}
+      return `Joueur : ${name}
+Niveau : ${level ?? '?'}/7 — ${levelLabel} | XP : ${xp}
+Style de jeu : ${style}
+Amis : ${Number(friendsRow?.count ?? 0)} | Sessions créées : ${Number(sessionsCreatedRow?.count ?? 0)} | Sessions rejointes : ${Number(sessionsJoinedRow?.count ?? 0)}
 Sessions disponibles à son niveau : ${Number(matchingRow?.count ?? 0)}
 Partenaires fréquents : ${partners || 'Aucun encore'}
 Sessions à venir :

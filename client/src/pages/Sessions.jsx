@@ -9,6 +9,9 @@ import {
   listSessions, createSession, updateSession, requestJoin, getMySessions,
   getSessionRequests, respondToRequest, cancelSession, inviteCoach, invitePlayer,
   getMySessionRequests, getSessionParticipants, removeParticipant,
+  getSessionMessages, sendSessionMessage,
+  getSessionScore, submitScore,
+  getMyFeedback, submitFeedback,
 } from '@/api/sessions';
 import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
 import { listClubs, getClubSlots, getClubCoaches, getClubBallPickers } from '@/api/clubs';
@@ -23,6 +26,7 @@ import {
   Users, Plus, AlertCircle, X,
   CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2, Calendar,
   ChevronLeft, ChevronRight, Banknote, CreditCard, Share2, Pencil, Link2, Copy,
+  MessageSquare, Send, RefreshCw, Trophy, Smile,
 } from 'lucide-react';
 import ShareContactPicker from '@/components/ShareContactPicker';
 import { useAuth, usePlayerPanel } from '@/App';
@@ -33,6 +37,28 @@ const LEVEL_LABELS = {
   1: 'Débutant', 2: 'Débutant +', 3: 'Intermédiaire',
   4: 'Inter +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
 };
+
+// Color scheme per level: [bg, text, border]
+const LEVEL_BADGE_COLORS = {
+  1: 'bg-gray-100   text-gray-600   border-gray-200',
+  2: 'bg-green-100  text-green-700  border-green-200',
+  3: 'bg-blue-100   text-blue-700   border-blue-200',
+  4: 'bg-purple-100 text-purple-700 border-purple-200',
+  5: 'bg-orange-100 text-orange-700 border-orange-200',
+  6: 'bg-red-100    text-red-700    border-red-200',
+  7: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+};
+
+// XP thresholds mirrored from backend
+const XP_THRESHOLDS = [0, 100, 250, 500, 850, 1300, 1850];
+function xpProgress(xp, level) {
+  const lo = XP_THRESHOLDS[(level ?? 1) - 1] ?? 0;
+  const hi = XP_THRESHOLDS[level ?? 1] ?? null;
+  if (!hi) return { pct: 100, lo, hi: null };
+  return { pct: Math.min(100, Math.round(((xp - lo) / (hi - lo)) * 100)), lo, hi };
+}
+
+const XP_LEVEL_NAMES = ['Débutant', 'Débutant+', 'Intermédiaire-', 'Intermédiaire', 'Intermédiaire+', 'Avancé', 'Expert'];
 
 // ── Payment method display helpers ────────────────────────────────────────────
 const PAYMENT_METHOD_BADGE = {
@@ -458,6 +484,20 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
   const { openPlayerPanel } = usePlayerPanel();
   const [participants,  setParticipants]  = useState(null);
   const [loadingPart,   setLoadingPart]   = useState(true);
+  const [activeTab,     setActiveTab]     = useState('info'); // 'info' | 'chat'
+
+  // Chat state
+  const [messages,      setMessages]      = useState(null);
+  const [loadingMsgs,   setLoadingMsgs]   = useState(false);
+  const [msgInput,      setMsgInput]      = useState('');
+  const [sendingMsg,    setSendingMsg]     = useState(false);
+  const chatEndRef = useRef(null);
+
+  // Score / feedback state
+  const [showScore,     setShowScore]     = useState(false);
+  const [showFeedback,  setShowFeedback]  = useState(false);
+  const [existingScore, setExistingScore] = useState(undefined); // undefined = not loaded
+  const [myFeedback,    setMyFeedback]    = useState(undefined);
 
   // Swipe-right to close
   const touchStartX = useRef(null);
@@ -480,12 +520,59 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
     requestStatus === 'pending'  ? 'pending'  : 'idle';
   const [state, setState] = useState(initialState);
 
+  // Session ended?
+  const sessionEndDt = (() => {
+    const dateStr = session.date?.toString().slice(0, 10);
+    const timeStr = session.end_time?.slice(0, 5) ?? session.time?.slice(0, 5) ?? '23:59';
+    return dateStr ? new Date(`${dateStr}T${timeStr}`) : null;
+  })();
+  const sessionEnded = sessionEndDt ? sessionEndDt < new Date() : false;
+
   useEffect(() => {
     getSessionParticipants(session.id)
       .then(({ participants: p }) => setParticipants(p ?? []))
       .catch(() => setParticipants([]))
       .finally(() => setLoadingPart(false));
   }, [session.id]);
+
+  // Load score + feedback status when session has ended
+  useEffect(() => {
+    if (!sessionEnded) return;
+    getSessionScore(session.id)
+      .then(({ score }) => setExistingScore(score))
+      .catch(() => setExistingScore(null));
+    if (!isOwner) {
+      getMyFeedback(session.id)
+        .then(({ feedback }) => setMyFeedback(feedback))
+        .catch(() => setMyFeedback(null));
+    }
+  }, [session.id, sessionEnded, isOwner]);
+
+  function loadMessages() {
+    setLoadingMsgs(true);
+    getSessionMessages(session.id)
+      .then(({ messages: m }) => { setMessages(m ?? []); setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50); })
+      .catch(() => setMessages([]))
+      .finally(() => setLoadingMsgs(false));
+  }
+
+  useEffect(() => {
+    if (activeTab === 'chat' && messages === null) loadMessages();
+  }, [activeTab]);
+
+  async function handleSendMessage(e) {
+    e.preventDefault();
+    const text = msgInput.trim();
+    if (!text || sendingMsg) return;
+    setSendingMsg(true);
+    try {
+      const { message } = await sendSessionMessage(session.id, text);
+      setMessages((prev) => [...(prev ?? []), message]);
+      setMsgInput('');
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    } catch { /* non-fatal */ }
+    finally { setSendingMsg(false); }
+  }
 
   async function handleJoin() {
     setState('loading');
@@ -501,6 +588,7 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
 
   const players = (participants ?? []).filter((p) => p.role !== 'coach');
   const coaches  = (participants ?? []).filter((p) => p.role === 'coach');
+  const isParticipant = isOwner || (participants ?? []).some((p) => p.id === user?.id);
 
   // Remove participant
   const [confirmRemove,  setConfirmRemove]  = useState(null); // { id, name }
@@ -565,8 +653,101 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
           </button>
         </div>
 
+        {/* Tab bar — only when user is a participant */}
+        {isParticipant && (
+          <div className="flex border-b border-border shrink-0">
+            {[
+              { key: 'info', label: 'Infos', icon: <Users className="h-3.5 w-3.5" /> },
+              { key: 'chat', label: 'Chat', icon: <MessageSquare className="h-3.5 w-3.5" /> },
+            ].map(({ key, label, icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveTab(key)}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold border-b-2 transition-colors',
+                  activeTab === key
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {icon}{label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 pb-24 space-y-5">
+
+          {/* ── Chat tab ─────────────────────────────────────────────── */}
+          {activeTab === 'chat' && (
+            <div className="flex flex-col h-full space-y-0 -mt-5 -mx-5 -mb-24">
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Chat du groupe</p>
+                  <button
+                    type="button"
+                    onClick={loadMessages}
+                    disabled={loadingMsgs}
+                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  >
+                    <RefreshCw className={cn('h-3 w-3', loadingMsgs && 'animate-spin')} />
+                    Actualiser
+                  </button>
+                </div>
+                {loadingMsgs ? (
+                  <div className="space-y-2 pt-2">
+                    {[1, 2, 3].map((i) => <div key={i} className="h-10 rounded-xl bg-muted animate-pulse" />)}
+                  </div>
+                ) : messages === null ? null : messages.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-8">Aucun message. Dites bonjour ! 👋</p>
+                ) : messages.map((msg) => {
+                  const isMine = msg.user_id === user?.id;
+                  const name = [msg.user_first_name, msg.user_last_name].filter(Boolean).join(' ')
+                    || msg.user_username || 'Joueur';
+                  const time = new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                  return (
+                    <div key={msg.id} className={cn('flex flex-col', isMine ? 'items-end' : 'items-start')}>
+                      {!isMine && <p className="text-[10px] text-muted-foreground mb-0.5 px-1">{name}</p>}
+                      <div className={cn(
+                        'max-w-[78%] rounded-2xl px-3 py-2 text-sm',
+                        isMine
+                          ? 'bg-primary text-primary-foreground rounded-br-sm'
+                          : 'bg-muted text-foreground rounded-bl-sm',
+                      )}>
+                        {msg.content}
+                      </div>
+                      <p className="text-[9px] text-muted-foreground mt-0.5 px-1">{time}</p>
+                    </div>
+                  );
+                })}
+                <div ref={chatEndRef} />
+              </div>
+              {/* Input */}
+              <form onSubmit={handleSendMessage} className="flex items-center gap-2 px-4 py-3 border-t border-border bg-card shrink-0">
+                <input
+                  type="text"
+                  value={msgInput}
+                  onChange={(e) => setMsgInput(e.target.value)}
+                  placeholder="Votre message..."
+                  maxLength={500}
+                  className="flex-1 text-sm bg-muted rounded-full px-4 py-2 outline-none border border-border focus:border-primary transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={!msgInput.trim() || sendingMsg}
+                  className="h-9 w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 shrink-0"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* ── Info tab (default) ───────────────────────────────────── */}
+          {activeTab === 'info' && <>
 
           {/* Level + gender tags */}
           {(levelMin || gender) && (
@@ -746,6 +927,52 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
               </div>
             </div>
           )}
+
+          {/* Score / feedback CTAs (session ended) */}
+          {sessionEnded && isOwner && existingScore === null && (
+            <button
+              type="button"
+              onClick={() => setShowScore(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Trophy className="h-4 w-4" />
+              Saisir le score final
+            </button>
+          )}
+          {sessionEnded && isOwner && existingScore && (
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3">
+              <Trophy className="h-4 w-4 text-primary shrink-0" />
+              <p className="text-sm font-medium text-foreground">
+                Score saisi : {existingScore.score_my_team} – {existingScore.score_opponent}
+                <span className="ml-2 text-xs text-muted-foreground">
+                  ({existingScore.winner === 'my_team' ? 'Votre équipe a gagné' : 'Équipe adverse gagnante'})
+                </span>
+              </p>
+            </div>
+          )}
+          {sessionEnded && !isOwner && myFeedback === null && (
+            <button
+              type="button"
+              onClick={() => setShowFeedback(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/60 transition-colors"
+            >
+              <Smile className="h-4 w-4" />
+              Donner votre avis sur la session
+            </button>
+          )}
+          {sessionEnded && !isOwner && myFeedback && (
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-4 py-3">
+              <span className="text-lg">
+                {myFeedback.emoji === 'super' ? '😊' : myFeedback.emoji === 'correct' ? '😐' : '😞'}
+              </span>
+              <p className="text-sm text-muted-foreground">
+                Avis envoyé — {myFeedback.emoji === 'super' ? 'Super !' : myFeedback.emoji === 'correct' ? 'Correct' : 'Décevant'}
+                {myFeedback.comment && <span className="italic"> · {myFeedback.comment}</span>}
+              </p>
+            </div>
+          )}
+
+          </> /* end info tab */}
         </div>
 
         {/* Footer CTA */}
@@ -788,6 +1015,202 @@ function SessionDetailModal({ session, booking, onClose, onJoin, requestStatus }
             )}
           </div>
         )}
+      </div>
+
+      {/* Score modal */}
+      {showScore && (
+        <ScoreModal
+          sessionId={session.id}
+          onClose={() => setShowScore(false)}
+          onSaved={(s) => setExistingScore(s)}
+        />
+      )}
+
+      {/* Feedback modal */}
+      {showFeedback && (
+        <FeedbackModal
+          sessionId={session.id}
+          onClose={() => setShowFeedback(false)}
+          onSaved={(f) => setMyFeedback(f)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── ScoreModal ────────────────────────────────────────────────────────────────
+function ScoreModal({ sessionId, onClose, onSaved }) {
+  const [scoreA, setScoreA] = useState('');
+  const [scoreB, setScoreB] = useState('');
+  const [winner, setWinner] = useState(null); // 'my_team' | 'opponent'
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!winner) { setError('Indiquez qui a gagné.'); return; }
+    const a = parseInt(scoreA, 10);
+    const b = parseInt(scoreB, 10);
+    if (isNaN(a) || isNaN(b)) { setError('Entrez des scores valides.'); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const { score } = await submitScore(sessionId, { score_my_team: a, score_opponent: b, winner });
+      onSaved(score);
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Erreur lors de la sauvegarde.');
+    } finally { setLoading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-primary" /> Score final
+          </h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Ma team</label>
+              <input
+                type="number" min={0} max={99} value={scoreA}
+                onChange={(e) => setScoreA(e.target.value)}
+                className="w-full text-2xl font-bold text-center rounded-xl border border-border bg-muted/30 py-3 outline-none focus:border-primary"
+                placeholder="0"
+              />
+            </div>
+            <span className="text-2xl font-bold text-muted-foreground pt-5">–</span>
+            <div className="flex-1 space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Équipe adverse</label>
+              <input
+                type="number" min={0} max={99} value={scoreB}
+                onChange={(e) => setScoreB(e.target.value)}
+                className="w-full text-2xl font-bold text-center rounded-xl border border-border bg-muted/30 py-3 outline-none focus:border-primary"
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-foreground">Qui a gagné ?</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { key: 'my_team', label: 'Ma team' },
+                { key: 'opponent', label: 'Équipe adverse' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setWinner(key)}
+                  className={cn(
+                    'rounded-xl border-2 py-2.5 text-sm font-semibold transition-all',
+                    winner === key
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:border-primary/40',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-600">{error}</p>}
+
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? <span className="w-4 h-4 border-2 border-current/40 border-t-transparent rounded-full animate-spin" /> : 'Valider le score'}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── FeedbackModal ──────────────────────────────────────────────────────────────
+function FeedbackModal({ sessionId, onClose, onSaved }) {
+  const [emoji,   setEmoji]   = useState(null); // 'super' | 'correct' | 'decevant'
+  const [comment, setComment] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  const EMOJIS = [
+    { key: 'super',    label: 'Super',     icon: '😊' },
+    { key: 'correct',  label: 'Correct',   icon: '😐' },
+    { key: 'decevant', label: 'Décevant',  icon: '😞' },
+  ];
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!emoji) { setError('Sélectionnez une réaction.'); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const { feedback } = await submitFeedback(sessionId, { emoji, comment: comment.trim() || null });
+      onSaved(feedback);
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Erreur lors de l\'envoi.');
+    } finally { setLoading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-foreground">Comment s&apos;est passée la session ?</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-3 gap-2">
+            {EMOJIS.map(({ key, label, icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setEmoji(key)}
+                className={cn(
+                  'flex flex-col items-center rounded-xl border-2 py-3 gap-1 transition-all',
+                  emoji === key
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:border-primary/40',
+                )}
+              >
+                <span className="text-2xl">{icon}</span>
+                <span className="text-[10px] font-semibold text-muted-foreground">{label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Commentaire (optionnel, max 150 caractères)</label>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value.slice(0, 150))}
+              rows={2}
+              className="w-full text-sm rounded-xl border border-border bg-muted/30 px-3 py-2 outline-none focus:border-primary resize-none"
+              placeholder="Un mot sur la session..."
+            />
+            <p className="text-[10px] text-muted-foreground text-right">{comment.length}/150</p>
+          </div>
+
+          {error && <p className="text-xs text-red-600">{error}</p>}
+
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Passer</Button>
+            <Button type="submit" className="flex-1" disabled={loading || !emoji}>
+              {loading ? <span className="w-4 h-4 border-2 border-current/40 border-t-transparent rounded-full animate-spin" /> : 'Envoyer'}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -880,8 +1303,14 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
             {creatorName}
           </button>
           {session.creator_level ? (
-            <p className="text-xs text-muted-foreground leading-snug">
-              {LEVEL_LABELS[session.creator_level]} · Niv.&nbsp;{session.creator_level}/7
+            <p className="text-xs text-muted-foreground leading-snug flex items-center gap-1.5">
+              <span className={cn(
+                'inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full border',
+                LEVEL_BADGE_COLORS[session.creator_level] ?? LEVEL_BADGE_COLORS[1],
+              )}>
+                Niv.{session.creator_level}
+              </span>
+              {LEVEL_LABELS[session.creator_level]}
             </p>
           ) : (
             <p className="text-xs text-muted-foreground leading-snug">Organisateur</p>

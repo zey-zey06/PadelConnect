@@ -629,15 +629,28 @@ const PENALTY_LABELS = {
 
 // ── Player stats ─────────────────────────────────────────────────────────────
 const LEVEL_LABELS_STATS = {
-  1: 'Débutant', 2: 'Débutant +', 3: 'Intermédiaire',
-  4: 'Intermédiaire +', 5: 'Confirmé', 6: 'Avancé', 7: 'Expert',
+  1: 'Débutant', 2: 'Débutant+', 3: 'Intermédiaire-',
+  4: 'Intermédiaire', 5: 'Intermédiaire+', 6: 'Avancé', 7: 'Expert',
 };
+const LEVEL_BADGE_COLORS_PROFILE = {
+  1: 'bg-gray-100   text-gray-600',
+  2: 'bg-green-100  text-green-700',
+  3: 'bg-blue-100   text-blue-700',
+  4: 'bg-purple-100 text-purple-700',
+  5: 'bg-orange-100 text-orange-700',
+  6: 'bg-red-100    text-red-700',
+  7: 'bg-yellow-100 text-yellow-700',
+};
+const XP_THRESHOLDS_PROFILE = [0, 100, 250, 500, 850, 1300, 1850];
 
-function PlayerStats({ bookings, level }) {
+function PlayerStats({ bookings, level, xp = 0 }) {
   const total     = bookings.length;
   const completed = bookings.filter((b) => b.status === 'confirmed' || b.status === 'completed').length;
   const rate      = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const progress  = level ? Math.round((level / 7) * 100) : 0;
+
+  const lo      = level ? (XP_THRESHOLDS_PROFILE[level - 1] ?? 0) : 0;
+  const hi      = level ? (XP_THRESHOLDS_PROFILE[level] ?? null) : null;
+  const pct     = hi ? Math.min(100, Math.round(((xp - lo) / (hi - lo)) * 100)) : 100;
 
   return (
     <div className="w-full max-w-sm mx-auto rounded-xl border border-border bg-card px-4 py-4 space-y-3">
@@ -656,27 +669,32 @@ function PlayerStats({ bookings, level }) {
         </div>
       </div>
       {level && (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5 text-primary" />
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                'text-[11px] font-bold px-2 py-0.5 rounded-full',
+                LEVEL_BADGE_COLORS_PROFILE[level] ?? LEVEL_BADGE_COLORS_PROFILE[1],
+              )}>
+                Niv.{level}{level === 7 ? ' ⭐' : ''}
+              </span>
               <span className="text-xs font-semibold text-foreground">
                 {LEVEL_LABELS_STATS[level] ?? `Niveau ${level}`}
               </span>
             </div>
-            <span className="text-xs text-muted-foreground">Niv. {level}/7</span>
+            <span className="text-[11px] font-semibold text-primary">{xp} XP</span>
           </div>
           <div className="h-2 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${progress}%` }}
+              style={{ width: `${pct}%` }}
             />
           </div>
-          {level < 7 && (
-            <p className="text-[10px] text-muted-foreground">
-              Prochain niveau : {LEVEL_LABELS_STATS[level + 1]}
-            </p>
-          )}
+          <p className="text-[10px] text-muted-foreground">
+            {hi
+              ? `${xp} / ${hi} XP pour ${LEVEL_LABELS_STATS[level + 1] ?? 'Expert'}`
+              : 'Niveau maximum atteint ! ⭐'}
+          </p>
         </div>
       )}
     </div>
@@ -1514,7 +1532,7 @@ export default function Profile() {
 
             {/* Stats */}
             {(bookings.length > 0 || profile?.level) && (
-              <PlayerStats bookings={bookings} level={profile?.level ?? null} />
+              <PlayerStats bookings={bookings} level={profile?.level ?? null} xp={profile?.xp_points ?? 0} />
             )}
 
             {/* Availability toggle */}

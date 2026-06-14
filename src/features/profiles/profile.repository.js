@@ -143,4 +143,34 @@ async function getSimilarPlayers(userId, level) {
   return rows;
 }
 
-module.exports = { getByUserId, getUserBasicInfo, getCountsByUserId, upsert, getEligibleForSession, getSimilarPlayers };
+// XP thresholds for levels 1–7
+const XP_THRESHOLDS = [0, 100, 250, 500, 850, 1300, 1850];
+
+function xpToLevel(xp) {
+  for (let i = XP_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (xp >= XP_THRESHOLDS[i]) return i + 1;
+  }
+  return 1;
+}
+
+async function addXP(userId, delta) {
+  const profile = await db('player_profiles')
+    .where({ user_id: userId })
+    .whereNull('deleted_at')
+    .first('xp_points', 'level');
+  if (!profile) return null;
+
+  const newXP    = Math.max(0, (profile.xp_points ?? 0) + delta);
+  const newLevel = xpToLevel(newXP);
+  const [updated] = await db('player_profiles')
+    .where({ user_id: userId })
+    .whereNull('deleted_at')
+    .update({ xp_points: newXP, level: newLevel, updated_at: new Date() })
+    .returning(['xp_points', 'level']);
+  return updated;
+}
+
+module.exports = {
+  getByUserId, getUserBasicInfo, getCountsByUserId, upsert,
+  getEligibleForSession, getSimilarPlayers, addXP, XP_THRESHOLDS, xpToLevel,
+};
