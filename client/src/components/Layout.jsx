@@ -43,8 +43,8 @@ const NOTIF_TITLE = {
 
 // Nav link keys — labels resolved at render time via useTranslation()
 const PLAYER_NAV_KEYS = [
+  { to: '/',          key: 'nav.home'      },
   { to: '/sessions',  key: 'nav.sessions'  },
-  { to: '/calendar',  key: 'nav.calendar'  },
   { to: '/clubs',     key: 'nav.clubs'     },
   { to: '/history',   key: 'nav.history'   },
   { to: '/messages',  key: 'nav.messages'  },
@@ -246,6 +246,7 @@ export default function Layout({ children }) {
               <NavLink
                 key={to}
                 to={to}
+                end={to === '/'}
                 className={({ isActive }) =>
                   cn(
                     'px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors',
@@ -347,6 +348,7 @@ export default function Layout({ children }) {
               <NavLink
                 key={to}
                 to={to}
+                end={to === '/'}
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
                   cn(

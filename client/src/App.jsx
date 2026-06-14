@@ -11,7 +11,6 @@ import ProfileSetup     from '@/pages/ProfileSetup';
 import Dashboard        from '@/pages/Dashboard';
 import Sessions         from '@/pages/Sessions';
 import SessionDetail    from '@/pages/SessionDetail';
-import Calendar         from '@/pages/Calendar';
 import Clubs            from '@/pages/Clubs';
 import Notifications    from '@/pages/Notifications';
 import CoachDashboard   from '@/pages/CoachDashboard';
@@ -34,6 +33,7 @@ import TeamDashboard    from '@/pages/team/TeamDashboard';
 import TeamProfile      from '@/pages/team/TeamProfile';
 import TeamFeed         from '@/pages/team/TeamFeed';
 import JoinTeam         from '@/pages/team/JoinTeam';
+import HomeFeed         from '@/pages/HomeFeed';
 import TournamentDetail from '@/pages/TournamentDetail';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
@@ -80,7 +80,7 @@ export function homeFor(user) {
   if (user.role === 'coach')                return '/coach/dashboard';
   if (user.role === 'super_admin')          return '/admin/dashboard';
   if (user.role === 'tournament_organizer') return user.team_id ? '/team/dashboard' : '/team/setup';
-  return '/sessions';
+  return '/'; // player → home feed
 }
 
 // Any authenticated user.
@@ -172,6 +172,15 @@ function DefaultRedirect() {
   return <Navigate to={user ? homeFor(user) : '/login'} replace />;
 }
 
+// / → HomeFeed for players, Landing for public, homeFor() for other roles.
+function RootRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user)                return <Landing />;
+  if (user.role === 'player') return <Layout><HomeFeed /></Layout>;
+  return <Navigate to={homeFor(user)} replace />;
+}
+
 // ── Root app ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [user,        setUser]       = useState(null);
@@ -255,7 +264,7 @@ export default function App() {
           <Route path="/dashboard" element={<DefaultRedirect />} />
           <Route path="/sessions"      element={<PlayerRoute><Layout><Sessions /></Layout></PlayerRoute>} />
           <Route path="/sessions/:id"  element={<Layout><SessionDetail /></Layout>} />
-          <Route path="/calendar"  element={<PlayerRoute><Layout><Calendar /></Layout></PlayerRoute>} />
+          <Route path="/calendar"  element={<Navigate to="/sessions" replace />} />
           <Route path="/history"           element={<PlayerRoute><Layout><History /></Layout></PlayerRoute>} />
           <Route path="/history/sessions" element={<PlayerRoute><Layout><SessionHistory /></Layout></PlayerRoute>} />
           <Route path="/history/bookings" element={<PlayerRoute><Layout><BookingHistory /></Layout></PlayerRoute>} />
@@ -305,8 +314,8 @@ export default function App() {
           <Route path="/admin/dashboard" element={<AdminRoute><Layout><AdminDashboard /></Layout></AdminRoute>} />
           <Route path="/admin/profile"   element={<AdminRoute><Layout><AdminProfile /></Layout></AdminRoute>} />
 
-          {/* ── Landing — public ────────────────────────────────────── */}
-          <Route path="/" element={<Landing />} />
+          {/* ── Landing / Home feed — role-aware ───────────────────── */}
+          <Route path="/" element={<RootRoute />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms"   element={<Terms />} />

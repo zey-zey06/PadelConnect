@@ -26,11 +26,12 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   Users, Plus, AlertCircle, X,
-  CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2, Calendar,
+  CheckCircle2, XCircle, Sparkles, MapPin, Clock, Building2, Calendar, LayoutList,
   ChevronLeft, ChevronRight, Banknote, CreditCard, Share2, Pencil, Link2, Copy,
   MessageSquare, Send, RefreshCw, Trophy, Smile, Heart, Video, Loader2,
 } from 'lucide-react';
 import ShareContactPicker from '@/components/ShareContactPicker';
+import CalendarView       from '@/components/CalendarView';
 import { useAuth, usePlayerPanel } from '@/App';
 import { cn } from '@/lib/utils';
 import PageSkeleton from '@/components/PageSkeleton';
@@ -4369,7 +4370,8 @@ export default function Sessions() {
   const haptic   = useHaptic();
   const [searchParams, setSearchParams] = useSearchParams();
   const fromNotification = searchParams.get('tab') === 'mine';
-  const [tab, setTab] = useState(fromNotification ? 'mine' : 'browse');
+  const [tab,      setTab]      = useState(fromNotification ? 'mine' : 'browse');
+  const [viewMode, setViewMode] = useState('list');
 
   // ── Onboarding (first-time users) ─────────────────────────────────────────
   const [showOnboarding, setShowOnboarding] = useState(
@@ -4544,113 +4546,152 @@ export default function Sessions() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Sessions</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Rejoignez ou créez une session de padel.
+            {viewMode === 'calendar'
+              ? 'Votre calendrier de sessions et réservations.'
+              : 'Rejoignez ou créez une session de padel.'}
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4" />
-          {t('sessions.create')}
-        </Button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
-        {[
-          { key: 'browse', label: t('sessions.all') },
-          { key: 'mine',   label: t('sessions.mine') },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={cn(
-              'px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px',
-              tab === key
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* My sessions tab */}
-      {tab === 'mine' && <MySessions autoOpen={fromNotification} />}
-
-      {/* Browse tab: sticky filter bar + feed */}
-      {tab === 'browse' && (
-        <>
-          <FilterBar
-            dateMode={dateMode}         setDateMode={setDateMode}
-            levelRange={levelRange}     setLevelRange={setLevelRange}
-            genderFilter={genderFilter} setGenderFilter={setGenderFilter}
-            sortMode={sortMode}         setSortMode={setSortMode}
-            total={displaySessions.length}
-          />
-
-          {loading ? (
-            <PageSkeleton icon="🎾" message="Recherche de partenaires..." layout="cards" />
-          ) : error ? (
-            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              <AlertCircle className="h-4 w-4 shrink-0" />{error}
-            </div>
-          ) : displaySessions.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center space-y-4">
-              <Users className="h-8 w-8 text-muted-foreground mx-auto" />
-              <div>
-                <p className="font-medium text-foreground">{t('sessions.noSessions')}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {hasFilters
-                    ? "Aucun résultat pour ces filtres. Essayez d'en changer."
-                    : 'Soyez le premier à créer une session !'}
-                </p>
-              </div>
-              {!hasFilters && (
-                <Button onClick={() => setShowCreate(true)}>
-                  <Plus className="h-4 w-4" />
-                  Créer une session
-                </Button>
+        <div className="flex items-center gap-2">
+          {/* List / Calendar toggle */}
+          <div className="flex items-center rounded-lg border border-border p-0.5 bg-card">
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                'h-7 px-2.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5',
+                viewMode === 'list'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
-            </div>
-          ) : (
-            <div className="space-y-4 pt-4">
-              {displaySessions.slice(0, visibleCount).map((s) => (
-                <FeedSessionCard
-                  key={s.id}
-                  session={s}
-                  onJoin={handleJoin}
-                  booking={bookingMap[s.id] ?? null}
-                  onBooked={load}
-                  requestStatus={requestStatusMap[s.id] ?? null}
-                />
-              ))}
+            >
+              <LayoutList className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Liste</span>
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={cn(
+                'h-7 px-2.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5',
+                viewMode === 'calendar'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Calendrier</span>
+            </button>
+          </div>
+          {viewMode === 'list' && (
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4" />
+              {t('sessions.create')}
+            </Button>
+          )}
+        </div>
+      </div>
 
-              {/* "Voir plus" */}
-              {visibleCount < displaySessions.length && (
-                <div className="pt-2 flex justify-center">
-                  <Button
-                    variant="outline"
-                    onClick={() => setVisibleCount((n) => n + 8)}
-                    className="px-8"
-                  >
-                    Voir plus · {displaySessions.length - visibleCount} session{displaySessions.length - visibleCount > 1 ? 's' : ''}
-                  </Button>
+      {viewMode === 'calendar' ? (
+        <CalendarView />
+      ) : (
+        <>
+          {/* Tabs */}
+          <div className="flex gap-1 border-b border-border">
+            {[
+              { key: 'browse', label: t('sessions.all') },
+              { key: 'mine',   label: t('sessions.mine') },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px',
+                  tab === key
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* My sessions tab */}
+          {tab === 'mine' && <MySessions autoOpen={fromNotification} />}
+
+          {/* Browse tab: sticky filter bar + feed */}
+          {tab === 'browse' && (
+            <>
+              <FilterBar
+                dateMode={dateMode}         setDateMode={setDateMode}
+                levelRange={levelRange}     setLevelRange={setLevelRange}
+                genderFilter={genderFilter} setGenderFilter={setGenderFilter}
+                sortMode={sortMode}         setSortMode={setSortMode}
+                total={displaySessions.length}
+              />
+
+              {loading ? (
+                <PageSkeleton icon="🎾" message="Recherche de partenaires..." layout="cards" />
+              ) : error ? (
+                <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4 shrink-0" />{error}
+                </div>
+              ) : displaySessions.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center space-y-4">
+                  <Users className="h-8 w-8 text-muted-foreground mx-auto" />
+                  <div>
+                    <p className="font-medium text-foreground">{t('sessions.noSessions')}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {hasFilters
+                        ? "Aucun résultat pour ces filtres. Essayez d'en changer."
+                        : 'Soyez le premier à créer une session !'}
+                    </p>
+                  </div>
+                  {!hasFilters && (
+                    <Button onClick={() => setShowCreate(true)}>
+                      <Plus className="h-4 w-4" />
+                      Créer une session
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4 pt-4">
+                  {displaySessions.slice(0, visibleCount).map((s) => (
+                    <FeedSessionCard
+                      key={s.id}
+                      session={s}
+                      onJoin={handleJoin}
+                      booking={bookingMap[s.id] ?? null}
+                      onBooked={load}
+                      requestStatus={requestStatusMap[s.id] ?? null}
+                    />
+                  ))}
+
+                  {/* "Voir plus" */}
+                  {visibleCount < displaySessions.length && (
+                    <div className="pt-2 flex justify-center">
+                      <Button
+                        variant="outline"
+                        onClick={() => setVisibleCount((n) => n + 8)}
+                        className="px-8"
+                      >
+                        Voir plus · {displaySessions.length - visibleCount} session{displaySessions.length - visibleCount > 1 ? 's' : ''}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+
+              {/* ── Tournaments strip ────────────────────────────── */}
+              <div className="h-px bg-border/50 -mx-0.5" />
+              <TournamentsSection />
+
+              {/* ── Team posts feed ──────────────────────────────── */}
+              <div className="h-px bg-border/50 -mx-0.5" />
+              <TeamPostsFeed />
+
+              {/* ── Clubs partenaires strip ─────────────────────── */}
+              <div className="h-px bg-border/50 -mx-0.5" />
+              <ClubsSection />
+            </>
           )}
-
-          {/* ── Tournaments strip ────────────────────────────── */}
-          <div className="h-px bg-border/50 -mx-0.5" />
-          <TournamentsSection />
-
-          {/* ── Team posts feed ──────────────────────────────── */}
-          <div className="h-px bg-border/50 -mx-0.5" />
-          <TeamPostsFeed />
-
-          {/* ── Clubs partenaires strip ─────────────────────── */}
-          <div className="h-px bg-border/50 -mx-0.5" />
-          <ClubsSection />
         </>
       )}
     </div>

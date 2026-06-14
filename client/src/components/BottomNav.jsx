@@ -6,6 +6,7 @@ const PRIMARY = '#1A3D2B';
 const GREY    = '#9CA3AF';
 
 function isActive(pathname, path) {
+  if (path === '/') return pathname === '/';
   return pathname === path || pathname.startsWith(path + '/');
 }
 
@@ -15,8 +16,8 @@ export default function BottomNav({ unreadMsgCount = 0, unreadNotifCount = 0 }) 
   const { t }        = useTranslation();
 
   const items = [
-    { to: '/sessions', Icon: Home,          labelKey: 'nav.home'     },
-    { to: '/calendar', Icon: CalendarDays,  labelKey: 'nav.calendar' },
+    { to: '/',         Icon: Home,          labelKey: 'nav.home'     },
+    { to: '/sessions', Icon: CalendarDays,  labelKey: 'nav.sessions' },
     null, // centre "+"
     { to: '/messages', Icon: MessageSquare, labelKey: 'nav.messages', badge: unreadMsgCount },
     { to: '/profile',  Icon: User,          labelKey: 'nav.profile',  badge: unreadNotifCount },

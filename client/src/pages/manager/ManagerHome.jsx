@@ -9,6 +9,7 @@ import { useAuth } from '@/App';
 import { getManagerDashboard } from '@/api/manager';
 import { getMySubscription } from '@/api/subscriptions';
 import { getMyChats, getChatMessages, sendChatMessage } from '@/api/teamChats';
+import { getFeedPosts } from '@/api/teamPosts';
 import { cn } from '@/lib/utils';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -270,6 +271,55 @@ function TeamChatsSection({ currentUserId }) {
   );
 }
 
+// ── Tournament posts from partner teams ──────────────────────────────────────
+function TeamPostsSection() {
+  const [posts,   setPosts]   = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getFeedPosts()
+      .then(({ posts: p }) =>
+        setPosts((p ?? []).filter((post) => post.type === 'tournament').slice(0, 4))
+      )
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return null;
+  if (posts.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border">
+        <Trophy className="h-4 w-4 text-primary" />
+        <p className="text-sm font-semibold text-foreground">Tournois des équipes partenaires</p>
+      </div>
+      <div className="divide-y divide-border/50">
+        {posts.map((post) => {
+          const meta = post.metadata && (typeof post.metadata === 'string' ? JSON.parse(post.metadata) : post.metadata);
+          const title = meta?.tournament_name || post.caption || 'Tournoi';
+          const sub   = [meta?.date, meta?.venue].filter(Boolean).join(' · ') || post.team_name;
+          return (
+            <Link key={post.id} to={`/team/${post.team_id}`}
+              className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center overflow-hidden shrink-0">
+                {post.team_logo
+                  ? <img src={post.team_logo} alt="" className="w-full h-full object-cover" />
+                  : <Trophy className="h-4 w-4 text-primary" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">{title}</p>
+                <p className="text-xs text-muted-foreground truncate">{sub}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── ManagerHome page ──────────────────────────────────────────────────────────
 export default function ManagerHome() {
   const { user } = useAuth();
@@ -375,6 +425,9 @@ export default function ManagerHome() {
 
       {/* Team messages */}
       <TeamChatsSection currentUserId={user?.sub} />
+
+      {/* Tournament posts from partner teams */}
+      <TeamPostsSection />
 
     </div>
   );
