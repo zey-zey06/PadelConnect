@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import { useHaptic } from '@/hooks/useHaptic';
 import { useTranslation } from 'react-i18next';
@@ -1568,103 +1568,102 @@ function FeedSessionCard({ session, onJoin, booking = null, onBooked, requestSta
 }
 
 // ── Sticky filter bar ─────────────────────────────────────────────────────────
-function FilterBar({ dateFilter, setDateFilter, levelFilter, setLevelFilter, genderFilter, setGenderFilter, total, hasFilters, onReset }) {
+function FilterBar({ dateMode, setDateMode, levelRange, setLevelRange, genderFilter, setGenderFilter, sortMode, setSortMode, total }) {
   return (
-    <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 sm:-mx-6 sm:px-6 pb-2.5 pt-1">
+    <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 sm:-mx-6 sm:px-6 pb-2 pt-1">
       {/* Scrollable chip row */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
 
-        {/* Date */}
-        <div className="relative shrink-0">
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className={cn(
-              'h-8 pl-3 pr-8 rounded-full border text-xs font-medium cursor-pointer appearance-none bg-card transition-all min-w-[130px]',
-              dateFilter
-                ? 'border-primary text-primary bg-primary/5'
-                : 'border-border text-muted-foreground hover:border-primary/40'
-            )}
-          />
-          {dateFilter && (
-            <button
-              onClick={() => setDateFilter('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-primary hover:text-primary/70 transition-colors"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-
-        <div className="w-px h-5 bg-border shrink-0" />
-
-        {/* Level chips */}
-        <div className="flex items-center gap-1 shrink-0">
+        {/* Date mode chips */}
+        {[
+          { v: 'all',   l: 'Toutes' },
+          { v: 'today', l: "Aujourd'hui" },
+          { v: 'week',  l: 'Cette semaine' },
+        ].map(({ v, l }) => (
           <button
-            onClick={() => setLevelFilter('')}
+            key={v}
+            onClick={() => setDateMode(v)}
             className={cn(
-              'h-8 px-3 rounded-full border text-xs font-medium transition-all whitespace-nowrap',
-              !levelFilter
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-card border-border text-muted-foreground hover:border-primary/40'
+              'h-8 px-3 rounded-full border text-xs font-medium whitespace-nowrap shrink-0 transition-all',
+              dateMode === v
+                ? 'bg-green-600 text-white border-green-600'
+                : 'bg-card border-border text-muted-foreground hover:border-green-400'
             )}
           >
-            Tous
+            {l}
           </button>
-          {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-            <button
-              key={n}
-              onClick={() => setLevelFilter(levelFilter === n ? '' : n)}
-              className={cn(
-                'h-8 w-8 rounded-full border text-xs font-bold transition-all shrink-0',
-                levelFilter === n
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-card border-border text-muted-foreground hover:border-primary/40'
-              )}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
+        ))}
 
-        <div className="w-px h-5 bg-border shrink-0" />
+        <div className="w-px h-5 bg-border shrink-0 mx-0.5" />
+
+        {/* Level range chips */}
+        {[
+          { v: '1-2', l: 'Niv. 1-2' },
+          { v: '3-4', l: 'Niv. 3-4' },
+          { v: '5-7', l: 'Niv. 5-7' },
+        ].map(({ v, l }) => (
+          <button
+            key={v}
+            onClick={() => setLevelRange(levelRange === v ? null : v)}
+            className={cn(
+              'h-8 px-3 rounded-full border text-xs font-medium whitespace-nowrap shrink-0 transition-all',
+              levelRange === v
+                ? 'bg-green-600 text-white border-green-600'
+                : 'bg-card border-border text-muted-foreground hover:border-green-400'
+            )}
+          >
+            {l}
+          </button>
+        ))}
+
+        <div className="w-px h-5 bg-border shrink-0 mx-0.5" />
 
         {/* Gender chips */}
         {[
-          { val: '',       label: 'Tout' },
-          { val: 'mixed',  label: '⚧ Mixte' },
-          { val: 'women',  label: '♀ Femmes' },
-          { val: 'men',    label: '♂ Hommes' },
-        ].map(({ val, label }) => (
+          { v: 'mixed', l: 'Mixte' },
+          { v: 'men',   l: 'Hommes' },
+          { v: 'women', l: 'Femmes' },
+        ].map(({ v, l }) => (
           <button
-            key={val}
-            onClick={() => setGenderFilter(genderFilter === val ? '' : val)}
+            key={v}
+            onClick={() => setGenderFilter(genderFilter === v ? null : v)}
             className={cn(
               'h-8 px-3 rounded-full border text-xs font-medium whitespace-nowrap shrink-0 transition-all',
-              genderFilter === val
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-card border-border text-muted-foreground hover:border-primary/40'
+              genderFilter === v
+                ? 'bg-green-600 text-white border-green-600'
+                : 'bg-card border-border text-muted-foreground hover:border-green-400'
             )}
           >
-            {label}
+            {l}
           </button>
         ))}
       </div>
 
-      {/* Count + reset */}
-      <div className="flex items-center justify-between mt-1">
-        <p className="text-[11px] text-muted-foreground">
-          {total} session{total !== 1 ? 's' : ''} disponible{total !== 1 ? 's' : ''}
+      {/* Sort row + count */}
+      <div className="flex items-center justify-between mt-1.5 gap-2">
+        <p className="text-[11px] text-muted-foreground shrink-0">
+          {total} session{total !== 1 ? 's' : ''} trouvée{total !== 1 ? 's' : ''}
         </p>
-        {hasFilters && (
-          <button
-            onClick={onReset}
-            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="h-3 w-3" /> Réinitialiser
-          </button>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {[
+            { v: 'recent', l: 'Récentes' },
+            { v: 'level',  l: 'Niveau' },
+            { v: 'date',   l: 'Date' },
+          ].map(({ v, l }) => (
+            <button
+              key={v}
+              onClick={() => setSortMode(v)}
+              className={cn(
+                'h-6 px-2.5 rounded-full text-[10px] font-medium whitespace-nowrap transition-all border',
+                sortMode === v
+                  ? 'bg-slate-800 text-white border-slate-800'
+                  : 'bg-card border-border text-muted-foreground hover:border-slate-400'
+              )}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -3179,10 +3178,11 @@ function BookingDetailModal({ booking, onClose }) {
 }
 
 // ── My session card (with expandable requests) ────────────────────────────────
-function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
+function MySessionCard({ session, booking, autoOpen = false, onRefresh, isPast = false }) {
   const [requests,    setRequests]    = useState(null);
   const [loadingReqs, setLoadingReqs] = useState(false);
   const [open,        setOpen]        = useState(autoOpen);
+  const [showDetail,  setShowDetail]  = useState(false);
 
   const [showBookingModal,   setShowBookingModal]   = useState(false);
   const [showTerrainPicker,  setShowTerrainPicker]  = useState(false);
@@ -3358,9 +3358,15 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
               {pending} en attente
             </span>
           )}
-          <Badge variant={session.status === 'open' ? 'success' : 'secondary'}>
-            {session.status === 'open' ? 'Ouverte' : session.status === 'complete' ? 'Complète' : 'Annulée'}
-          </Badge>
+          {isCancelled ? (
+            <Badge variant="destructive">Annulée</Badge>
+          ) : isPast ? (
+            <Badge variant="secondary">Terminée</Badge>
+          ) : (
+            <Badge variant={session.status === 'open' ? 'success' : 'secondary'}>
+              {session.status === 'open' ? 'Ouverte' : 'Complète'}
+            </Badge>
+          )}
         </div>
       </button>
 
@@ -3583,81 +3589,93 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
 
           {/* Bottom actions */}
           <div className="pt-1 border-t border-border flex flex-wrap gap-2 items-center">
-            {/* "Modifier" — only when no confirmed participants */}
-            {canEdit && (
+            {isPast ? (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowEditModal(true)}
+                onClick={() => setShowDetail(true)}
               >
-                <Pencil className="h-3.5 w-3.5" />
-                Modifier
+                Voir le récap
               </Button>
-            )}
-            {/* "Réserver un terrain" — only when no active booking and session not cancelled */}
-            {!isCancelled && !hasActiveBooking && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowTerrainPicker(true)}
-              >
-                <MapPin className="h-3.5 w-3.5" />
-                Réserver un terrain
-              </Button>
-            )}
-            {/* "Inviter un coach" */}
-            {!isCancelled && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleCoachInvite}
-                className={showCoachInvite ? 'bg-green-50 border-green-300 text-green-700' : ''}
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                {showCoachInvite ? 'Masquer' : 'Inviter un coach'}
-              </Button>
-            )}
-            {/* "Trouver des joueurs IA" — only when session is open and not full */}
-            {!isCancelled && session.status === 'open' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleFindMatches}
-                className={showAiMatches ? 'bg-primary/5 border-primary/40 text-primary' : ''}
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                {showAiMatches ? 'Masquer les suggestions' : 'Trouver des joueurs'}
-              </Button>
-            )}
-            {!isCancelled && (
-              cancelSessConfirm ? (
-                <>
+            ) : (
+              <>
+                {/* "Modifier" — only when no confirmed participants */}
+                {canEdit && (
                   <Button
-                    variant="destructive"
+                    variant="outline"
                     size="sm"
-                    disabled={cancellingSess}
-                    onClick={handleCancelSession}
+                    onClick={() => setShowEditModal(true)}
                   >
-                    {cancellingSess ? 'Annulation…' : 'Confirmer l\'annulation de la session'}
+                    <Pencil className="h-3.5 w-3.5" />
+                    Modifier
                   </Button>
+                )}
+                {/* "Réserver un terrain" — only when no active booking and session not cancelled */}
+                {!isCancelled && !hasActiveBooking && (
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    onClick={() => setCancelSessConfirm(false)}
+                    onClick={() => setShowTerrainPicker(true)}
                   >
-                    Retour
+                    <MapPin className="h-3.5 w-3.5" />
+                    Réserver un terrain
                   </Button>
-                </>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-red-600 border-red-200 hover:bg-red-50"
-                  onClick={() => setCancelSessConfirm(true)}
-                >
-                  Annuler la session
-                </Button>
-              )
+                )}
+                {/* "Inviter un coach" */}
+                {!isCancelled && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleCoachInvite}
+                    className={showCoachInvite ? 'bg-green-50 border-green-300 text-green-700' : ''}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {showCoachInvite ? 'Masquer' : 'Inviter un coach'}
+                  </Button>
+                )}
+                {/* "Trouver des joueurs IA" — only when session is open and not full */}
+                {!isCancelled && session.status === 'open' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleFindMatches}
+                    className={showAiMatches ? 'bg-primary/5 border-primary/40 text-primary' : ''}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {showAiMatches ? 'Masquer les suggestions' : 'Trouver des joueurs'}
+                  </Button>
+                )}
+                {!isCancelled && (
+                  cancelSessConfirm ? (
+                    <>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={cancellingSess}
+                        onClick={handleCancelSession}
+                      >
+                        {cancellingSess ? 'Annulation…' : 'Confirmer l\'annulation de la session'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCancelSessConfirm(false)}
+                      >
+                        Retour
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                      onClick={() => setCancelSessConfirm(true)}
+                    >
+                      Annuler la session
+                    </Button>
+                  )
+                )}
+              </>
             )}
           </div>
         </div>
@@ -3684,6 +3702,17 @@ function MySessionCard({ session, booking, autoOpen = false, onRefresh }) {
           initialValues={session}
           onUpdate={handleUpdate}
           onClose={() => setShowEditModal(false)}
+        />
+      )}
+
+      {/* Recap modal for past sessions */}
+      {showDetail && (
+        <SessionDetailModal
+          session={session}
+          booking={booking}
+          onClose={() => setShowDetail(false)}
+          onJoin={() => {}}
+          requestStatus={null}
         />
       )}
     </div>
@@ -3733,17 +3762,59 @@ function MySessions({ autoOpen = false }) {
     </div>
   );
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const upcoming = sessions
+    .filter((s) => (s.date ?? '').toString().slice(0, 10) >= todayStr && s.status !== 'cancelled')
+    .sort((a, b) => {
+      const da = (a.date ?? '').toString().slice(0, 10) + (a.time ?? '');
+      const db = (b.date ?? '').toString().slice(0, 10) + (b.time ?? '');
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+  const past = sessions
+    .filter((s) => (s.date ?? '').toString().slice(0, 10) < todayStr || s.status === 'cancelled')
+    .sort((a, b) => {
+      const da = (a.date ?? '').toString().slice(0, 10);
+      const db = (b.date ?? '').toString().slice(0, 10);
+      return da > db ? -1 : da < db ? 1 : 0;
+    });
+
   return (
     <div className="space-y-3">
-      {sessions.map((s, idx) => (
+      {upcoming.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
+          <p className="text-sm text-muted-foreground">Aucune session à venir.</p>
+        </div>
+      )}
+      {upcoming.map((s, idx) => (
         <MySessionCard
           key={s.id}
           session={s}
           booking={bookingMap[s.id] ?? null}
           autoOpen={autoOpen && idx === 0}
           onRefresh={refresh}
+          isPast={false}
         />
       ))}
+
+      {past.length > 0 && (
+        <>
+          <div className="flex items-center gap-2 pt-2">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground font-medium px-2">Sessions passées</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+          {past.map((s) => (
+            <MySessionCard
+              key={s.id}
+              session={s}
+              booking={bookingMap[s.id] ?? null}
+              autoOpen={false}
+              onRefresh={refresh}
+              isPast={(s.date ?? '').toString().slice(0, 10) < todayStr}
+            />
+          ))}
+        </>
+      )}
     </div>
   );
 }
@@ -3871,9 +3942,10 @@ export default function Sessions() {
     }
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [dateFilter,   setDateFilter]   = useState('');
-  const [levelFilter,  setLevelFilter]  = useState('');
-  const [genderFilter, setGenderFilter] = useState('');
+  const [dateMode,     setDateMode]     = useState('all');
+  const [levelRange,   setLevelRange]   = useState(null);
+  const [genderFilter, setGenderFilter] = useState(null);
+  const [sortMode,     setSortMode]     = useState('recent');
   const [visibleCount, setVisibleCount] = useState(8);
 
   // Persist request statuses — seeded from API on load, then kept in sessionStorage
@@ -3887,19 +3959,15 @@ export default function Sessions() {
     }
   });
 
-  const hasFilters = !!(dateFilter || levelFilter || genderFilter);
+  const hasFilters = dateMode !== 'all' || !!levelRange || !!genderFilter;
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     setVisibleCount(8);
     try {
-      const params = { status: 'open' };
-      if (dateFilter)   params.date      = dateFilter;
-      if (levelFilter)  params.level_min = levelFilter;
-      if (genderFilter) params.gender    = genderFilter;
       const [{ sessions: s }, { bookings: b }, { requests: myReqs }] = await Promise.all([
-        listSessions(params),
+        listSessions({ status: 'open' }),
         getMyBookings(),
         getMySessionRequests(),
       ]);
@@ -3923,7 +3991,45 @@ export default function Sessions() {
     } finally {
       setLoading(false);
     }
-  }, [dateFilter, levelFilter, genderFilter]);
+  }, []);
+
+  const displaySessions = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const weekEnd = new Date();
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    const weekEndStr = weekEnd.toISOString().slice(0, 10);
+
+    let result = sessions.filter((s) => {
+      const dateStr = (s.date ?? '').toString().slice(0, 10);
+      if (dateMode === 'today' && dateStr !== todayStr) return false;
+      if (dateMode === 'week'  && (dateStr < todayStr || dateStr > weekEndStr)) return false;
+
+      if (levelRange) {
+        const lvl = s.preferences?.level_min;
+        if (levelRange === '1-2' && (!lvl || lvl > 2)) return false;
+        if (levelRange === '3-4' && (!lvl || lvl < 3 || lvl > 4)) return false;
+        if (levelRange === '5-7' && (!lvl || lvl < 5)) return false;
+      }
+
+      if (genderFilter && s.preferences?.gender !== genderFilter) return false;
+
+      return true;
+    });
+
+    if (sortMode === 'level') {
+      result = [...result].sort((a, b) => (a.preferences?.level_min ?? 0) - (b.preferences?.level_min ?? 0));
+    } else if (sortMode === 'date') {
+      result = [...result].sort((a, b) => {
+        const da = (a.date ?? '').toString().slice(0, 10) + (a.time ?? '');
+        const db = (b.date ?? '').toString().slice(0, 10) + (b.time ?? '');
+        return da < db ? -1 : da > db ? 1 : 0;
+      });
+    } else {
+      result = [...result].sort((a, b) => ((a.created_at ?? '') > (b.created_at ?? '') ? -1 : 1));
+    }
+
+    return result;
+  }, [sessions, dateMode, levelRange, genderFilter, sortMode]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -4015,12 +4121,11 @@ export default function Sessions() {
       {tab === 'browse' && (
         <>
           <FilterBar
-            dateFilter={dateFilter}    setDateFilter={setDateFilter}
-            levelFilter={levelFilter}  setLevelFilter={setLevelFilter}
+            dateMode={dateMode}         setDateMode={setDateMode}
+            levelRange={levelRange}     setLevelRange={setLevelRange}
             genderFilter={genderFilter} setGenderFilter={setGenderFilter}
-            total={sessions.length}
-            hasFilters={hasFilters}
-            onReset={() => { setDateFilter(''); setLevelFilter(''); setGenderFilter(''); }}
+            sortMode={sortMode}         setSortMode={setSortMode}
+            total={displaySessions.length}
           />
 
           {loading ? (
@@ -4029,7 +4134,7 @@ export default function Sessions() {
             <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               <AlertCircle className="h-4 w-4 shrink-0" />{error}
             </div>
-          ) : sessions.length === 0 ? (
+          ) : displaySessions.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center space-y-4">
               <Users className="h-8 w-8 text-muted-foreground mx-auto" />
               <div>
@@ -4049,7 +4154,7 @@ export default function Sessions() {
             </div>
           ) : (
             <div className="space-y-4 pt-4">
-              {sessions.slice(0, visibleCount).map((s) => (
+              {displaySessions.slice(0, visibleCount).map((s) => (
                 <FeedSessionCard
                   key={s.id}
                   session={s}
@@ -4061,14 +4166,14 @@ export default function Sessions() {
               ))}
 
               {/* "Voir plus" */}
-              {visibleCount < sessions.length && (
+              {visibleCount < displaySessions.length && (
                 <div className="pt-2 flex justify-center">
                   <Button
                     variant="outline"
                     onClick={() => setVisibleCount((n) => n + 8)}
                     className="px-8"
                   >
-                    Voir plus · {sessions.length - visibleCount} session{sessions.length - visibleCount > 1 ? 's' : ''}
+                    Voir plus · {displaySessions.length - visibleCount} session{displaySessions.length - visibleCount > 1 ? 's' : ''}
                   </Button>
                 </div>
               )}
