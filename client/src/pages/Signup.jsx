@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { signup } from '@/api/auth';
@@ -6,8 +6,10 @@ import { useAuth, homeFor } from '@/App';
 import { Button }   from '@/components/ui/button';
 import { Input }    from '@/components/ui/input';
 import { Label }    from '@/components/ui/label';
-import { AlertCircle, CheckCircle2, User, Dumbbell, Building2, Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, CheckCircle2, User, Dumbbell, Building2, Eye, EyeOff, Trophy, Camera, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const TEAM_STORAGE_KEY = 'team_setup_draft';
 
 function ErrorBanner({ message }) {
   return (
@@ -26,9 +28,10 @@ const REQUIREMENTS = [
 ];
 
 const ROLES = [
-  { value: 'player',      label: 'Joueur',         icon: User,      description: 'Je cherche des partenaires et réserve des créneaux.' },
-  { value: 'coach',       label: 'Coach',          icon: Dumbbell,  description: "Je propose des séances d'entraînement." },
-  { value: 'venue_admin', label: 'Gérant de club', icon: Building2, description: 'Je gère un club et ses terrains.' },
+  { value: 'player',                label: 'Joueur',                  icon: User,      description: 'Je cherche des partenaires et réserve des créneaux.' },
+  { value: 'coach',                 label: 'Coach',                   icon: Dumbbell,  description: "Je propose des séances d'entraînement." },
+  { value: 'venue_admin',           label: 'Gérant de club',          icon: Building2, description: 'Je gère un club et ses terrains.' },
+  { value: 'tournament_organizer',  label: 'Organisateur de tournoi', icon: Trophy,    description: 'Je crée et gère des tournois de padel.' },
 ];
 
 const VALID_ROLES = ROLES.map((r) => r.value);
@@ -47,6 +50,11 @@ export default function Signup() {
   const [selectedRole, setSelectedRole] = useState(initialRole);
   const [isBallPicker, setIsBallPicker] = useState(false);
 
+  // Team setup state (step 2 for tournament_organizer)
+  const [teamForm, setTeamForm] = useState({ name: '', description: '', city: 'Abidjan' });
+  const [teamLogo, setTeamLogo] = useState(null);
+  const fileRef = useRef(null);
+
   const [form,        setForm]        = useState({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' });
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState(null);
@@ -59,7 +67,10 @@ export default function Signup() {
   }
 
   function handleBack() {
-    if (initialRole) {
+    if (step === 2) {
+      setStep(1);
+      setError(null);
+    } else if (initialRole) {
       navigate('/', { replace: true });
     } else {
       setStep(0);
@@ -67,9 +78,22 @@ export default function Signup() {
     }
   }
 
+  function handleTeamChange(e) {
+    setTeamForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+  }
+
+  function handleLogoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setTeamLogo(ev.target.result);
+    reader.readAsDataURL(file);
+  }
+
   const passwordMeetsAll = REQUIREMENTS.every(({ test }) => test(form.password));
 
-  async function handleSubmit(e) {
+  // Step 1 submit: for tournament_organizer, go to team setup step first
+  async function handleStep1Submit(e) {
     e.preventDefault();
     if (!form.firstName.trim() || !form.lastName.trim()) {
       setError('Le prénom et le nom sont obligatoires.');
@@ -83,10 +107,29 @@ export default function Signup() {
       setError('Les mots de passe ne correspondent pas.');
       return;
     }
+    if (selectedRole === 'tournament_organizer') {
+      setError(null);
+      setStep(2);
+      return;
+    }
+    await doSignup();
+  }
+
+  async function handleStep2Submit(e) {
+    e.preventDefault();
+    if (!teamForm.name.trim()) { setError('Le nom de la team est requis.'); return; }
+    // Save team draft to sessionStorage so /team/setup can prefill it
+    try {
+      sessionStorage.setItem('team_setup_draft', JSON.stringify({ ...teamForm, logo: teamLogo }));
+    } catch { /* ignore quota errors */ }
+    await doSignup();
+  }
+
+  async function doSignup() {
     setLoading(true);
     setError(null);
     try {
-      const data = await signup({
+      await signup({
         email:          form.email,
         password:       form.password,
         role:           selectedRole,
@@ -94,17 +137,17 @@ export default function Signup() {
         last_name:      form.lastName.trim(),
         is_ball_picker: selectedRole === 'coach' ? isBallPicker : false,
       });
-      // Navigate to email verification page — user must verify email before login
-      navigate('/verify-email', {
-        replace: true,
-        state: { email: form.email },
-      });
+      navigate('/verify-email', { replace: true, state: { email: form.email } });
     } catch (err) {
       setError(err.message || 'Erreur lors de la création du compte.');
+      if (step === 2) setStep(2); // stay on step 2 on error
     } finally {
       setLoading(false);
     }
   }
+
+  // Keep a unified handleSubmit alias used in step 1 form
+  const handleSubmit = handleStep1Submit;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-6 py-12">
@@ -293,7 +336,7 @@ export default function Signup() {
                     <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />
                     {t('auth.creating')}
                   </>
-                ) : t('auth.signup')}
+                ) : selectedRole === 'tournament_organizer' ? 'Continuer →' : t('auth.signup')}
               </Button>
 
               <p className="text-center text-xs text-muted-foreground">
@@ -310,6 +353,96 @@ export default function Signup() {
                 {t('auth.login')}
               </Link>
             </p>
+          </div>
+        )}
+
+        {/* ── STEP 2: Team setup (tournament_organizer only) ────────────────── */}
+        {step === 2 && (
+          <div className="space-y-8">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 mb-3">
+                <button type="button" onClick={handleBack}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                  ← Retour
+                </button>
+                <span className="text-xs text-muted-foreground">·</span>
+                <span className="text-xs font-medium text-primary">Organisateur de tournoi</span>
+              </div>
+              <h1 className="text-2xl font-semibold text-foreground tracking-tight">Créez votre team</h1>
+              <p className="text-sm text-muted-foreground">
+                Donnez un nom à votre équipe organisatrice.
+              </p>
+            </div>
+
+            <form onSubmit={handleStep2Submit} className="space-y-5">
+              {error && <ErrorBanner message={error} />}
+
+              {/* Logo upload */}
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="w-20 h-20 rounded-2xl border-2 border-dashed border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-all overflow-hidden flex items-center justify-center"
+                >
+                  {teamLogo
+                    ? <img src={teamLogo} alt="logo" className="w-full h-full object-cover" />
+                    : <Camera className="h-6 w-6 text-muted-foreground" />}
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+                <p className="text-xs text-muted-foreground">Logo (optionnel)</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="teamName">Nom de la team *</Label>
+                <Input
+                  id="teamName" name="name" type="text"
+                  placeholder="Ex: Ivory Coast Padel Tour"
+                  value={teamForm.name} onChange={handleTeamChange} required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="teamDescription">Description courte</Label>
+                <textarea
+                  id="teamDescription" name="description"
+                  placeholder="Présentez votre équipe en quelques mots…"
+                  value={teamForm.description} onChange={handleTeamChange}
+                  rows={3}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="teamCity">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                    Ville
+                  </span>
+                </Label>
+                <Input
+                  id="teamCity" name="city" type="text"
+                  placeholder="Abidjan"
+                  value={teamForm.city} onChange={handleTeamChange}
+                />
+              </div>
+
+              <Button type="submit" className="w-full mt-2" size="lg"
+                disabled={loading || !teamForm.name.trim()}>
+                {loading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-transparent rounded-full animate-spin" />
+                    Création du compte…
+                  </>
+                ) : 'Créer le compte'}
+              </Button>
+
+              <p className="text-center text-xs text-muted-foreground">
+                En créant un compte, vous acceptez nos{' '}
+                <Link to="/terms" className="text-primary underline underline-offset-2 hover:text-primary/80">
+                  conditions d'utilisation
+                </Link>.
+              </p>
+            </form>
           </div>
         )}
       </div>

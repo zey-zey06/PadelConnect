@@ -103,8 +103,16 @@ export default function Landing() {
             to="/signup?role=coach"
             className="flex items-center justify-center gap-2.5 w-full py-4 rounded-2xl bg-white/10 text-white font-semibold text-base hover:bg-white/18 active:scale-[0.98] transition-all border border-white/20"
           >
-            <span className="text-xl select-none">🏆</span>
+            <span className="text-xl select-none">🎾</span>
             Je suis coach
+          </Link>
+
+          <Link
+            to="/signup?role=tournament_organizer"
+            className="flex items-center justify-center gap-2.5 w-full py-4 rounded-2xl bg-white/10 text-white font-semibold text-base hover:bg-white/18 active:scale-[0.98] transition-all border border-white/20"
+          >
+            <span className="text-xl select-none">🏆</span>
+            Je suis organisateur de tournoi
           </Link>
 
           {/* Login link */}

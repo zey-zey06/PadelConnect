@@ -175,6 +175,7 @@ async function getUserById(id) {
     email: user.email,
     role: user.role,
     organization_id: user.organization_id,
+    team_id: user.team_id ?? null,
     status: user.status,
     first_name: user.first_name ?? null,
     last_name: user.last_name ?? null,

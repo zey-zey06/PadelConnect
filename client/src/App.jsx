@@ -29,6 +29,10 @@ import History          from '@/pages/History';
 import SessionHistory   from '@/pages/SessionHistory';
 import BookingHistory   from '@/pages/BookingHistory';
 import Landing          from '@/pages/Landing';
+import TeamSetup        from '@/pages/team/TeamSetup';
+import TeamDashboard    from '@/pages/team/TeamDashboard';
+import TeamProfile      from '@/pages/team/TeamProfile';
+import JoinTeam         from '@/pages/team/JoinTeam';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
 import Messages         from '@/pages/Messages';
@@ -70,9 +74,10 @@ export function LoadingScreen() {
 
 // Returns the role-correct home URL for an authenticated user.
 export function homeFor(user) {
-  if (user.role === 'venue_admin') return user.organization_id ? '/manager/dashboard' : '/manager/setup';
-  if (user.role === 'coach')       return '/coach/dashboard';
-  if (user.role === 'super_admin') return '/admin/dashboard';
+  if (user.role === 'venue_admin')          return user.organization_id ? '/manager/dashboard' : '/manager/setup';
+  if (user.role === 'coach')                return '/coach/dashboard';
+  if (user.role === 'super_admin')          return '/admin/dashboard';
+  if (user.role === 'tournament_organizer') return user.team_id ? '/team/dashboard' : '/team/setup';
   return '/sessions';
 }
 
@@ -92,13 +97,32 @@ function PublicRoute({ children }) {
   return children;
 }
 
-// player + coach only — venue_admin and super_admin are sent to their home.
+// player + coach only — venue_admin, super_admin, and tournament_organizer are sent to their home.
 function PlayerRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!user)   return <Navigate to="/login" replace />;
-  if (user.role === 'venue_admin' || user.role === 'super_admin')
+  if (user.role === 'venue_admin' || user.role === 'super_admin' || user.role === 'tournament_organizer')
     return <Navigate to={homeFor(user)} replace />;
+  return children;
+}
+
+// tournament_organizer — no team required (for setup).
+function TournamentOrganizerSetupRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading)                                    return <LoadingScreen />;
+  if (!user)                                      return <Navigate to="/login"        replace />;
+  if (user.role !== 'tournament_organizer')        return <Navigate to={homeFor(user)} replace />;
+  return children;
+}
+
+// tournament_organizer — team required.
+function TournamentOrganizerRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading)                             return <LoadingScreen />;
+  if (!user)                               return <Navigate to="/login"       replace />;
+  if (user.role !== 'tournament_organizer') return <Navigate to={homeFor(user)} replace />;
+  if (!user.team_id)                       return <Navigate to="/team/setup"   replace />;
   return children;
 }
 
@@ -256,6 +280,17 @@ export default function App() {
           <Route path="/manager/venues/:venueId/slots" element={<ManagerRoute><Layout><SlotManager /></Layout></ManagerRoute>} />
           <Route path="/manager/bookings"              element={<ManagerRoute><Layout><ManagerBookings /></Layout></ManagerRoute>} />
           <Route path="/manager/profile"               element={<ManagerRoute><Layout><ManagerProfile /></Layout></ManagerRoute>} />
+
+          {/* ── Tournament organizer — setup (no team required) ─────── */}
+          <Route path="/team/setup" element={<TournamentOrganizerSetupRoute><TeamSetup /></TournamentOrganizerSetupRoute>} />
+
+          {/* ── Tournament organizer — team required ─────────────────── */}
+          <Route path="/team/dashboard" element={<TournamentOrganizerRoute><TeamDashboard /></TournamentOrganizerRoute>} />
+
+          {/* ── Team public profile — no auth required ───────────────── */}
+          <Route path="/team/:id"        element={<TeamProfile />} />
+          {/* ── Team invitation accept link ──────────────────────────── */}
+          <Route path="/team/join/:token" element={<JoinTeam />} />
 
           {/* ── Admin — super_admin only ─────────────────────────────── */}
           <Route path="/admin/dashboard" element={<AdminRoute><Layout><AdminDashboard /></Layout></AdminRoute>} />

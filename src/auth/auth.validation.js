@@ -6,7 +6,7 @@ const signupSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
   role: Joi.string()
-    .valid('player', 'coach', 'ball_picker', 'venue_admin')
+    .valid('player', 'coach', 'ball_picker', 'venue_admin', 'tournament_organizer')
     .default('player'),
   organization_id: Joi.string().uuid().optional().allow(null),
   // Only meaningful when role === 'coach'; stored on coach_profiles

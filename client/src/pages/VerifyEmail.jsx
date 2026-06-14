@@ -126,7 +126,14 @@ function CheckEmail({ email }) {
       const data = await verifyOtp(email, codeStr);
       // JWT cookie set by backend — force full reload so auth context reinitialises
       const role = data?.user?.role;
-      window.location.replace(role === 'venue_admin' ? '/manager/setup' : '/profile/setup');
+      const dest = role === 'venue_admin'
+        ? '/manager/setup'
+        : role === 'tournament_organizer'
+        ? '/team/setup'
+        : role === 'coach'
+        ? '/coach/setup'
+        : '/profile/setup';
+      window.location.replace(dest);
     } catch (err) {
       setErrorMsg(err.message || 'Code incorrect.');
       setSubmitStatus('error');
