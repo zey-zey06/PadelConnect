@@ -217,9 +217,13 @@ function UsersTab({ search = '' }) {
     setUsers((prev) => prev.map((u) => u.id === id ? { ...u, status } : u));
   }, []);
 
+  const [successToast, setSuccessToast] = useState(false);
+
   const handleDelete = useCallback(async (id) => {
     await deleteAdminUser(id);
     setUsers((prev) => prev.filter((u) => u.id !== id));
+    setSuccessToast(true);
+    setTimeout(() => setSuccessToast(false), 3000);
   }, []);
 
   const filtered = users.filter((u) => {
@@ -235,6 +239,12 @@ function UsersTab({ search = '' }) {
 
   return (
     <div className="space-y-4">
+      {successToast && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 animate-in fade-in slide-in-from-top-2 duration-300">
+          <CheckCircle className="h-4 w-4 shrink-0" />
+          Compte supprimé
+        </div>
+      )}
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
         <select
@@ -317,7 +327,13 @@ function DeleteUserModal({ user: u, onConfirm, onCancel, deleting }) {
           </div>
         </div>
         <p className="text-sm text-slate-600">
-          Êtes-vous sûr de vouloir supprimer ce compte ? Cette action est irréversible.
+          Êtes-vous sûr de vouloir supprimer le compte de{' '}
+          <span className="font-semibold text-slate-800">
+            {(u.first_name || u.last_name)
+              ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim()
+              : u.email}
+          </span>{' '}
+          ? Cette action est irréversible.
         </p>
         <div className="flex gap-2 justify-end pt-1">
           <button
@@ -332,7 +348,7 @@ function DeleteUserModal({ user: u, onConfirm, onCancel, deleting }) {
             disabled={deleting}
             className="px-4 py-2 text-sm font-medium rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-40"
           >
-            {deleting ? 'Suppression…' : 'Supprimer'}
+            {deleting ? 'Suppression…' : 'Supprimer définitivement'}
           </button>
         </div>
       </div>
