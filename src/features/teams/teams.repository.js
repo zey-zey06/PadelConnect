@@ -68,6 +68,38 @@ async function getPendingInviteByEmail(team_id, email) {
   return db('team_members').where({ team_id, invite_email: email, status: 'pending' }).first();
 }
 
+// ── Followers ──────────────────────────────────────────────────────────────────
+
+async function followTeam(teamId, userId) {
+  await db('team_followers')
+    .insert({ team_id: teamId, user_id: userId })
+    .onConflict(['team_id', 'user_id']).ignore();
+}
+
+async function unfollowTeam(teamId, userId) {
+  await db('team_followers').where({ team_id: teamId, user_id: userId }).delete();
+}
+
+async function isFollowing(teamId, userId) {
+  const row = await db('team_followers').where({ team_id: teamId, user_id: userId }).first();
+  return !!row;
+}
+
+async function getFollowerCount(teamId) {
+  const [{ count }] = await db('team_followers').where({ team_id: teamId }).count('id as count');
+  return Number(count);
+}
+
+async function getFollowerUserIds(teamId) {
+  const rows = await db('team_followers').where({ team_id: teamId }).select('user_id');
+  return rows.map((r) => r.user_id);
+}
+
+async function getTournamentCount(teamId) {
+  const [{ count }] = await db('tournaments').where({ team_id: teamId }).count('id as count');
+  return Number(count);
+}
+
 module.exports = {
   createTeam,
   getTeamById,
@@ -78,4 +110,10 @@ module.exports = {
   acceptInvitation,
   getActiveMemberByUserId,
   getPendingInviteByEmail,
+  followTeam,
+  unfollowTeam,
+  isFollowing,
+  getFollowerCount,
+  getFollowerUserIds,
+  getTournamentCount,
 };

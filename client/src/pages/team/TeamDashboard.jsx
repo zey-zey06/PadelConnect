@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/App';
 import { getMyTeam, inviteMember } from '@/api/teams';
 import { createTournament, listTournaments, getTournament, validateCashPayment } from '@/api/tournaments';
@@ -12,6 +12,7 @@ import { Input }  from '@/components/ui/input';
 import { Label }  from '@/components/ui/label';
 import { Badge }  from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import TournamentOrganizerBottomNav from '@/components/TournamentOrganizerBottomNav';
 import {
   Users, Mail, Trophy, Clock, ExternalLink, UserPlus,
   AlertCircle, CheckCircle2, Plus, X, Camera, MapPin,
@@ -1031,7 +1032,7 @@ function RapportTab({ team, tournaments }) {
 
   useEffect(() => {
     getTeamPosts(team.id)
-      .then((d) => setTeamPosts(d.posts ?? d ?? []))
+      .then((d) => setTeamPosts(d.posts ?? []))
       .catch(() => setTeamPosts([]));
   }, [team.id]);
 
@@ -1205,12 +1206,13 @@ const TABS = [
 
 export default function TeamDashboard() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [team,           setTeam]           = useState(null);
   const [members,        setMembers]        = useState([]);
   const [tournaments,    setTournaments]    = useState([]);
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState(null);
-  const [activeTab,      setActiveTab]      = useState('team');
+  const [activeTab,      setActiveTab]      = useState(searchParams.get('tab') ?? 'team');
   const [showCreateTnmt, setShowCreateTnmt] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
 
@@ -1303,7 +1305,7 @@ export default function TeamDashboard() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 pb-24 space-y-5">
 
         {/* ── Équipe tab ─────────────────────────────────────────────────── */}
         {activeTab === 'team' && (
@@ -1425,6 +1427,8 @@ export default function TeamDashboard() {
           onOpenTournament={() => { setShowCreatePost(false); setShowCreateTnmt(true); }}
         />
       )}
+
+      <TournamentOrganizerBottomNav />
     </div>
   );
 }

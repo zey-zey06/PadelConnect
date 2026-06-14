@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import PIAButton from '@/components/PIA/PIAButton';
 import PIAPanel from '@/components/PIA/PIAPanel';
-import BottomNav          from '@/components/BottomNav';
-import ManagerBottomNav   from '@/components/ManagerBottomNav';
+import BottomNav                    from '@/components/BottomNav';
+import ManagerBottomNav             from '@/components/ManagerBottomNav';
+import TournamentOrganizerBottomNav from '@/components/TournamentOrganizerBottomNav';
 import SearchBar          from '@/components/SearchBar';
 import NetworkStatus      from '@/components/NetworkStatus';
 import ToastContainer     from '@/components/ToastNotification';
@@ -89,7 +90,8 @@ export default function Layout({ children }) {
   // Bottom nav variants
   const showBottomNav        = user?.role === 'player' || user?.role === 'coach';
   const showManagerBottomNav = user?.role === 'venue_admin';
-  const useBottomNav         = showBottomNav || showManagerBottomNav;
+  const showOrganizerBottomNav = user?.role === 'tournament_organizer';
+  const useBottomNav         = showBottomNav || showManagerBottomNav || showOrganizerBottomNav;
 
   const navigate          = useNavigate();
   const location          = useLocation();
@@ -389,8 +391,9 @@ export default function Layout({ children }) {
       {piaOpen && <PIAPanel onClose={() => setPiaOpen(false)} />}
 
       {/* ── Mobile bottom navigation ────────────────────────────────────── */}
-      {showBottomNav        && <BottomNav unreadMsgCount={unreadMsgCount} unreadNotifCount={unreadCount} />}
-      {showManagerBottomNav && <ManagerBottomNav unreadMsgCount={unreadMsgCount} />}
+      {showBottomNav           && <BottomNav unreadMsgCount={unreadMsgCount} unreadNotifCount={unreadCount} />}
+      {showManagerBottomNav    && <ManagerBottomNav unreadMsgCount={unreadMsgCount} />}
+      {showOrganizerBottomNav  && <TournamentOrganizerBottomNav />}
 
       {/* ── Swipe-back edge indicator (mobile only) ─────────────────────── */}
       <div

@@ -32,6 +32,7 @@ import Landing          from '@/pages/Landing';
 import TeamSetup        from '@/pages/team/TeamSetup';
 import TeamDashboard    from '@/pages/team/TeamDashboard';
 import TeamProfile      from '@/pages/team/TeamProfile';
+import TeamFeed         from '@/pages/team/TeamFeed';
 import JoinTeam         from '@/pages/team/JoinTeam';
 import TournamentDetail from '@/pages/TournamentDetail';
 import Profile          from '@/pages/Profile';
@@ -288,10 +289,14 @@ export default function App() {
           {/* ── Tournament organizer — team required ─────────────────── */}
           <Route path="/team/dashboard" element={<TournamentOrganizerRoute><TeamDashboard /></TournamentOrganizerRoute>} />
 
-          {/* ── Team public profile — no auth required ───────────────── */}
-          <Route path="/team/:id"        element={<TeamProfile />} />
-          {/* ── Team invitation accept link ──────────────────────────── */}
+          {/* ── Team feed — public (must come before /team/:id) ──────── */}
+          <Route path="/team/feed" element={<Layout><TeamFeed /></Layout>} />
+
+          {/* ── Team invitation accept link (before /team/:id) ───────── */}
           <Route path="/team/join/:token" element={<JoinTeam />} />
+
+          {/* ── Team public profile — no auth required ───────────────── */}
+          <Route path="/team/:id" element={<TeamProfile />} />
 
           {/* ── Tournament detail — public ───────────────────────────── */}
           <Route path="/tournaments/:id" element={<TournamentDetail />} />

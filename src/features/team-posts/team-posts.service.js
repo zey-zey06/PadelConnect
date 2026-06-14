@@ -1,5 +1,6 @@
 const repo = require('./team-posts.repository');
 const teamsRepo = require('../teams/teams.repository');
+const { notifyFollowers } = require('../teams/teams.service');
 
 function makeError(status, message) {
   const err = new Error(message);
@@ -15,10 +16,18 @@ async function assertMember(userId, teamId) {
 
 async function createPost(userId, teamId, { type, media_url, caption, metadata }) {
   await assertMember(userId, teamId);
-  return repo.createPost({
+  const post = await repo.createPost({
     team_id: teamId, created_by: userId, type, media_url, caption,
     metadata: metadata || null,
   });
+
+  // Fire-and-forget: notify followers of new post
+  const team = await teamsRepo.getTeamById(teamId);
+  const teamName = team?.name ?? 'une équipe';
+  const typeLabel = type === 'tournament' ? 'affiche de tournoi' : type === 'reel' ? 'vidéo' : 'photo';
+  notifyFollowers(teamId, `${teamName} a publié une nouvelle ${typeLabel}.`, userId).catch(() => {});
+
+  return post;
 }
 
 async function getFeedPosts() {

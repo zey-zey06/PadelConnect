@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const Joi = require('joi');
 const authenticate = require('../../middleware/authenticate');
+const optionalAuth  = require('../../middleware/optionalAuth');
 const validate = require('../../middleware/validate');
 const teamsService   = require('./teams.service');
 const sponsorsService = require('../sponsors/sponsors.service');
@@ -88,10 +89,19 @@ router.delete('/:id/sponsors/:sponsorId', authenticate, async (req, res, next) =
   } catch (err) { next(err); }
 });
 
-// GET /api/teams/:id — public team profile
-router.get('/:id', async (req, res, next) => {
+// POST /api/teams/:id/follow — toggle follow (authenticated)
+router.post('/:id/follow', authenticate, async (req, res, next) => {
   try {
-    const data = await teamsService.getTeam(req.params.id);
+    const result = await teamsService.toggleFollow(req.params.id, req.user.sub);
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+// GET /api/teams/:id — public team profile (optionally enriched with viewer's follow status)
+router.get('/:id', optionalAuth, async (req, res, next) => {
+  try {
+    const viewerUserId = req.user?.sub ?? null;
+    const data = await teamsService.getTeam(req.params.id, viewerUserId);
     res.json(data);
   } catch (err) {
     next(err);

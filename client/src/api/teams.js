@@ -20,7 +20,7 @@ export async function getMyTeam() {
 }
 
 export async function getTeamById(id) {
-  return handleResponse(await fetch(`/api/teams/${id}`));
+  return handleResponse(await fetch(`/api/teams/${id}`, { credentials: 'include' }));
 }
 
 export async function inviteMember(teamId, data) {
@@ -34,4 +34,11 @@ export async function inviteMember(teamId, data) {
 
 export async function joinTeam(token) {
   return handleResponse(await fetch(`/api/teams/join/${token}`, { credentials: 'include' }));
+}
+
+export async function followTeam(id) {
+  return handleResponse(await fetch(`/api/teams/${id}/follow`, {
+    method: 'POST',
+    credentials: 'include',
+  }));
 }

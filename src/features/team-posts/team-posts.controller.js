@@ -38,6 +38,14 @@ router.get('/feed', optionalAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/team-posts/team/:teamId — all posts for a specific team (public)
+router.get('/team/:teamId', async (req, res, next) => {
+  try {
+    const posts = await svc.getTeamPosts(req.params.teamId);
+    res.json({ posts });
+  } catch (err) { next(err); }
+});
+
 // POST /api/team-posts/:teamId — create post (admin/manager)
 router.post('/:teamId', authenticate, validate(postSchema), async (req, res, next) => {
   try {
