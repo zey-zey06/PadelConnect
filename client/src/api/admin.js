@@ -61,3 +61,6 @@ export const liftSanction = (id) => client.delete(`/admin/sanctions/${id}`);
 
 /** PATCH /api/admin/clubs/:id/validate → { club } */
 export const validateClub = (id) => client.patch(`/admin/clubs/${id}/validate`);
+
+/** DELETE /api/admin/users/:id → { ok: true } */
+export const deleteAdminUser = (id) => client.delete(`/admin/users/${id}`);

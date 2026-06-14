@@ -11,7 +11,7 @@ import { useAuth, usePlayerPanel } from '@/App';
 import { logout } from '@/api/auth';
 import {
   getDashboard, getAdminActivity,
-  listUsers, updateUserStatus,
+  listUsers, updateUserStatus, deleteAdminUser,
   listAdminSessions, deleteAdminSession,
   listAdminClubs, updateClubStatus, validateClub,
   listAdminBookings,
@@ -217,6 +217,11 @@ function UsersTab({ search = '' }) {
     setUsers((prev) => prev.map((u) => u.id === id ? { ...u, status } : u));
   }, []);
 
+  const handleDelete = useCallback(async (id) => {
+    await deleteAdminUser(id);
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+  }, []);
+
   const filtered = users.filter((u) => {
     if (roleF   && u.role   !== roleF)   return false;
     if (statusF && u.status !== statusF) return false;
@@ -283,7 +288,7 @@ function UsersTab({ search = '' }) {
                 {filtered.length === 0 ? (
                   <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-sm">Aucun utilisateur trouvé.</td></tr>
                 ) : filtered.map((u) => (
-                  <UserRow key={u.id} user={u} onStatusChange={handleStatus} />
+                  <UserRow key={u.id} user={u} onStatusChange={handleStatus} onDelete={handleDelete} />
                 ))}
               </tbody>
             </table>
@@ -294,10 +299,53 @@ function UsersTab({ search = '' }) {
   );
 }
 
-function UserRow({ user: u, onStatusChange }) {
+function DeleteUserModal({ user: u, onConfirm, onCancel, deleting }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white shadow-xl p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+            <Trash2 className="h-5 w-5 text-red-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Supprimer ce compte</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {(u.first_name || u.last_name)
+                ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim()
+                : u.email}
+            </p>
+          </div>
+        </div>
+        <p className="text-sm text-slate-600">
+          Êtes-vous sûr de vouloir supprimer ce compte ? Cette action est irréversible.
+        </p>
+        <div className="flex gap-2 justify-end pt-1">
+          <button
+            onClick={onCancel}
+            disabled={deleting}
+            className="px-4 py-2 text-sm font-medium rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            className="px-4 py-2 text-sm font-medium rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-40"
+          >
+            {deleting ? 'Suppression…' : 'Supprimer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UserRow({ user: u, onStatusChange, onDelete }) {
   const { openPlayerPanel } = usePlayerPanel();
-  const [open,   setOpen]   = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [open,        setOpen]        = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [showDelete,  setShowDelete]  = useState(false);
+  const [deleting,    setDeleting]    = useState(false);
 
   async function handlePick(status) {
     if (status === u.status) { setOpen(false); return; }
@@ -306,68 +354,97 @@ function UserRow({ user: u, onStatusChange }) {
     finally { setSaving(false); setOpen(false); }
   }
 
+  async function handleConfirmDelete() {
+    setDeleting(true);
+    try { await onDelete(u.id); }
+    finally { setDeleting(false); setShowDelete(false); }
+  }
+
   const fullName = (u.first_name || u.last_name)
     ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim()
     : null;
 
   return (
-    <tr className="hover:bg-slate-50/60 transition-colors">
-      <td className="px-4 py-3">
-        <button
-          onClick={() => openPlayerPanel(u.id)}
-          className="font-medium text-slate-700 hover:text-amber-600 transition-colors text-left"
-        >
-          <span className="truncate max-w-[180px] block">{fullName ?? u.email.split('@')[0]}</span>
-          {fullName && <span className="text-xs text-slate-400 truncate max-w-[180px] block lg:hidden">{u.email}</span>}
-        </button>
-      </td>
-      <td className="px-4 py-3 text-slate-500 text-sm hidden lg:table-cell truncate max-w-[200px]">{u.email}</td>
-      <td className="px-4 py-3 text-slate-500">{ROLE_LABEL[u.role] ?? u.role}</td>
-      <td className="px-4 py-3 text-slate-400 hidden sm:table-cell">{u.phone_number || '—'}</td>
-      <td className="px-4 py-3 text-slate-400 hidden md:table-cell">{fmt(u.created_at)}</td>
-      <td className="px-4 py-3 hidden xl:table-cell max-w-[200px]">
-        {u.motivation_answer ? (
-          <span
-            title={u.motivation_answer}
-            className="text-slate-500 text-xs truncate block cursor-help"
-          >
-            {u.motivation_answer.length > 55
-              ? `${u.motivation_answer.slice(0, 55)}…`
-              : u.motivation_answer}
-          </span>
-        ) : (
-          <span className="text-slate-300 text-xs">—</span>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        <Badge label={STATUS_LABEL[u.status] ?? u.status} color={STATUS_COLOR[u.status]} />
-      </td>
-      <td className="px-4 py-3 text-right">
-        <div className="relative inline-block">
+    <>
+      {showDelete && (
+        <DeleteUserModal
+          user={u}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setShowDelete(false)}
+          deleting={deleting}
+        />
+      )}
+      <tr className="hover:bg-slate-50/60 transition-colors">
+        <td className="px-4 py-3">
           <button
-            onClick={() => setOpen((o) => !o)}
-            disabled={saving}
-            className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors disabled:opacity-40"
+            onClick={() => openPlayerPanel(u.id)}
+            className="font-medium text-slate-700 hover:text-amber-600 transition-colors text-left"
           >
-            {saving ? '…' : 'Action'}
-            <ChevronDown className="h-3 w-3" />
+            <span className="truncate max-w-[180px] block">{fullName ?? u.email.split('@')[0]}</span>
+            {fullName && <span className="text-xs text-slate-400 truncate max-w-[180px] block lg:hidden">{u.email}</span>}
           </button>
-          {open && (
-            <div className="absolute right-0 top-full mt-1 z-20 w-36 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-              {USER_STATUS_OPTIONS.map(({ value, label }) => (
-                <button
-                  key={value}
-                  onClick={() => handlePick(value)}
-                  className={`w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 transition-colors ${value === u.status ? 'font-semibold text-amber-600' : 'text-slate-700'}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+        </td>
+        <td className="px-4 py-3 text-slate-500 text-sm hidden lg:table-cell truncate max-w-[200px]">{u.email}</td>
+        <td className="px-4 py-3 text-slate-500">{ROLE_LABEL[u.role] ?? u.role}</td>
+        <td className="px-4 py-3 text-slate-400 hidden sm:table-cell">{u.phone_number || '—'}</td>
+        <td className="px-4 py-3 text-slate-400 hidden md:table-cell">{fmt(u.created_at)}</td>
+        <td className="px-4 py-3 hidden xl:table-cell max-w-[200px]">
+          {u.motivation_answer ? (
+            <span
+              title={u.motivation_answer}
+              className="text-slate-500 text-xs truncate block cursor-help"
+            >
+              {u.motivation_answer.length > 55
+                ? `${u.motivation_answer.slice(0, 55)}…`
+                : u.motivation_answer}
+            </span>
+          ) : (
+            <span className="text-slate-300 text-xs">—</span>
           )}
-        </div>
-      </td>
-    </tr>
+        </td>
+        <td className="px-4 py-3">
+          <Badge label={STATUS_LABEL[u.status] ?? u.status} color={STATUS_COLOR[u.status]} />
+        </td>
+        <td className="px-4 py-3 text-right">
+          <div className="flex items-center justify-end gap-2">
+            {u.role !== 'super_admin' && (
+              <button
+                onClick={() => setShowDelete(true)}
+                disabled={saving || deleting}
+                className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                title="Supprimer ce compte"
+              >
+                <Trash2 className="h-3 w-3" />
+                Supprimer
+              </button>
+            )}
+            <div className="relative inline-block">
+              <button
+                onClick={() => setOpen((o) => !o)}
+                disabled={saving}
+                className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors disabled:opacity-40"
+              >
+                {saving ? '…' : 'Action'}
+                <ChevronDown className="h-3 w-3" />
+              </button>
+              {open && (
+                <div className="absolute right-0 top-full mt-1 z-20 w-36 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+                  {USER_STATUS_OPTIONS.map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => handlePick(value)}
+                      className={`w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 transition-colors ${value === u.status ? 'font-semibold text-amber-600' : 'text-slate-700'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </td>
+      </tr>
+    </>
   );
 }
 

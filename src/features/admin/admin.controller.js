@@ -59,6 +59,15 @@ router.patch('/users/:id/status', validate(updateUserStatusSchema), async (req, 
   }
 });
 
+router.delete('/users/:id', async (req, res, next) => {
+  try {
+    await adminService.deleteUser(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── Sessions ──────────────────────────────────────────────────────────────────
 router.get('/sessions', async (req, res, next) => {
   try {

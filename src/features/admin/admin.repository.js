@@ -237,6 +237,11 @@ async function deletePenalty(id) {
   return row;
 }
 
+async function hardDeleteUser(id) {
+  const [row] = await db('users').where({ id }).delete().returning('*');
+  return row;
+}
+
 module.exports = {
   getDashboardStats,
   getRecentActivity,
@@ -245,6 +250,7 @@ module.exports = {
   getSuperAdmins,
   updateUserStatus,
   cancelActiveSessionsForUser,
+  hardDeleteUser,
   listSessions,
   deleteSession,
   listClubs,

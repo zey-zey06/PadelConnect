@@ -33,6 +33,13 @@ async function updateUserStatus(id, status) {
   return updated;
 }
 
+async function deleteUser(id) {
+  const user = await adminRepo.getUserById(id);
+  if (!user) throw makeError(404, 'Utilisateur introuvable.');
+  if (user.role === 'super_admin') throw makeError(403, 'Impossible de supprimer un super administrateur.');
+  return adminRepo.hardDeleteUser(id);
+}
+
 async function listSessions(filters = {}) {
   return adminRepo.listSessions(filters);
 }
@@ -101,6 +108,7 @@ module.exports = {
   getRecentActivity,
   listUsers,
   updateUserStatus,
+  deleteUser,
   listSessions,
   deleteSession,
   listClubs,
