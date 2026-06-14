@@ -33,6 +33,7 @@ import TeamSetup        from '@/pages/team/TeamSetup';
 import TeamDashboard    from '@/pages/team/TeamDashboard';
 import TeamProfile      from '@/pages/team/TeamProfile';
 import JoinTeam         from '@/pages/team/JoinTeam';
+import TournamentDetail from '@/pages/TournamentDetail';
 import Profile          from '@/pages/Profile';
 import PlayerProfile    from '@/pages/PlayerProfile';
 import Messages         from '@/pages/Messages';
@@ -291,6 +292,9 @@ export default function App() {
           <Route path="/team/:id"        element={<TeamProfile />} />
           {/* ── Team invitation accept link ──────────────────────────── */}
           <Route path="/team/join/:token" element={<JoinTeam />} />
+
+          {/* ── Tournament detail — public ───────────────────────────── */}
+          <Route path="/tournaments/:id" element={<TournamentDetail />} />
 
           {/* ── Admin — super_admin only ─────────────────────────────── */}
           <Route path="/admin/dashboard" element={<AdminRoute><Layout><AdminDashboard /></Layout></AdminRoute>} />

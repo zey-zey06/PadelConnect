@@ -15,6 +15,7 @@ import {
 } from '@/api/sessions';
 import { getMyBookings, cancelBooking, createBooking } from '@/api/bookings';
 import { listClubs, getClubSlots, getClubCoaches, getClubBallPickers } from '@/api/clubs';
+import { listTournaments } from '@/api/tournaments';
 import { listCoaches } from '@/api/coaches';
 import { findMatches as aiFindMatches } from '@/api/ai';
 import TimeScrollPicker from '@/components/TimeScrollPicker';
@@ -3819,6 +3820,93 @@ function MySessions({ autoOpen = false }) {
   );
 }
 
+// ── Tournaments strip ─────────────────────────────────────────────────────────
+const FORMAT_LABELS = { elimination: 'Élimination', round_robin: 'Poules' };
+const LEVEL_SHORT   = { 1:'Déb.', 2:'Déb+', 3:'Inter', 4:'Inter+', 5:'Conf.', 6:'Avancé', 7:'Expert' };
+
+function TournamentsSection() {
+  const [tournaments, setTournaments] = useState([]);
+  const [loading,     setLoading]     = useState(true);
+
+  useEffect(() => {
+    listTournaments('open')
+      .then(({ tournaments: t }) => setTournaments(t ?? []))
+      .catch(() => setTournaments([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (!loading && tournaments.length === 0) return null;
+
+  return (
+    <div className="space-y-3 pt-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+          <Trophy className="h-4 w-4 text-primary" />
+          Tournois
+        </h2>
+        <Link to="/tournaments" className="text-xs text-primary font-medium flex items-center gap-0.5 hover:underline">
+          Voir tous
+          <ChevronRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+        {loading
+          ? Array.from({ length: 2 }, (_, i) => (
+              <div key={i} className="shrink-0 w-52 rounded-xl border border-border bg-card overflow-hidden animate-pulse">
+                <div className="h-24 bg-muted" />
+                <div className="p-3 space-y-1.5">
+                  <div className="h-3 bg-muted rounded w-3/4" />
+                  <div className="h-2.5 bg-muted rounded w-1/2" />
+                </div>
+              </div>
+            ))
+          : tournaments.map((t) => (
+              <Link
+                key={t.id}
+                to={`/tournaments/${t.id}`}
+                className="shrink-0 w-52 rounded-xl border border-border bg-card overflow-hidden hover:shadow-sm hover:border-primary/20 transition-all"
+              >
+                {/* Banner */}
+                <div className="h-24 bg-gradient-to-br from-primary/20 to-primary/5 relative overflow-hidden">
+                  {t.banner_url && (
+                    <img src={t.banner_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                  <div className="absolute bottom-2 left-2.5">
+                    <span className="text-[10px] font-semibold text-white bg-primary/80 px-2 py-0.5 rounded-full">
+                      {FORMAT_LABELS[t.format] ?? t.format}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 space-y-1">
+                  <p className="text-xs font-semibold text-foreground leading-snug line-clamp-2">{t.name}</p>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {t.start_date && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(t.start_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                      </span>
+                    )}
+                    {(t.level_min || t.level_max) && (
+                      <span className="text-[10px] text-muted-foreground">
+                        · Niv. {LEVEL_SHORT[t.level_min]}–{LEVEL_SHORT[t.level_max]}
+                      </span>
+                    )}
+                  </div>
+                  {t.registration_fee > 0 && (
+                    <p className="text-[10px] font-medium text-amber-600">
+                      {Number(t.registration_fee).toLocaleString('fr-FR')} FCFA
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Clubs partenaires — horizontal scroll strip ───────────────────────────────
 function ClubsSection() {
   const [clubs,   setClubs]   = useState([]);
@@ -4179,6 +4267,10 @@ export default function Sessions() {
               )}
             </div>
           )}
+
+          {/* ── Tournaments strip ────────────────────────────── */}
+          <div className="h-px bg-border/50 -mx-0.5" />
+          <TournamentsSection />
 
           {/* ── Clubs partenaires strip ─────────────────────── */}
           <div className="h-px bg-border/50 -mx-0.5" />
