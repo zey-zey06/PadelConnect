@@ -37,6 +37,7 @@ const teamsRouter         = require('./features/teams/teams.controller');
 const tournamentsRouter   = require('./features/tournaments/tournaments.controller');
 const teamChatsRouter     = require('./features/team-chats/team-chats.controller');
 const teamPostsRouter     = require('./features/team-posts/team-posts.controller');
+const feedRouter          = require('./features/feed/feed.controller');
 
 const app = express();
 
@@ -122,6 +123,7 @@ app.use('/api/teams',         teamsRouter);
 app.use('/api/tournaments',   tournamentsRouter);
 app.use('/api/team-chats',    teamChatsRouter);
 app.use('/api/team-posts',    teamPostsRouter);
+app.use('/api/feed',          feedRouter);
 
 app.get('/healthz', async (req, res) => {
   let dbStatus = 'ok';
