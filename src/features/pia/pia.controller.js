@@ -576,11 +576,7 @@ async function conversationsHandler(req, res, next) {
 
 // ── Groq smoke-test — hit GET /api/pia/test-gemini to verify the key ─────────
 async function testGeminiHandler(req, res) {
-  console.log('[PIA TEST] ── Starting Groq smoke-test ──');
-  console.log('[PIA TEST] Key exists:', !!process.env.GROQ_API_KEY);
-
   if (!process.env.GROQ_API_KEY) {
-    console.error('[PIA TEST] FAIL — GROQ_API_KEY is not set');
     return res.json({ ok: false, error: 'GROQ_API_KEY not configured' });
   }
 
@@ -591,10 +587,9 @@ async function testGeminiHandler(req, res) {
       messages: [{ role: 'user', content: 'Say hello in one word.' }],
     });
     const text = completion.choices[0].message.content;
-    console.log('[PIA TEST] SUCCESS — response:', text);
     return res.json({ ok: true, response: text, model: 'llama-3.1-8b-instant' });
   } catch (err) {
-    console.error('[PIA TEST] FAIL:', err?.message);
+    console.error(JSON.stringify({ level: 'error', msg: 'pia smoke-test failed', error: err?.message }));
     return res.json({ ok: false, error: err?.message ?? String(err) });
   }
 }

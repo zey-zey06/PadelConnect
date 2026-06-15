@@ -83,9 +83,10 @@ async function createBooking(userId, { session_id, venue_slot_id, payment_method
 
     // Confirmation email to all session players
     const recipientEmails = players.map((p) => p.email).filter(Boolean);
-    console.log(`[booking] Envoi email confirmation booking=${booking.id} → ${recipientEmails.join(', ') || '(aucun)'}`);
     await sendBookingConfirmation({ booking, session, slot, venue, players, clubName }).catch((err) => {
-      console.error('[booking] Échec email confirmation:', err?.message);
+      if (process.env.NODE_ENV !== 'test') {
+        console.error(JSON.stringify({ level: 'error', msg: 'booking email failed', booking_id: booking.id, error: err?.message }));
+      }
     });
 
     // In-app + email notification to venue admin
