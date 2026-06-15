@@ -380,8 +380,11 @@ export default function Layout({ children }) {
       <NetworkStatus />
 
       {/* ── Page content ────────────────────────────────────────────────── */}
-      {/* pb-20 on mobile gives breathing room above the fixed bottom nav */}
-      <main className={cn('mx-auto max-w-6xl px-4 sm:px-6 py-8', useBottomNav && 'pb-20 md:pb-8')}>
+      {/* Organizer pages own their full-bleed layout; give them a passthrough container */}
+      <main className={showOrganizerBottomNav
+        ? 'pb-20'
+        : cn('mx-auto max-w-6xl px-4 sm:px-6 py-8', useBottomNav && 'pb-20 md:pb-8')
+      }>
         {children}
       </main>
 

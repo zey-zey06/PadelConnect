@@ -12,7 +12,6 @@ import { Input }  from '@/components/ui/input';
 import { Label }  from '@/components/ui/label';
 import { Badge }  from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import TournamentOrganizerBottomNav from '@/components/TournamentOrganizerBottomNav';
 import {
   Users, Mail, Trophy, Clock, ExternalLink, UserPlus,
   AlertCircle, CheckCircle2, Plus, X, Camera, MapPin,
@@ -475,7 +474,7 @@ function MessagesTab({ team, currentUserId }) {
 
   if (activeChat) {
     return (
-      <div className="flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
+      <div className="flex flex-col" style={{ height: 'calc(100dvh - 200px)' }}>
         <ChatWindow chat={activeChat} currentUserId={currentUserId} onBack={() => setActiveChat(null)} />
       </div>
     );
@@ -1146,31 +1145,26 @@ function RapportTab({ team, tournaments }) {
         </div>
       ) : (
         <div className="rounded-xl border border-border overflow-hidden">
-          {/* header */}
-          <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-3 px-4 py-2.5 bg-muted/50 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-            <span>Joueur 1</span>
-            <span>Joueur 2</span>
-            <span>Statut</span>
-            <span />
-          </div>
           <div className="divide-y divide-border">
             {regs.map((r) => {
               const p1 = [r.p1_first_name, r.p1_last_name].filter(Boolean).join(' ') || '—';
-              const p2 = r.player2_id ? [r.p2_first_name, r.p2_last_name].filter(Boolean).join(' ') : '—';
+              const p2 = r.player2_id ? [r.p2_first_name, r.p2_last_name].filter(Boolean).join(' ') : null;
               return (
-                <div key={r.id} className="grid grid-cols-[1fr_1fr_auto_auto] gap-3 px-4 py-3 items-center">
-                  <span className="text-sm text-foreground truncate">{p1}</span>
-                  <span className="text-sm text-muted-foreground truncate">{p2}</span>
-                  <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full',
+                <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate font-medium">{p1}</p>
+                    {p2 && <p className="text-xs text-muted-foreground truncate">{p2}</p>}
+                  </div>
+                  <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0',
                     r.payment_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
                     {r.payment_status === 'paid' ? 'Payé' : 'En attente'}
                   </span>
-                  {r.payment_status !== 'paid' && (r.payment_method === 'cash' || r.payment_method === 'on_arrival') ? (
+                  {r.payment_status !== 'paid' && (r.payment_method === 'cash' || r.payment_method === 'on_arrival') && (
                     <button onClick={() => handleValidate(r.id)} disabled={validating === r.id}
-                      className="h-6 px-2 text-[10px] font-medium rounded-lg bg-green-600 text-white disabled:opacity-50 whitespace-nowrap">
+                      className="h-8 px-3 text-[11px] font-medium rounded-lg bg-green-600 text-white disabled:opacity-50 whitespace-nowrap shrink-0 min-w-[60px]">
                       {validating === r.id ? '…' : 'Valider'}
                     </button>
-                  ) : <span />}
+                  )}
                 </div>
               );
             })}
@@ -1294,12 +1288,12 @@ export default function TeamDashboard() {
           {TABS.map(({ id, label, Icon }) => (
             <button key={id} onClick={() => setActiveTab(id)}
               className={cn(
-                'flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors',
+                'flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-3 min-h-[44px] text-xs sm:text-sm font-medium border-b-2 transition-colors',
                 activeTab === id
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               )}>
-              <Icon className="h-4 w-4" />{label}
+              <Icon className="h-4 w-4 shrink-0" />{label}
             </button>
           ))}
         </div>
@@ -1427,8 +1421,6 @@ export default function TeamDashboard() {
           onOpenTournament={() => { setShowCreatePost(false); setShowCreateTnmt(true); }}
         />
       )}
-
-      <TournamentOrganizerBottomNav />
     </div>
   );
 }

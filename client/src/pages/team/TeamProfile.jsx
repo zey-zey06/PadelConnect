@@ -10,7 +10,6 @@ import {
   Settings, Handshake,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import TournamentOrganizerBottomNav from '@/components/TournamentOrganizerBottomNav';
 
 // ── Post detail modal ─────────────────────────────────────────────────────────
 function PostModal({ post, onClose, currentUserId, onLike }) {
@@ -275,7 +274,7 @@ export default function TeamProfile() {
       </div>
 
       {/* ── Cover photo ─────────────────────────────────────────── */}
-      <div className="relative w-full h-40 bg-gradient-to-br from-primary/30 to-primary/10 overflow-hidden">
+      <div className="relative w-full h-[130px] bg-gradient-to-br from-primary/30 to-primary/10 overflow-hidden">
         {team.banner_url && (
           <img src={team.banner_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
         )}
@@ -285,7 +284,7 @@ export default function TeamProfile() {
       {/* ── Profile section ─────────────────────────────────────── */}
       <div className="max-w-xl mx-auto px-4">
         {/* Logo overlapping cover */}
-        <div className="relative -mt-10 mb-3">
+        <div className="relative -mt-[42px] mb-3">
           <div className="w-[84px] h-[84px] rounded-full border-4 border-background overflow-hidden bg-primary/10 flex items-center justify-center shadow-lg">
             {team.logo_url
               ? <img src={team.logo_url} alt={team.name} className="w-full h-full object-cover" />
@@ -398,7 +397,6 @@ export default function TeamProfile() {
         />
       )}
 
-      {user?.role === 'tournament_organizer' && <TournamentOrganizerBottomNav />}
     </div>
   );
 }
